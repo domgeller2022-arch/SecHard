@@ -28,6 +28,16 @@ beforeAll(async () => {
       response.end();
       return;
     }
+    if (request.url === '/redirect-out') {
+      response.writeHead(302, { location: 'https://unapproved.example.invalid/good' });
+      response.end();
+      return;
+    }
+    if (request.url === '/redirect-loop') {
+      response.writeHead(302, { location: `${origin}/redirect-loop` });
+      response.end();
+      return;
+    }
     if (request.url === '/lies-about-length') {
       response.writeHead(200, { 'content-length': '10' });
       response.end(PAYLOAD);
@@ -113,6 +123,47 @@ describe('verified download', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('redirect_refused');
     expect(existsSync(join(scratch, 'tool', 'redirect.bin'))).toBe(false);
+  });
+
+  it('follows a redirect to an approved host when permitted', async () => {
+    const destination = join(scratch, 'tool', 'redirect-ok.bin');
+    const result = await downloadVerified({
+      url: `${origin}/redirect`,
+      expectedSha256: PAYLOAD_SHA,
+      destination,
+      policy: policyWith(origin),
+      followRedirects: true,
+      allowedHosts: ['127.0.0.1'],
+    });
+    expect(result.ok).toBe(true);
+    expect(existsSync(destination)).toBe(true);
+  });
+
+  it('refuses a redirect to a host nobody approved', async () => {
+    const result = await downloadVerified({
+      url: `${origin}/redirect-out`,
+      expectedSha256: PAYLOAD_SHA,
+      destination: join(scratch, 'tool', 'redirect-out.bin'),
+      policy: policyWith(origin),
+      followRedirects: true,
+      allowedHosts: ['127.0.0.1'],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('unapproved_host');
+  });
+
+  it('stops after the redirect limit', async () => {
+    const result = await downloadVerified({
+      url: `${origin}/redirect-loop`,
+      expectedSha256: PAYLOAD_SHA,
+      destination: join(scratch, 'tool', 'loop.bin'),
+      policy: policyWith(origin),
+      followRedirects: true,
+      allowedHosts: ['127.0.0.1'],
+      maxRedirects: 2,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('too_many_redirects');
   });
 
   it('refuses an origin that is not a reviewed registry', async () => {

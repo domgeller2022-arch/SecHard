@@ -28,7 +28,8 @@
     "test:integration": "vitest run tests/integration",
     "hardening": "node dist/cli.js",
     "generate:matrix": "npm run build --silent && node tools/generate-matrix.ts",
-    "build:fixtures": "node tools/build-fixtures.ts"
+    "build:fixtures": "node tools/build-fixtures.ts",
+    "fetch:tools": "node tools/fetch-tools.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

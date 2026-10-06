@@ -1,0 +1,14 @@
+# FIXTURE: a deliberately unsafe workflow. It is never registered as a real workflow: it lives under
+# tests/ and is scanned explicitly. It carries the classic dangerous-trigger shape.
+name: vulnerable-fixture
+on: pull_request_target
+permissions: write-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: greet
+        run: echo "${{ github.event.pull_request.title }}"

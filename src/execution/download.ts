@@ -21,7 +21,19 @@ export interface DownloadSpec {
   readonly policy: DependencyPolicy;
   readonly maxBytes?: number;
   readonly allowedHosts?: readonly string[];
+  /**
+   * Approved download origins for tool releases. When provided, this replaces the package-registry
+   * check: a scanner binary is a release asset, not a dependency, and it has its own reviewed list.
+   */
+  readonly approvedOrigins?: readonly string[];
+  /**
+   * Follow redirects, but only when every hop stays inside `allowedHosts`.
+   *
+   * Blanket redirect following would let a release page hand the download to an origin nobody
+   * approved. The digest still gates the content, but an unapproved origin is an unapproved origin.
+   */
   readonly followRedirects?: boolean;
+  readonly maxRedirects?: number;
   /** Injected for tests so the fetch can be exercised without the network. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -39,6 +51,7 @@ export type DownloadFailure =
   | 'too_large'
   | 'digest_mismatch'
   | 'redirect_refused'
+  | 'too_many_redirects'
   | 'write_error';
 
 const DEFAULT_MAX_BYTES = 512 * 1024 * 1024;
@@ -56,29 +69,65 @@ export async function downloadVerified(spec: DownloadSpec): Promise<DownloadOutc
   if (url.protocol !== 'https:' && !loopback) {
     return { ok: false, reason: 'insecure_origin', message: `${url.protocol}//${url.host} is not HTTPS` };
   }
-  if (!isRegistryApproved(spec.policy, `${url.protocol}//${url.host}/`)) {
+  const origin = `${url.protocol}//${url.host}`;
+  if (spec.approvedOrigins !== undefined) {
+    if (!spec.approvedOrigins.includes(origin)) {
+      return { ok: false, reason: 'unapproved_registry', message: `origin ${origin} is not in the approved download-origin list` };
+    }
+  } else if (!isRegistryApproved(spec.policy, `${origin}/`)) {
     return { ok: false, reason: 'unapproved_registry', message: `origin ${url.host} is not a reviewed registry` };
   }
-  if (spec.allowedHosts !== undefined && !spec.allowedHosts.includes(url.host)) {
-    return { ok: false, reason: 'unapproved_host', message: `host ${url.host} is not in the approved host list` };
+  // Hostnames, not host:port, so the same list works for the initial request and for redirects.
+  if (spec.allowedHosts !== undefined && !spec.allowedHosts.includes(url.hostname)) {
+    return { ok: false, reason: 'unapproved_host', message: `host ${url.hostname} is not in the approved host list` };
   }
 
   const maxBytes = spec.maxBytes ?? DEFAULT_MAX_BYTES;
   const doFetch = spec.fetchImpl ?? fetch;
 
+  let current = spec.url;
   let response: Response;
-  try {
-    response = await doFetch(spec.url, { redirect: spec.followRedirects === true ? 'follow' : 'manual' });
-  } catch (error) {
-    return { ok: false, reason: 'http_error', message: `request failed: ${(error as Error).message}` };
+  let hops = 0;
+  const maxRedirects = spec.maxRedirects ?? 3;
+
+  for (;;) {
+    try {
+      response = await doFetch(current, { redirect: 'manual' });
+    } catch (error) {
+      return { ok: false, reason: 'http_error', message: `request failed: ${(error as Error).message}` };
+    }
+
+    const isRedirect = response.status >= 300 && response.status < 400;
+    if (!isRedirect) break;
+
+    if (spec.followRedirects !== true) {
+      const location = response.headers.get('location') ?? 'unknown';
+      return { ok: false, reason: 'redirect_refused', message: `refused to follow redirect to ${location}` };
+    }
+
+    const location = response.headers.get('location');
+    if (location === null) {
+      return { ok: false, reason: 'redirect_refused', message: `redirect without a Location header from ${current}` };
+    }
+    if (hops >= maxRedirects) {
+      return { ok: false, reason: 'too_many_redirects', message: `more than ${maxRedirects} redirects starting at ${spec.url}` };
+    }
+
+    const next = new URL(location, current);
+    const nextLoopback = next.hostname === '127.0.0.1' || next.hostname === 'localhost' || next.hostname === '::1';
+    if (next.protocol !== 'https:' && !nextLoopback) {
+      return { ok: false, reason: 'insecure_origin', message: `redirect to ${next.protocol}//${next.host} is not HTTPS` };
+    }
+    if (spec.allowedHosts !== undefined && !spec.allowedHosts.includes(next.hostname)) {
+      return { ok: false, reason: 'unapproved_host', message: `redirect to unapproved host ${next.host}` };
+    }
+
+    current = next.toString();
+    hops += 1;
   }
 
-  if (spec.followRedirects !== true && response.status >= 300 && response.status < 400) {
-    const location = response.headers.get('location') ?? 'unknown';
-    return { ok: false, reason: 'redirect_refused', message: `refused to follow redirect to ${location}` };
-  }
   if (!response.ok) {
-    return { ok: false, reason: 'http_error', message: `HTTP ${response.status} from ${url.host}` };
+    return { ok: false, reason: 'http_error', message: `HTTP ${response.status} from ${new URL(current).host}` };
   }
 
   const declared = Number(response.headers.get('content-length') ?? '0');

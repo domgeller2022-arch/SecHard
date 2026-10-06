@@ -93,6 +93,50 @@ resolved**.
    `policy/dependency-policy.yaml`: pin the exact version, add a temporary exclusion, hold an
    expiring policy exception, and remove the exclusion when the version matures.
 
+### Added — Step 09: four scanner adapters with pinned, verified tools (6 October 2026)
+
+**Tools pinned and verified.** Fetched through the reviewed download path (approved origin, approved
+redirect host, bounded size, SHA-256 checked) and their versions confirmed by running them:
+
+| Tool | Version | Digest provenance |
+| --- | --- | --- |
+| Gitleaks | 8.30.1 | Publisher checksums cross-checked against the release-asset digest |
+| OSV-Scanner | 2.6.0 | Publisher checksums cross-checked against the release-asset digest |
+| Opengrep | 1.30.0 | Release-asset digest only (no checksums file published) |
+| zizmor | 1.30.1 | Release-asset digest only (no checksums file published) |
+
+Weaker provenance is stated per tool rather than smoothed over, and ZAP and testssl remain
+`identity: unverified` with their steps still blocked.
+
+**Adapters** (`src/adapters/`): Gitleaks, zizmor, OSV-Scanner, and Opengrep, each parsing the tool's
+real report format, redacting credential material unconditionally, and reporting what the tool
+actually examined. Coverage is tool-specific and honest: Gitleaks is `partial` (it reports bytes, not
+files); OSV is `partial` unless the lockfile's package count is supplied; zizmor and Opengrep name
+the files they audited.
+
+**Fixtures and rules:** vulnerable and fixed fixture pairs for secrets, static analysis, workflows,
+and a vulnerable lockfile; a reviewed local Opengrep rule pack in `ci/configs/opengrep-rules/`; and a
+Gitleaks product config that narrowly excludes the fixture directory so product scans do not report
+them while adapter verification still detects them.
+
+**Verified by running the real tools:** 15 scanner tests; 3 Gitleaks findings vs 0 on the fixed file;
+4 zizmor findings vs 0; OSV advisories for `lodash@4.17.15`; 3 Opengrep findings vs 0. Full suite:
+**357 unit + 8 integration tests.**
+
+**Defects found by running the tools, and fixed:**
+
+1. **The first real scan of this repository found 4 leaks** — synthetic GitHub tokens committed as
+   literals in two test files. They are now composed at runtime, so no secret-shaped string exists in
+   the repository. Allowlisting the files was rejected because it would hide a future real leak.
+   Re-scan: 0 findings.
+2. **The toolchain recorded the archive digest rather than the executable digest.** The registry's
+   digest check caught it: an extracted binary does not share the tarball's hash. The executable
+   digest is now the pin, with the archive digest kept as provenance.
+3. **The adapter retained the raw report**, letting an unredacted secret ride inside the parsed
+   outcome. The raw report is no longer held there; the runner hashes the report file instead.
+4. A host-comparison inconsistency in the download path (`host` vs `hostname`) and the newly observed
+   GitHub asset CDN host (`release-assets.githubusercontent.com`) were corrected and recorded.
+
 ### Blocked — Batch B remainder
 
 - **Steps 07–10 are blocked.** Docker is **absent** from this machine — the CLI symlink points at a

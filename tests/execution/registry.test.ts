@@ -28,13 +28,30 @@ const toolchainWithNode = (overrides: Partial<ExecutionIdentity> = {}): Toolchai
 });
 
 describe('an unidentified tool is not executed', () => {
-  it('refuses every scanner, because no identity has been verified yet', () => {
-    for (const name of ['gitleaks', 'opengrep', 'osv_scanner', 'zizmor', 'zap_baseline', 'testssl']) {
+  // The four scanners were pinned in Step 09 and resolve when their verified binaries are present.
+  // ZAP and testssl are Step 11 work and must still be refused.
+  it('refuses the tools that have no verified identity', () => {
+    for (const name of ['zap_baseline', 'testssl']) {
       const availability = resolveTool(name);
       expect(availability.available, name).toBe(false);
       if (!availability.available) {
         expect(availability.reason, name).toBe('identity_unverified');
         expect(availability.message, name).toMatch(/Step \d+/);
+      }
+    }
+  });
+
+  it('resolves the pinned scanners when their verified binaries are present', () => {
+    for (const name of ['gitleaks', 'opengrep', 'osv_scanner', 'zizmor']) {
+      const availability = resolveTool(name);
+      if (availability.available) {
+        // Digests are checked against the file on disk inside resolveTool, so reaching here means
+        // the binary matched its recorded digest.
+        expect(availability.identity.identity).toBe('verified');
+        expect(availability.identity.expectedVersion).toMatch(/^\d+\.\d+\.\d+/);
+      } else {
+        // A checkout without the downloaded tools must refuse rather than fall through.
+        expect(availability.reason).toBe('not_executable');
       }
     }
   });
@@ -45,15 +62,19 @@ describe('an unidentified tool is not executed', () => {
     if (!availability.available) expect(availability.reason).toBe('not_recorded');
   });
 
-  it('records every scanner as unverified in the toolchain file', () => {
+  it('records ZAP and testssl as unverified and the four scanners as verified', () => {
     const toolchain = loadToolchain(join(packageRoot(), 'policy', 'toolchain.yaml'));
-    const tools = Object.entries(toolchain.security_tools ?? {}).filter(([, entry]) => typeof entry === 'object');
-    expect(tools.length).toBeGreaterThan(0);
-    for (const [name, entry] of tools) {
-      expect(entry.identity, name).toBe('unverified');
+    expect(toolchain.security_tools?.zap_baseline?.identity).toBe('unverified');
+    expect(toolchain.security_tools?.testssl?.identity).toBe('unverified');
+    for (const name of ['gitleaks', 'opengrep', 'osv_scanner', 'zizmor']) {
+      expect(toolchain.security_tools?.[name]?.identity, name).toBe('verified');
+      const identity = toolchain.executables?.[name];
+      expect(identity, name).toBeDefined();
+      // Every recorded digest is a SHA-256 and every executable path is absolute.
+      expect(identity?.digest).toMatch(/^[0-9a-f]{64}$/);
+      expect(identity?.executable.startsWith('/')).toBe(true);
+      expect(identity?.expectedVersion).toMatch(/^\d+\.\d+\.\d+/);
     }
-    // No executable identity has been recorded, so nothing is runnable.
-    expect(toolchain.executables).toBeUndefined();
   });
 });
 
@@ -158,10 +179,11 @@ describe('running a resolved tool', () => {
     }
   });
 
-  it('refuses to run an unavailable tool and does not spawn it', async () => {
-    const result = await runTool('gitleaks', ['--version'], { cwd: packageRoot() });
+  it('refuses to run a tool with no verified identity and does not spawn it', async () => {
+    const result = await runTool('zap_baseline', ['--version'], { cwd: packageRoot() });
     expect(result.ran).toBe(false);
     expect(result.outcome).toBeUndefined();
+    if (!result.availability.available) expect(result.availability.reason).toBe('identity_unverified');
   });
 
   it('does not pass the parent environment through', async () => {

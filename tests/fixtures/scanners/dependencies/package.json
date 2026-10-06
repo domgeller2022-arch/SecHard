@@ -1,0 +1,9 @@
+{
+  "name": "dependency-scan-fixture",
+  "version": "1.0.0",
+  "private": true,
+  "comment": "FIXTURE: pins a dependency version with known advisories so a dependency scan has something to find.",
+  "dependencies": {
+    "lodash": "4.17.15"
+  }
+}

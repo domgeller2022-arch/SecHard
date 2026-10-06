@@ -1,0 +1,43 @@
+# Reviewed local rule pack for the reference stack.
+#
+# Rules are pinned here rather than fetched from a registry at scan time: a rule pack that changes
+# under the runner is an unreviewed input. Local, reviewed rules also make the fixture coverage
+# meaningful, because each rule below has a matching vulnerable and fixed fixture.
+#
+# Scope limits, stated rather than implied: these rules are syntactic. They do not perform
+# inter-file analysis, and they do not establish authorization. They are review candidates, and a
+# match is a finding to triage, not proof of exploitability.
+rules:
+  - id: hardening.no-eval
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      eval() executes its argument as code. If any part of that value can be influenced by a user,
+      it is a code-execution path. Use a parser (for example JSON.parse) instead.
+    metadata:
+      hardening_controls: [WEB-01, CODE-01]
+    pattern: eval(...)
+
+  - id: hardening.child-process-exec-interpolation
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      A child process started with exec() receives a shell command string. Building that string
+      from a value lets the value become shell syntax. Use execFile with an argument array.
+    metadata:
+      hardening_controls: [WEB-01, CODE-01, ABUSE-01]
+    patterns:
+      - pattern: $EXEC(...)
+      - metavariable-regex:
+          metavariable: $EXEC
+          regex: ^(exec|execSync)$
+
+  - id: hardening.dom-innerhtml-assignment
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: >-
+      Assigning to innerHTML parses the value as HTML. Assigning user-influenced text this way is a
+      cross-site scripting path. Use textContent, or sanitize with a reviewed library.
+    metadata:
+      hardening_controls: [WEB-01, CODE-01]
+    pattern: $ELEMENT.innerHTML = $VALUE

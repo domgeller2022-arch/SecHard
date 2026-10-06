@@ -34,6 +34,8 @@ function walk(dir) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (IGNORED_DIRS.has(entry)) continue;
+    // Provisioning output (downloaded tools) is not source and is gitignored.
+    if (entry === 'bin' && dir === join(ROOT, 'tools')) continue;
     if (statSync(full).isDirectory()) {
       walk(full);
       continue;

@@ -1,0 +1,18 @@
+# FIXTURE: the safe version of the workflow above. No privileged trigger, no unpinned action, no
+# interpolation of untrusted context into a shell, read-only token, and credentials not persisted
+# into the workspace.
+name: fixed-fixture
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          persist-credentials: false
+      - name: greet
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$TITLE"

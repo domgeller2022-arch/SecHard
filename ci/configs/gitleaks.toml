@@ -1,0 +1,15 @@
+# Gitleaks configuration for repository and pull-request scans.
+#
+# The deliberately vulnerable fixtures under tests/fixtures are excluded here so a normal product
+# scan does not report them as live leaks. They are scanned explicitly by the adapter verification,
+# which does not use this file, so the exclusions narrow the product scan without hiding the fixture
+# from the check that is supposed to detect it.
+#
+# The exclusion is deliberately narrow: it names the fixture directory, not a pattern that could
+# swallow real source.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Deliberately vulnerable fixture material, reviewed and non-functional"
+paths = ['''tests/fixtures/scanners/''', '''tools/bin/''']

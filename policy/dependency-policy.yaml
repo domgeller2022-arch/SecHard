@@ -55,6 +55,33 @@ urgent_fix_route:
   requires_approval: true
   max_exception_days: 30
 
+# Tool release downloads are separate from package registries. A scanner binary is fetched from a
+# release asset rather than resolved as a dependency, so it has its own approved origin list and its
+# own digest requirement.
+tool_downloads:
+  allowed_origins:
+    - origin: https://github.com
+      reviewed_at: "2026-10-06T00:00:00Z"
+      notes: >-
+        Serves the reviewed release assets of the pinned scanners. Asset downloads redirect to a
+        GitHub asset host; both `release-assets.githubusercontent.com` (observed 2026-10-06) and
+        `objects.githubusercontent.com` are listed as allowed redirect hosts.
+  allowed_redirect_hosts:
+    - github.com
+    - objects.githubusercontent.com
+    - release-assets.githubusercontent.com
+  max_redirects: 3
+  require_digest: true
+  digest_sources:
+    - github_release_asset_digest
+    - publisher_checksums_file
+  notes: >-
+    Prefer a publisher-published checksums file and cross-check it against the release asset digest
+    reported by the hosting API. Where no checksums file exists, the release asset digest is the
+    recorded source and that weaker provenance is stated rather than implied away. A publisher
+    signature (cosign .sig/.cert) is present for some assets and is not yet verified here; that
+    verification is future work, recorded as such.
+
 # Provisioning is separate from checking. `hardening check` never installs anything as a side effect
 # of a missing tool; a missing tool is reported as unavailable.
 provisioning:

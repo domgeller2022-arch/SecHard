@@ -579,6 +579,76 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
 - **Next step:** Step 09's scanner identity work is now unblocked; Steps 07–10 remain blocked on the
   container runtime.
 
+### Step 09 — Implement the four scanner adapters
+
+- **State:** `verified` for the adapter work; the app-integrated scan is `blocked` on Step 08.
+- **Files changed:** `src/adapters/{types,gitleaks,zizmor,osv,opengrep,index}.ts`,
+  `ci/configs/gitleaks.toml`, `ci/configs/opengrep-rules/hardening-core.yaml`,
+  `tests/scanners/adapters.test.ts`, `tests/fixtures/scanners/**`, `policy/toolchain.yaml`,
+  `policy/dependency-policy.yaml`, `tools/fetch-tools.mjs`, `src/execution/download.ts`.
+- **Tools pinned with verified identities** (downloaded through the reviewed path: approved origin,
+  approved redirect host, bounded size, SHA-256 verified):
+
+  | Tool | Version | Provenance |
+  | --- | --- | --- |
+  | Gitleaks | 8.30.1 | Publisher checksums file **cross-checked** against the hosting API's release-asset digest |
+  | OSV-Scanner | 2.6.0 | Publisher checksums file **cross-checked** against the release-asset digest |
+  | Opengrep | 1.30.0 | Release-asset digest only (no checksums file published) |
+  | zizmor | 1.30.1 | Release-asset digest only (no checksums file published) |
+
+  Versions were confirmed by **running each binary**, not by reading a release page.
+- **Actual checks run, with results:**
+  - `npx vitest run tests/scanners` → **15 tests pass**, running the real binaries.
+  - Gitleaks on the vulnerable fixture → 3 findings (`github-pat`, `slack-bot-token`,
+    `private-key`); on the fixed fixture → 0.
+  - zizmor on the vulnerable workflow → 4 findings (`dangerous-triggers`, `unpinned-uses`,
+    `template-injection`, `artipacked`); on the fixed workflow → 0, exit 0.
+  - OSV-Scanner on a lockfile pinning `lodash@4.17.15` → advisories found, one finding per advisory
+    group with aliases collapsed and CVSS-derived severity.
+  - Opengrep with the reviewed local rule pack → 3 findings on the vulnerable fixture
+    (`no-eval` high, `child-process-exec-interpolation` high, `dom-innerhtml-assignment` medium);
+    on the fixed fixture → 0.
+  - **Master repository scanned for real**: Gitleaks over the repo with the product config → 0
+    findings; Opengrep over `src` and `ci` (32 files) → 0 findings; zizmor → nothing to scan, because
+    `.github/workflows` does not exist until Step 13. That gap is recorded rather than papered over.
+  - Full suite: **357 unit + 8 integration tests, all passing** on Node 24.21.0 with pnpm.
+- **Significant findings from running the tools, each fixed rather than worked around:**
+  1. **The first real scan of this repository found 4 leaks** — 3 synthetic GitHub tokens in
+     `tests/scanners/adapters.test.ts` and 1 in `tests/cli/cli.test.ts`. The synthetic values are now
+     **composed at runtime** instead of committed as literals, so no secret-shaped string exists in
+     the repository. Allowlisting the files was rejected: that would hide a future real leak in them.
+     Re-scan: 0 findings.
+  2. **The toolchain recorded the archive digest, not the executable digest.** The registry's own
+     digest check caught it: gitleaks and zizmor are shipped as archives, and the extracted binary has
+     a different SHA-256 from the tarball. The executable digest is now the pin, with the archive
+     digest retained separately as provenance.
+  3. **The adapter initially retained the raw report**, which meant an unredacted secret rode along
+     inside the parsed outcome. Found by a test that serialises the outcome. The raw report is no
+     longer held on the outcome at all; the runner hashes the report file instead.
+  4. `ignore-scripts` was believed to be the install-script control; it is not (see the Step 06
+     resolution above).
+- **Coverage honesty, per tool:**
+  - Gitleaks → **partial**. It reports bytes scanned and leak count, not the files examined, so a
+    file-level coverage claim cannot be supported.
+  - zizmor → complete when it names the audited files (it does).
+  - Opengrep → complete when its reported scanned-file list matches the intended scope.
+  - OSV-Scanner → **partial** unless the caller supplies the lockfile's package count, because
+    "some packages checked" is not "the lockfile was covered".
+- **Limitations and unresolved findings:**
+  - **No app-integrated scan** (needs Step 08).
+  - **No history scan yet.** Gitleaks' `git` mode over full history is a recipe for Step 13's CI and
+    is not yet exercised; shallow clones would limit it, and that limitation must be recorded where it
+    is used.
+  - **Rules are syntactic.** Opengrep's local rules do not perform cross-file analysis, and the
+    adapter says so. `--taint-intrafile` was not used.
+  - **Opengrep's cosign `.sig`/`.cert` were not verified**; that needs cosign and is future work.
+  - **No image or rule-pack digests beyond the local rule file**; the local pack is tracked in git, so
+    its identity is the commit.
+  - **Advisory data provenance is not yet recorded by the runner.** The adapter parses what it is
+    given; `advisory_mode` and `advisory_provenance` are set by the runner when OSV is wired into a
+    recipe. Until then, only the tests exercise them.
+- **Next step:** Steps 07–08 for the application, or Step 10 once they exist. Both blocked on E3.
+
 ### Steps 07–10 — blocked
 
 - **Step 07 (reference application):** `blocked` — requires Docker; absent (E3).

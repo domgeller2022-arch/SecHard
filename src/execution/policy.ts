@@ -69,6 +69,14 @@ export interface DependencyPolicy {
     readonly isolation_is_operator_responsibility: boolean;
     readonly notes?: string;
   };
+  readonly tool_downloads?: {
+    readonly allowed_origins: readonly { readonly origin: string; readonly reviewed_at: string; readonly notes?: string }[];
+    readonly allowed_redirect_hosts?: readonly string[];
+    readonly max_redirects?: number;
+    readonly require_digest?: boolean;
+    readonly digest_sources?: readonly string[];
+    readonly notes?: string;
+  };
 }
 
 export interface PolicyLoadResult {
@@ -163,7 +171,20 @@ export function checkDependencyPolicy(
     }
   }
 
+  for (const origin of policy.tool_downloads?.allowed_origins ?? []) {
+    if (!origin.origin.startsWith('https://')) {
+      issues.push(issue('semantic.missing_field', `tool download origin '${origin.origin}' is not HTTPS`, file));
+    }
+    if (Date.parse(origin.reviewed_at) > now.getTime()) {
+      issues.push(issue('semantic.invalid_interval', `tool download origin '${origin.origin}' records a review date in the future`, file));
+    }
+  }
+
   return issues;
+}
+
+export function isToolOriginApproved(policy: DependencyPolicy, origin: string): boolean {
+  return (policy.tool_downloads?.allowed_origins ?? []).some((entry) => entry.origin === origin);
 }
 
 export function isRegistryApproved(policy: DependencyPolicy, url: string): boolean {
