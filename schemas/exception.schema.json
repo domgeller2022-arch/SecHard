@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/exception.schema.json",
+  "title": "Exception record",
+  "description": "A narrow, time-bound acceptance of a deviation. An exception produces a visible waiver; it never converts a failure into a pass.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "scope",
+    "reason",
+    "risk",
+    "compensating_measures",
+    "owner",
+    "approver",
+    "expires_at",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": "exception/v1" },
+    "id": { "$ref": "#/$defs/exceptionId" },
+    "status": { "enum": ["active", "expired", "revoked", "pending_approval"] },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Exact scope. `check_id` or `finding_id` pins a single item; `control` alone is broader than necessary and should be justified. An empty scope is a blanket waiver and is rejected here.",
+      "minProperties": 1,
+      "properties": {
+        "control": { "type": "string", "pattern": "^(CTX|GOV|AGT|DEP|SEC|CI|CODE|QUAL|AUTH|AUTHZ|DATA|WEB|ABUSE|BIZ|DEPLOY|OPS|PRIV|REL|EXC)-[0-9]{2}$" },
+        "check_id": { "type": "string", "maxLength": 200 },
+        "finding_id": { "type": "string", "maxLength": 200 },
+        "rule_id": { "type": "string", "maxLength": 200 },
+        "profile": { "type": "string", "maxLength": 100 },
+        "environment": { "enum": ["local", "preview", "staging", "production"] },
+        "source_ref": { "type": "string", "maxLength": 100 }
+      }
+    },
+    "reason": { "type": "string", "minLength": 10, "maxLength": 4000 },
+    "risk": { "type": "string", "minLength": 10, "maxLength": 4000 },
+    "compensating_measures": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 },
+      "maxItems": 32
+    },
+    "owner": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "approver": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "self_review": {
+      "type": "boolean",
+      "description": "True when the owner also approved this exception. Self-review is not independent review.",
+      "default": false
+    },
+    "expires_at": { "$ref": "#/$defs/timestamp" },
+    "remediation_ref": { "type": "string", "maxLength": 1024 },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "revoked_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "exceptionId": { "type": "string", "pattern": "^EXC-[0-9]{4,}$", "maxLength": 32 },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

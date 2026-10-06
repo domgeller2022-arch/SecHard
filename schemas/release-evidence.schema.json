@@ -1,0 +1,218 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/release-evidence.schema.json",
+  "title": "Release evidence",
+  "description": "The record that connects assessed source, pinned policy, actual checks, and the deliverable. Assembled from the checking system; an agent's prose assertion cannot replace an execution record.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "application",
+    "stage",
+    "environment",
+    "generated_at",
+    "source",
+    "policy",
+    "expected_checks",
+    "results",
+    "manual_verification",
+    "outstanding",
+    "decision"
+  ],
+  "properties": {
+    "schema_version": { "const": "release-evidence/v1" },
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profiles"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "name": { "type": "string", "maxLength": 200 },
+        "profiles": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "minItems": 1, "maxItems": 16 },
+        "manifest_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "stage": { "enum": ["pr", "release", "operations", "adoption", "local", "build", "staging", "deployment"] },
+    "environment": { "enum": ["local", "preview", "staging", "production"] },
+    "generated_at": { "$ref": "#/$defs/timestamp" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "clean"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "clean": {
+          "type": "boolean",
+          "description": "Local dirty runs may be useful feedback. Release evidence requires the defined clean source/build identity."
+        },
+        "build_identity": { "type": "string", "maxLength": 512 },
+        "deliverable_digest": {
+          "type": "string",
+          "maxLength": 256,
+          "description": "Only when the deployment model actually provides one. Never fabricated."
+        },
+        "deploy_identity": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit"],
+      "properties": {
+        "repository": { "type": "string", "maxLength": 512 },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "control_catalogue_digest": { "$ref": "#/$defs/sha256" },
+        "gate_policy_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "expected_checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "control_ids", "required"],
+        "properties": {
+          "check_id": { "type": "string", "maxLength": 200 },
+          "control_ids": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "maxItems": 64 },
+          "required": { "type": "boolean" },
+          "method": { "type": "string", "maxLength": 100 },
+          "recipe": { "type": "string", "maxLength": 200 }
+        }
+      },
+      "maxItems": 2000
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "outcome", "coverage", "evidence_origin"],
+        "properties": {
+          "check_id": { "type": "string", "maxLength": 200 },
+          "outcome": { "enum": ["pending", "pass", "fail", "error", "skipped", "unsupported", "stale", "not_applicable", "waived"] },
+          "coverage": { "enum": ["complete", "partial", "unknown"] },
+          "evidence_origin": { "enum": ["actual_tool", "manual_attestation", "fixture"] },
+          "tool_version": { "type": "string", "maxLength": 100 },
+          "scope_observed": { "type": "integer", "minimum": 0 },
+          "scope_expected": { "type": "integer", "minimum": 0 },
+          "report_digest": { "$ref": "#/$defs/sha256" },
+          "finished_at": { "$ref": "#/$defs/timestamp" },
+          "reasons": { "type": "array", "items": { "type": "string", "maxLength": 512 }, "maxItems": 32 }
+        }
+      },
+      "maxItems": 2000
+    },
+    "control_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["control", "applicability", "outcome"],
+        "properties": {
+          "control": { "type": "string", "maxLength": 32 },
+          "definition_version": { "type": "integer", "minimum": 1 },
+          "applicability": { "enum": ["applicable", "not_applicable", "unknown"] },
+          "outcome": { "enum": ["satisfied", "unmet", "waived", "not_applicable", "unknown"] },
+          "coverage": { "enum": ["complete", "partial", "unknown"] },
+          "required_checks": { "type": "array", "items": { "type": "string", "maxLength": 200 }, "maxItems": 64 },
+          "satisfied_checks": { "type": "array", "items": { "type": "string", "maxLength": 200 }, "maxItems": 64 },
+          "reasons": { "type": "array", "items": { "type": "string", "maxLength": 512 }, "maxItems": 64 },
+          "waiver_refs": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "maxItems": 32 }
+        }
+      },
+      "maxItems": 512
+    },
+    "manual_verification": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "control", "operator", "observed_at", "outcome"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 64 },
+          "control": { "type": "string", "maxLength": 32 },
+          "operator": { "type": "string", "maxLength": 200 },
+          "observed_at": { "$ref": "#/$defs/timestamp" },
+          "expires_at": { "$ref": "#/$defs/timestamp" },
+          "outcome": { "enum": ["pass", "fail", "unsupported", "partial"] },
+          "scope_fingerprint": { "type": "string", "maxLength": 256 },
+          "fresh": { "type": "boolean" }
+        }
+      },
+      "maxItems": 512
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "control", "status", "expires_at"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 32 },
+          "control": { "type": "string", "maxLength": 32 },
+          "scope": { "type": "string", "maxLength": 1024 },
+          "status": { "enum": ["active", "expired", "revoked", "pending_approval"] },
+          "approver": { "type": "string", "maxLength": 200 },
+          "self_review": { "type": "boolean" },
+          "expires_at": { "$ref": "#/$defs/timestamp" }
+        }
+      },
+      "maxItems": 256
+    },
+    "outstanding": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "severity", "summary"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 200 },
+          "severity": { "enum": ["critical", "high", "medium", "low", "info", "unknown"] },
+          "summary": { "type": "string", "maxLength": 4000 },
+          "control_ids": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "maxItems": 64 },
+          "exception_ref": { "type": "string", "maxLength": 32 },
+          "first_seen": { "$ref": "#/$defs/timestamp" }
+        }
+      },
+      "maxItems": 5000
+    },
+    "unsupported_scope": {
+      "type": "array",
+      "description": "Coverage this release does not have. Present so a gap is never mistaken for a pass.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["area", "reason"],
+        "properties": {
+          "area": { "type": "string", "maxLength": 200 },
+          "reason": { "type": "string", "maxLength": 2000 },
+          "control_ids": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "maxItems": 64 }
+        }
+      },
+      "maxItems": 256
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "reasons"],
+      "properties": {
+        "outcome": { "enum": ["satisfied", "blocked"] },
+        "reasons": { "type": "array", "items": { "type": "string", "maxLength": 512 }, "minItems": 0, "maxItems": 256 },
+        "blocking_reason_codes": { "type": "array", "items": { "type": "string", "maxLength": 128 }, "maxItems": 256 },
+        "kit_readiness": {
+          "enum": ["verified", "pending", "not_applicable"],
+          "description": "Repository and verification facilities. Separate from application production readiness."
+        },
+        "application_production_readiness": {
+          "enum": ["verified", "pending", "not_applicable"],
+          "description": "Never implied by a passing kit test."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

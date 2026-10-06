@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/manual-evidence.schema.json",
+  "title": "Manual evidence record",
+  "description": "An explicit operator attestation. This records what a person claimed to have observed. It does not automatically attest that the observation happened.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "control",
+    "recipe",
+    "operator",
+    "observed_at",
+    "target",
+    "scope_fingerprint",
+    "outcome",
+    "expires_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "manual-evidence/v1" },
+    "id": { "$ref": "#/$defs/recordId" },
+    "control": { "type": "string", "pattern": "^(CTX|GOV|AGT|DEP|SEC|CI|CODE|QUAL|AUTH|AUTHZ|DATA|WEB|ABUSE|BIZ|DEPLOY|OPS|PRIV|REL|EXC)-[0-9]{2}$" },
+    "recipe": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "recipe_version": { "type": "string", "maxLength": 32 },
+    "operator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identity"],
+      "properties": {
+        "identity": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "role": { "type": "string", "maxLength": 200 },
+        "independent_of_owner": { "type": "boolean" }
+      }
+    },
+    "observed_at": { "$ref": "#/$defs/timestamp" },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["environment"],
+      "properties": {
+        "environment": { "enum": ["local", "preview", "staging", "production"] },
+        "identifier": { "type": "string", "maxLength": 2048 },
+        "configuration_fingerprint": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "scope_fingerprint": {
+      "description": "What was actually examined. Reuse across unrelated source changes is only permitted while this scope remains valid.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "observed_configuration": { "type": "string", "maxLength": 8000 },
+    "supporting_refs": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 2048 },
+      "maxItems": 128
+    },
+    "supporting_digests": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+      "maxItems": 128
+    },
+    "outcome": { "enum": ["pass", "fail", "unsupported", "partial"] },
+    "notes": { "type": "string", "maxLength": 8000 },
+    "expires_at": { "$ref": "#/$defs/timestamp" },
+    "reassessment_trigger": { "type": "string", "maxLength": 500 },
+    "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  },
+  "$defs": {
+    "recordId": { "type": "string", "pattern": "^ME-[A-Za-z0-9_-]{1,64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

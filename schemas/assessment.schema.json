@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/assessment.schema.json",
+  "title": "Assessment record",
+  "description": "An application's claim about how it implements a control. A stored `status: pass` is a claim, never proof: the evaluator derives outcomes from check results and valid manual evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "control", "definition_version", "applicability", "owner", "status", "assessed_at"],
+  "properties": {
+    "schema_version": { "const": "assessment/v1" },
+    "control": { "type": "string", "pattern": "^(CTX|GOV|AGT|DEP|SEC|CI|CODE|QUAL|AUTH|AUTHZ|DATA|WEB|ABUSE|BIZ|DEPLOY|OPS|PRIV|REL|EXC)-[0-9]{2}$" },
+    "definition_version": { "type": "integer", "minimum": 1 },
+    "applicability": { "enum": ["applicable", "not_applicable", "unknown"] },
+    "applicability_reason": { "type": "string", "maxLength": 2000 },
+    "implementation_refs": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 1024 },
+      "maxItems": 256
+    },
+    "owner": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": {
+      "enum": ["pending", "pass", "fail", "error", "skipped", "unsupported", "stale", "not_applicable", "waived"]
+    },
+    "status_reason": { "type": "string", "maxLength": 2000 },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 1024 },
+      "maxItems": 256
+    },
+    "exception_refs": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 32 },
+    "assessed_at": { "$ref": "#/$defs/timestamp" },
+    "next_review_at": { "$ref": "#/$defs/timestamp" },
+    "reassessment_triggers": { "type": "array", "items": { "type": "string", "maxLength": 500 }, "maxItems": 32 },
+    "notes": { "type": "string", "maxLength": 4000 }
+  },
+  "allOf": [
+    {
+      "description": "not_applicable requires a reason tied to the manifest.",
+      "if": { "properties": { "applicability": { "const": "not_applicable" } }, "required": ["applicability"] },
+      "then": { "required": ["applicability_reason"] }
+    }
+  ],
+  "$defs": {
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

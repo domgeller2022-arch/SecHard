@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/execution-plan.schema.json",
+  "title": "Execution plan",
+  "description": "The expected check list, derived before anything executes. An altered plan cannot remove a required check: the plan's identity is recomputed and compared with the policy it claims to implement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_id",
+    "stage",
+    "environment",
+    "created_at",
+    "policy_identity",
+    "inputs",
+    "expected_checks"
+  ],
+  "properties": {
+    "schema_version": { "const": "execution-plan/v1" },
+    "plan_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "stage": { "enum": ["adoption", "local", "pr", "build", "release", "staging", "deployment", "operations"] },
+    "environment": { "enum": ["local", "preview", "staging", "production"] },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "policy_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "control_catalogue_digest", "gate_policy_digest", "profile_digests"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "control_catalogue_digest": { "$ref": "#/$defs/sha256" },
+        "gate_policy_digest": { "$ref": "#/$defs/sha256" },
+        "profile_digests": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app_id", "source_commit", "profiles"],
+      "properties": {
+        "app_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "app_manifest_digest": { "$ref": "#/$defs/sha256" },
+        "assessment_digest": { "$ref": "#/$defs/sha256" },
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "source_dirty": { "type": "boolean" },
+        "profiles": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "minItems": 1, "maxItems": 16 },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "scheme", "host"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "maxLength": 100 },
+              "scheme": { "enum": ["http", "https"] },
+              "host": { "type": "string", "minLength": 1, "maxLength": 255 },
+              "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "environment": { "enum": ["local", "preview", "staging", "production"] },
+              "routes": { "type": "array", "items": { "type": "string", "maxLength": 1024 }, "maxItems": 2000 },
+              "approved_redirect_hosts": { "type": "array", "items": { "type": "string", "maxLength": 255 }, "maxItems": 64 }
+            }
+          },
+          "maxItems": 64
+        }
+      }
+    },
+    "expected_checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "check_id",
+          "control_ids",
+          "method",
+          "recipe",
+          "recipe_version",
+          "stage",
+          "environment",
+          "required",
+          "identity",
+          "expected_scope",
+          "evidence_freshness"
+        ],
+        "properties": {
+          "check_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "control_ids": {
+            "type": "array",
+            "items": { "type": "string", "maxLength": 32 },
+            "minItems": 1,
+            "maxItems": 64
+          },
+          "method": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "recipe": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "recipe_version": { "type": "string", "maxLength": 32 },
+          "stage": { "enum": ["adoption", "local", "pr", "build", "release", "staging", "deployment", "operations"] },
+          "environment": { "enum": ["local", "preview", "staging", "production"] },
+          "required": { "type": "boolean" },
+          "optional": {
+            "description": "A check must be declared optional before it runs. A failed required check is never downgraded afterwards.",
+            "type": "boolean"
+          },
+          "identity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_commit", "policy_commit"],
+            "properties": {
+              "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "policy_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+              "configuration_digest": { "$ref": "#/$defs/sha256" },
+              "target": { "type": "string", "maxLength": 2048 }
+            }
+          },
+          "expected_scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "What the recipe must actually examine. Zero findings mean nothing without this.",
+            "properties": {
+              "min_files": { "type": "integer", "minimum": 0 },
+              "min_languages": { "type": "array", "items": { "type": "string", "maxLength": 50 }, "maxItems": 64 },
+              "min_routes": { "type": "integer", "minimum": 0 },
+              "require_lockfile": { "type": "boolean" },
+              "description": { "type": "string", "maxLength": 2000 }
+            }
+          },
+          "execution": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Permitted executable and arguments, or a manual recipe. Arguments are an array; no shell interpretation is ever performed.",
+            "properties": {
+              "mode": { "enum": ["internal", "process", "manual"] },
+              "executable": { "type": "string", "maxLength": 256 },
+              "arguments": { "type": "array", "items": { "type": "string", "maxLength": 2048 }, "maxItems": 256 },
+              "env_allowlist": { "type": "array", "items": { "type": "string", "maxLength": 128 }, "maxItems": 64 },
+              "working_directory": { "type": "string", "maxLength": 2048 },
+              "timeout_ms": { "type": "integer", "minimum": 100, "maximum": 3600000 },
+              "max_output_bytes": { "type": "integer", "minimum": 1024, "maximum": 1073741824 },
+              "requires_isolation": {
+                "type": "boolean",
+                "description": "The operator must supply an approved disposable or isolated environment. Subprocess spawning is not isolation."
+              }
+            }
+          },
+          "required_coverage": { "enum": ["complete", "partial", "unknown"] },
+          "evidence_freshness": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "advisory_max_age_hours": { "type": "integer", "minimum": 1, "maximum": 8760 },
+              "manual_max_age_days": { "type": "integer", "minimum": 1, "maximum": 3650 }
+            }
+          }
+        }
+      },
+      "maxItems": 2000
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}

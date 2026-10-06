@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/app.schema.json",
+  "title": "Application manifest",
+  "description": "An application's declared features, interfaces, environments, and policy pin. Feature values are explicit: a missing feature is `unknown`, never silently false.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "name",
+    "stack",
+    "features",
+    "environments",
+    "profiles",
+    "policy_lock",
+    "maintainer",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "app/v1" },
+    "id": { "$ref": "#/$defs/identifier" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string", "maxLength": 2000 },
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "runtime_versions"],
+      "properties": {
+        "kind": { "enum": ["nextjs-supabase", "other"] },
+        "runtime_versions": {
+          "type": "object",
+          "description": "Declared runtime and framework versions with their support status. An unknown support status is `unknown`, not `supported`.",
+          "additionalProperties": false,
+          "properties": {
+            "node": { "$ref": "#/$defs/declaredVersion" },
+            "nextjs": { "$ref": "#/$defs/declaredVersion" },
+            "supabase": { "$ref": "#/$defs/declaredVersion" },
+            "postgres": { "$ref": "#/$defs/declaredVersion" }
+          }
+        },
+        "package_manager": { "$ref": "#/$defs/declaredVersion" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Explicit feature declarations. Every key below should be present. Omission means `unknown`.",
+      "additionalProperties": false,
+      "properties": {
+        "accounts": { "$ref": "#/$defs/feature" },
+        "private_resources": { "$ref": "#/$defs/feature" },
+        "roles": { "$ref": "#/$defs/feature" },
+        "tenancy": { "$ref": "#/$defs/feature" },
+        "recovery": { "$ref": "#/$defs/feature" },
+        "payments": { "$ref": "#/$defs/feature" },
+        "webhooks": { "$ref": "#/$defs/feature" },
+        "uploads": { "$ref": "#/$defs/feature" },
+        "outbound_requests": { "$ref": "#/$defs/feature" },
+        "personal_data": { "$ref": "#/$defs/feature" },
+        "runtime_ai": { "$ref": "#/$defs/feature" },
+        "hosting": { "$ref": "#/$defs/feature" },
+        "interfaces": { "$ref": "#/$defs/feature" },
+        "environments": { "$ref": "#/$defs/feature" },
+        "persistent_storage": { "$ref": "#/$defs/feature" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "enum": ["public", "internal", "personal", "sensitive", "regulated", "unknown"]
+        },
+        "categories": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 64 },
+        "jurisdictions": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 64 }
+      }
+    },
+    "exposed_interfaces": {
+      "type": "array",
+      "description": "Every externally reachable entry point. An empty list on an internet-facing app is a coverage gap, not evidence of no interfaces.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "path", "auth_required"],
+        "properties": {
+          "kind": {
+            "enum": ["page", "route_handler", "server_action", "webhook", "graphql", "data_api", "websocket", "admin"]
+          },
+          "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+          "auth_required": { "type": "boolean" },
+          "environment": { "type": "string", "maxLength": 100 }
+        }
+      },
+      "maxItems": 2000
+    },
+    "environments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "kind": { "enum": ["local", "preview", "staging", "production"] },
+          "internet_facing": { "type": "boolean" },
+          "separated": { "type": "boolean" }
+        }
+      },
+      "maxItems": 64
+    },
+    "profiles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "maxItems": 16
+    },
+    "policy_lock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "policy_digest"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "commit": { "$ref": "#/$defs/commit" },
+        "policy_digest": { "$ref": "#/$defs/sha256" },
+        "locked_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "maintainer": { "$ref": "#/$defs/identity" },
+    "threat_model_ref": { "type": "string", "maxLength": 1024 },
+    "supported_versions": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 200 },
+      "maxItems": 128
+    },
+    "updated_at": { "$ref": "#/$defs/timestamp" },
+    "extensions": { "type": "object" }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "contact": { "type": "string", "maxLength": 320 }
+      }
+    },
+    "declaredVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "support"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "support": { "enum": ["supported", "planned", "deprecated", "unknown"] },
+        "notes": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["enabled", "disabled", "unknown"] },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "evidence_refs": { "type": "array", "items": { "type": "string", "maxLength": 1024 }, "maxItems": 64 }
+      }
+    }
+  }
+}

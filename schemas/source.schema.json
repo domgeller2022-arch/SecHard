@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/source.schema.json",
+  "title": "Upstream source record",
+  "description": "One reviewed third-party component this repository links, invokes, copies, adapts, or redistributes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "canonical_url",
+    "component",
+    "licence",
+    "use_type",
+    "reviewed_release",
+    "support_status",
+    "last_reviewed"
+  ],
+  "properties": {
+    "schema_version": { "const": "source/v1" },
+    "id": { "$ref": "#/$defs/identifier" },
+    "canonical_url": { "type": "string", "format": "uri", "maxLength": 2048 },
+    "component": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "licence": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "use_type": {
+      "description": "How this repository uses the component. Determines whether a notice must be distributed with reused material.",
+      "enum": ["linking", "invoking", "copying", "adapting", "redistributing"]
+    },
+    "attribution": { "type": "string", "maxLength": 2000 },
+    "notice_file": { "type": "string", "maxLength": 512 },
+    "reviewed_release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["tag", "commit", "digest", "version"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "verified_at": { "$ref": "#/$defs/timestamp" },
+        "integrity_method": {
+          "enum": ["registry_dist_integrity", "sha256_digest", "image_digest", "signature", "none"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "digest" } }, "required": ["kind"] },
+          "then": { "required": ["value"] }
+        }
+      ]
+    },
+    "support_status": {
+      "description": "`planned` is a selection intent and is not a verified selection.",
+      "enum": ["planned", "verified", "deprecated", "unsupported", "blocked"]
+    },
+    "update_policy": { "type": "string", "maxLength": 2000 },
+    "last_reviewed": { "$ref": "#/$defs/timestamp" },
+    "notes": { "type": "string", "maxLength": 4000 }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    }
+  }
+}

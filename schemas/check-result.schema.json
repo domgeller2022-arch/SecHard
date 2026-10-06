@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/check-result.schema.json",
+  "title": "Normalized check result",
+  "description": "The outcome of one planned check. `fixture` origin can never satisfy a real release requirement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "check_id",
+    "control_ids",
+    "recipe",
+    "stage",
+    "environment",
+    "outcome",
+    "coverage",
+    "started_at",
+    "finished_at",
+    "identity",
+    "evidence_origin"
+  ],
+  "properties": {
+    "schema_version": { "const": "check-result/v1" },
+    "run_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "check_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "control_ids": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "minItems": 1, "maxItems": 64 },
+    "recipe": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "recipe_version": { "type": "string", "maxLength": 32 },
+    "stage": { "enum": ["adoption", "local", "pr", "build", "release", "staging", "deployment", "operations"] },
+    "environment": { "enum": ["local", "preview", "staging", "production"] },
+    "required": { "type": "boolean" },
+    "outcome": {
+      "enum": ["pending", "pass", "fail", "error", "skipped", "unsupported", "stale", "not_applicable", "waived"]
+    },
+    "coverage": { "enum": ["complete", "partial", "unknown"] },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "maxLength": 200 },
+        "observed_version": { "type": "string", "maxLength": 100 },
+        "expected_version": { "type": "string", "maxLength": 100 },
+        "rule_pack": { "type": "string", "maxLength": 200 },
+        "advisory_snapshot_at": { "$ref": "#/$defs/timestamp" },
+        "binary_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_commit", "policy_commit"],
+      "description": "Results are valid only for the exact source, policy, and target they record.",
+      "properties": {
+        "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "policy_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "source_dirty": { "type": "boolean" },
+        "target": { "type": "string", "maxLength": 2048 },
+        "configuration_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "started_at": { "$ref": "#/$defs/timestamp" },
+    "finished_at": { "$ref": "#/$defs/timestamp" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "exit_code": { "type": ["integer", "null"] },
+    "signal": { "type": ["string", "null"], "maxLength": 32 },
+    "timed_out": { "type": "boolean" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expected": { "type": "integer", "minimum": 0 },
+        "observed": { "type": "integer", "minimum": 0 },
+        "files": { "type": "array", "items": { "type": "string", "maxLength": 1024 }, "maxItems": 5000 },
+        "truncated": { "type": "boolean" },
+        "routes": { "type": "array", "items": { "type": "string", "maxLength": 1024 }, "maxItems": 2000 },
+        "fingerprint": { "type": "string", "maxLength": 256 },
+        "notes": { "type": "string", "maxLength": 4000 }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" },
+      "maxItems": 10000
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "maxLength": 2048 },
+        "raw_digest": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "evidence_origin": { "enum": ["actual_tool", "manual_attestation", "fixture"] },
+    "diagnostic": { "type": "string", "maxLength": 8000 },
+    "notes": { "type": "string", "maxLength": 4000 }
+  },
+  "allOf": [
+    {
+      "description": "A claimed pass must have examined its expected scope.",
+      "if": { "properties": { "outcome": { "const": "pass" } }, "required": ["outcome"] },
+      "then": { "properties": { "coverage": { "const": "complete" } } }
+    },
+    {
+      "description": "Fixture origin cannot claim pass.",
+      "if": {
+        "properties": { "evidence_origin": { "const": "fixture" }, "outcome": { "const": "pass" } },
+        "required": ["evidence_origin", "outcome"]
+      },
+      "then": false
+    }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "tool", "rule_id", "severity"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "tool": { "type": "string", "maxLength": 200 },
+        "rule_id": { "type": "string", "maxLength": 200 },
+        "title": { "type": "string", "maxLength": 1000 },
+        "severity": {
+          "enum": ["critical", "high", "medium", "low", "info", "unknown"],
+          "description": "Unknown severity is preserved. It is never silently downgraded to low."
+        },
+        "location": { "type": "string", "maxLength": 2048 },
+        "resource": { "type": "string", "maxLength": 1024 },
+        "detail": { "type": "string", "maxLength": 4000 },
+        "redacted": { "type": "boolean" },
+        "control_ids": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "maxItems": 64 },
+        "triage": { "enum": ["unresolved", "false_positive", "accepted", "fixed"] },
+        "triage_reason": { "type": "string", "maxLength": 2000 },
+        "exception_ref": { "type": "string", "maxLength": 32 }
+      }
+    }
+  }
+}

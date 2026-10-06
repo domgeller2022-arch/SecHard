@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/profile.schema.json",
+  "title": "Profile",
+  "description": "Selects controls, recipes, stage requirements, support constraints, and explicitly permitted exceptions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "definition_version",
+    "title",
+    "review_status",
+    "controls",
+    "stage_requirements",
+    "support_constraints",
+    "permitted_exceptions"
+  ],
+  "properties": {
+    "schema_version": { "const": "profile/v1" },
+    "id": { "$ref": "#/$defs/identifier" },
+    "definition_version": { "type": "integer", "minimum": 1 },
+    "review_status": { "enum": ["draft", "owner_reviewed"] },
+    "reviewed_by": { "type": "string", "maxLength": 200 },
+    "reviewed_at": { "$ref": "#/$defs/timestamp" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "extends": { "type": "array", "items": { "$ref": "#/$defs/identifier" }, "maxItems": 8 },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Selected control IDs. Every entry must exist in the catalogue and have at least one verification method.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["control"],
+        "properties": {
+          "control": { "type": "string", "pattern": "^(CTX|GOV|AGT|DEP|SEC|CI|CODE|QUAL|AUTH|AUTHZ|DATA|WEB|ABUSE|BIZ|DEPLOY|OPS|PRIV|REL|EXC)-[0-9]{2}$" },
+          "required": { "type": "boolean", "default": true },
+          "required_methods": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 16 },
+          "note": { "type": "string", "maxLength": 1000 }
+        }
+      },
+      "maxItems": 128
+    },
+    "excluded_features": {
+      "type": "array",
+      "description": "Features this profile explicitly does not support. Enabling one must produce a coverage gap, never a silent pass.",
+      "items": { "$ref": "#/$defs/featureKey" },
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "stage_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What each stage requires. Production-only evidence need not block an ordinary local PR check, but it must block the applicable production release.",
+      "propertyNames": { "enum": ["adoption", "local", "pr", "build", "release", "staging", "deployment", "operations"] },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "required_methods": { "type": "array", "items": { "type": "string", "maxLength": 100 }, "maxItems": 32 },
+          "require_clean_source": { "type": "boolean" },
+          "require_actual_tool_origin": { "type": "boolean" },
+          "required_recipes": { "type": "array", "items": { "type": "string", "maxLength": 200 }, "maxItems": 128 }
+        }
+      }
+    },
+    "support_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "platforms": { "type": "array", "items": { "type": "string", "maxLength": 50 }, "maxItems": 16 },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "node": { "type": "string", "maxLength": 64 },
+            "nextjs": { "type": "string", "maxLength": 64 },
+            "supabase": { "type": "string", "maxLength": 64 }
+          }
+        },
+        "notes": { "type": "string", "maxLength": 4000 }
+      }
+    },
+    "permitted_exceptions": {
+      "type": "array",
+      "description": "What may be excepted at all, and what never may be. Unlisted controls are not exceptable by this profile.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["control", "policy"],
+        "properties": {
+          "control": { "type": "string", "maxLength": 32 },
+          "policy": { "enum": ["permitted", "never"] },
+          "max_duration_days": { "type": "integer", "minimum": 1, "maximum": 365 },
+          "requires_independent_approval": { "type": "boolean" },
+          "note": { "type": "string", "maxLength": 1000 }
+        }
+      },
+      "maxItems": 128
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "review_status": { "const": "owner_reviewed" } },
+        "required": ["review_status"]
+      },
+      "then": { "required": ["reviewed_by", "reviewed_at"] }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "featureKey": {
+      "enum": [
+        "accounts",
+        "private_resources",
+        "roles",
+        "tenancy",
+        "recovery",
+        "payments",
+        "webhooks",
+        "uploads",
+        "outbound_requests",
+        "personal_data",
+        "runtime_ai",
+        "hosting",
+        "interfaces",
+        "environments",
+        "persistent_storage"
+      ]
+    },
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}
