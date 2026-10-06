@@ -88,6 +88,7 @@ stage_requirements:
       - client_asset_inspection
       - live_http_check
       - tls_check
+      - manual_attestation
     require_clean_source: true
     require_actual_tool_origin: true
     required_recipes:

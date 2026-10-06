@@ -13,6 +13,37 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Fixed — Batch A completion pass (6 October 2026)
+
+An audit of Steps 00–05 against their stated acceptance criteria found work the checkpoint had
+counted as done that was not. Fixed and tested:
+
+- **Manual-only controls were never planned or evaluated.** SEC-03, OPS-02, and OPS-03 were absent
+  from every plan, so a release could ignore required restore, response, and credential-lifecycle
+  evidence entirely. Manual requirements are now planned, satisfied only by a current passing
+  attestation with a matching recipe, and left unmet when the record is missing, expired, pending,
+  or negative.
+- **Profile stage requirements had no effect.** A hardcoded all-methods list dominated them, so the
+  profiles could only add methods, never scope a stage. Profiles are now authoritative, and
+  `manual_attestation` was added to the release stage, so production release requires current
+  operator evidence.
+- **`assessments.yaml` was never loaded or validated.** It is now validated: duplicate controls are
+  rejected, a definition-version conflict against the catalogue is reported, and the records reach
+  the evaluator (where a recorded `status` remains a claim, never proof).
+- **Interval and reference validation were unwired.** `validate` now rejects malformed intervals,
+  reports expired records as warnings, confines local evidence references to the application root
+  (including through symlinked ancestors, without requiring the evidence to exist yet), and treats
+  remote URLs as references that are never fetched.
+- **Two templates did not validate** — assessment records lacked `schema_version`, manual records
+  used an outcome the enum rejected, and unquoted placeholders parsed as YAML flow maps. All four
+  templates now produce schema-valid records, and a test enforces that.
+- **Dead code removed**: `toJson`, `escapeJsonString`, `countFiles`, `confineToRun`, `readRunRecord`,
+  `displayPath`.
+
+Behaviour the owner should note: a pull-request plan now derives **33** checks rather than 45, and a
+release plan derives **55** (15 manual). The reduction at PR is the profile method list taking effect
+for the first time, not lost coverage. Suite grew from 264 to **280 tests**.
+
 ### Added — review incorporation (6 October 2026)
 
 Applied after the Batch A checkpoint, from the owner-supplied build-pack review and

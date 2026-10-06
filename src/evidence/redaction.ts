@@ -46,7 +46,3 @@ export function escapeMarkdown(text: string): string {
     .replace(/\r?\n/g, ' ')
     .trim();
 }
-
-export function escapeJsonString(value: unknown): string {
-  return JSON.stringify(redactSecrets(String(value)));
-}

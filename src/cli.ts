@@ -61,6 +61,7 @@ function fail(message: string, stderr: readonly string[] = []): never {
 
 function emit(outcome: CommandOutcome): void {
   for (const line of outcome.stdout) process.stdout.write(`${line}\n`);
+  for (const warning of outcome.warnings ?? []) process.stdout.write(`warning: ${warning}\n`);
   for (const line of outcome.stderr) process.stderr.write(`${line}\n`);
 }
 
@@ -132,9 +133,9 @@ function newRunId(prefix: string): string {
 }
 
 if (command === 'validate') {
-  const outcome = validateCommand({ appRoot, policyRoot });
-  emit(outcome);
-  process.exit(outcome.exitCode);
+  const validated = validateCommand({ appRoot, policyRoot });
+  emit(validated);
+  process.exit(validated.exitCode);
 }
 
 if (command === 'plan') {
@@ -223,4 +224,3 @@ process.stdout.write(`  report written to ${run.reportJsonPath}\n`);
 process.stdout.write(`  report written to ${run.reportMarkdownPath}\n`);
 emit(report);
 process.exit(report.exitCode);
-void writeAtomic;

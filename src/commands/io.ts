@@ -1,15 +1,14 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { ValidationError, type ValidationIssue } from '../validation/errors.js';
+import { join } from 'node:path';
+import type { ValidationIssue } from '../validation/errors.js';
 import { loadDocument } from '../validation/loader.js';
-import { confineToRoot, type ConfinedPath } from '../validation/paths.js';
+import { confineReference, isRemoteReference } from '../validation/paths.js';
 import { validateAgainstSchema } from '../validation/schema.js';
 import { checkDuplicateIds, checkReference } from '../validation/semantic.js';
 import { loadCatalogue, type ControlDefinition, type Profile } from '../domain/definitions.js';
 import { sha256Hex } from '../evidence/digest.js';
 import type { ApprovalRecord } from '../domain/approval.js';
-import type { ExceptionRecord, GatePolicy, ManualEvidence } from '../domain/types.js';
+import type { AssessmentRecord, ExceptionRecord, GatePolicy, ManualEvidence } from '../domain/types.js';
 import type { ManifestRecord } from '../domain/types.js';
 
 export interface Paths {
@@ -34,13 +33,16 @@ export interface LoadedPolicy {
 export interface LoadedConsumer {
   readonly manifest?: ManifestRecord;
   readonly manifestDigest?: string;
+  readonly assessments: readonly AssessmentRecord[];
   readonly exceptions: readonly ExceptionRecord[];
   readonly manualEvidence: readonly ManualEvidence[];
 }
 
+/** Issues that should be visible to the owner but do not make a record unusable. */
 export interface LoadOutcome<T> {
   readonly value?: T;
   readonly issues: readonly ValidationIssue[];
+  readonly warnings?: readonly string[];
 }
 
 const CONSUMER_FILES = {
@@ -151,7 +153,7 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
     // A missing or unparsable manifest is reported on its own. Continuing would produce a wall of
     // derived complaints that all trace back to this one missing record.
     if (loadedManifest.issues[0]?.code === 'input.not_found') {
-      return { issues: loadedManifest.issues, value: { exceptions: [], manualEvidence: [] } };
+      return { issues: loadedManifest.issues, value: { assessments: [], exceptions: [], manualEvidence: [] } };
     }
     issues.push(...loadedManifest.issues);
   } else if (loadedManifest.data !== undefined) {
@@ -190,7 +192,85 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
     issues.push(...checkDuplicateIds(loadedManual.data.records.map((record) => record.id), manualFile));
   }
 
-  return { value: { ...(manifest === undefined ? {} : { manifest }), ...(manifestDigest === undefined ? {} : { manifestDigest }), exceptions, manualEvidence }, issues };
+  const assessments: AssessmentRecord[] = [];
+  const warnings: string[] = [];
+  const assessmentsFile = join(paths.appRoot, CONSUMER_FILES.assessments);
+  const loadedAssessments = loadDocument<{ assessments?: AssessmentRecord[] }>(assessmentsFile);
+  if (loadedAssessments.issues.length > 0) {
+    issues.push(...loadedAssessments.issues.filter((item) => item.code !== 'input.not_found'));
+  } else if (loadedAssessments.data?.assessments !== undefined) {
+    const records = loadedAssessments.data.assessments;
+    for (const record of records) {
+      const result = validateAgainstSchema('assessment', record, assessmentsFile);
+      issues.push(...result.issues);
+      if (result.valid) assessments.push(record);
+    }
+    issues.push(...checkDuplicateIds(records.map((record) => record.control), assessmentsFile));
+  }
+
+  // Record freshness: an interval that ends before it starts is malformed and unusable. A record
+  // that has simply expired is a warning here; the gate is what blocks on it, so an expired record
+  // still lets a plan be derived and the finding shown.
+  const now = new Date();
+  for (const record of assessments) {
+    if (record.applicability === 'not_applicable' && (record.applicability_reason ?? '').trim().length < 10) {
+      issues.push({
+        code: 'semantic.missing_field',
+        message: `assessment for ${record.control} is not_applicable without a reason tied to the manifest`,
+        file: assessmentsFile,
+      });
+    }
+  }
+  for (const record of manualEvidence) {
+    const expired = Date.parse(record.expires_at) <= now.getTime();
+    const malformed = Date.parse(record.expires_at) <= Date.parse(record.observed_at);
+    if (malformed) {
+      issues.push({
+        code: 'semantic.invalid_interval',
+        message: `manual evidence ${record.id} expires at or before it was observed`,
+        file: manualFile,
+      });
+    } else if (expired) {
+      warnings.push(`manual evidence ${record.id} for ${record.control} expired at ${record.expires_at}`);
+    }
+  }
+  for (const exception of exceptions) {
+    const malformed = Date.parse(exception.expires_at) <= Date.parse(exception.created_at ?? exception.expires_at);
+    if (exception.created_at !== undefined && malformed) {
+      issues.push({
+        code: 'semantic.invalid_interval',
+        message: `exception ${exception.id} expires at or before it was created`,
+        file: exceptionsFile,
+      });
+    } else if (Date.parse(exception.expires_at) <= now.getTime() && exception.status === 'active') {
+      warnings.push(`exception ${exception.id} is active but expired at ${exception.expires_at}`);
+    }
+  }
+
+  // References must stay inside the application root. A remote URL is a reference only and is never
+  // fetched; a local reference may point at evidence that does not exist yet.
+  for (const [file, refs] of [
+    [assessmentsFile, assessments.flatMap((record) => [...(record.implementation_refs ?? []), ...(record.evidence_refs ?? [])])],
+    [manualFile, manualEvidence.flatMap((record) => [...(record.supporting_refs ?? [])])],
+  ] as const) {
+    for (const ref of refs) {
+      if (isRemoteReference(ref)) continue;
+      const confined = confineReference(paths.appRoot, ref);
+      if (typeof confined !== 'string') issues.push({ ...confined, file });
+    }
+  }
+
+  return {
+    value: {
+      ...(manifest === undefined ? {} : { manifest }),
+      ...(manifestDigest === undefined ? {} : { manifestDigest }),
+      assessments,
+      exceptions,
+      manualEvidence,
+    },
+    issues,
+    warnings,
+  };
 }
 
 export interface SourceIdentity {
@@ -231,21 +311,3 @@ function runGit(cwd: string, args: readonly string[]): string | undefined {
     return undefined;
   }
 }
-
-/** Resolves a run-relative path and refuses anything outside the run directory. */
-export function confineToRun(runDir: string, candidate: string): ConfinedPath {
-  const result = confineToRoot(runDir, candidate, { mustExist: true });
-  if ('code' in result) throw new ValidationError([result]);
-  return result;
-}
-
-export function readRunRecord<T>(runDir: string): T {
-  const file = join(runDir, 'run.json');
-  return JSON.parse(readFileSync(file, 'utf8')) as T;
-}
-
-export function displayPath(root: string, file: string): string {
-  return relative(root, file).split(sep).join('/');
-}
-
-export { writeFileSync };

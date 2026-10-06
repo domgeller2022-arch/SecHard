@@ -20,8 +20,8 @@ exceptions:
     risk: "{{RESIDUAL_RISK}}"
     compensating_measures:
       - "{{MEASURE}}"
-    owner: {{MAINTAINER_NAME}}
-    approver: {{APPROVER_NAME}}
+    owner: "{{MAINTAINER_NAME}}"
+    approver: "{{APPROVER_NAME}}"
     self_review: true
     expires_at: "{{EXPIRES_AT}}"
     remediation_ref: "{{REMEDIATION_TRACKER}}"

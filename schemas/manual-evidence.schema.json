@@ -61,7 +61,10 @@
       "items": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
       "maxItems": 128
     },
-    "outcome": { "enum": ["pass", "fail", "unsupported", "partial"] },
+    "outcome": {
+      "enum": ["pending", "pass", "fail", "unsupported", "partial"],
+      "description": "`pending` records a requirement that has not been performed yet. It is not a pass and not a failure; release evaluation treats it as unmet."
+    },
     "notes": { "type": "string", "maxLength": 8000 },
     "expires_at": { "$ref": "#/$defs/timestamp" },
     "reassessment_trigger": { "type": "string", "maxLength": 500 },

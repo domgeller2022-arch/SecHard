@@ -570,14 +570,18 @@ describe('exceptions are narrow, current, and never erase the failure', () => {
 
 describe('manual evidence and feature gaps', () => {
   it('blocks a negative manual attestation', () => {
-    const plan = planFor('pr');
+    const plan = planFor('release');
     const decision = evaluateWith({
       plan,
       results: allPassing(plan),
-      manualEvidence: [manualEvidence({ control: 'CTX-01', outcome: 'fail' })],
+      manualEvidence: [
+        manualEvidence({ control: 'OPS-02', recipe: 'ops/restore-exercise', outcome: 'fail' }),
+      ],
+      stage: 'release',
+      environment: 'production',
     });
     expect(decision.satisfied).toBe(false);
-    expect(decision.reasons.some((item) => item.code === 'manual.negative')).toBe(true);
+    expect(decision.reasons.some((item) => item.code === 'manual.fail')).toBe(true);
   });
 
   it('reports a coverage gap when an excluded feature is enabled', () => {
@@ -694,10 +698,22 @@ describe('control approval is a release obligation, not a development one', () =
 
     const applicable = [...new Set(plan.expected_checks.flatMap((check) => [...check.control_ids]))];
     const approvals = applicable.map((id) => approvalFor(id));
+    // Manual requirements are satisfied by current attestations, one per planned manual recipe.
+    const evidence = plan.expected_checks
+      .filter((check) => check.execution?.mode === 'manual')
+      .map((check, index) =>
+        manualEvidence({
+          id: `ME-${index}`,
+          control: check.control_ids[0] ?? 'CTX-01',
+          recipe: check.recipe,
+          target: { environment: 'production' },
+        }),
+      );
 
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: evidence,
       stage: 'release',
       environment: 'production',
       approvals,

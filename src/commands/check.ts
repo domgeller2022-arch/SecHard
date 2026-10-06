@@ -1,5 +1,3 @@
-import { readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import type { CheckResult, ExecutionPlan, ExpectedCheck, Finding } from '../domain/types.js';
 import { redactSecrets } from '../evidence/redaction.js';
 
@@ -126,13 +124,4 @@ export function makeResult(
     evidence_origin: 'actual_tool',
     ...(outcome.diagnostic === undefined ? {} : { diagnostic: redactSecrets(outcome.diagnostic) }),
   };
-}
-
-/** Counts files a recipe is expected to examine, so an empty scope is detectable. */
-export function countFiles(root: string): number {
-  try {
-    return readdirSync(root).filter((entry) => statSync(join(root, entry)).isFile()).length;
-  } catch {
-    return 0;
-  }
 }

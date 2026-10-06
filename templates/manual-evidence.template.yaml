@@ -8,14 +8,14 @@
 # Reuse across unrelated source changes is permitted only while `scope_fingerprint` and the relevant
 # external configuration remain valid. Do not require a full restore after every comment change, and
 # do not reuse one indefinitely after a storage migration.
-schema_version: manual-evidence/v1
 records:
   - id: ME-OPS-02-RESTORE
+    schema_version: manual-evidence/v1
     control: OPS-02
     recipe: ops/restore-exercise
     operator:
-      identity: {{OPERATOR_IDENTITY}}
-      role: {{OPERATOR_ROLE}}
+      identity: "{{OPERATOR_IDENTITY}}"
+      role: "{{OPERATOR_ROLE}}"
       independent_of_owner: false
     observed_at: "{{OBSERVED_AT}}"
     target:
@@ -32,10 +32,11 @@ records:
     reassessment_trigger: A storage or migration change occurs
 
   - id: ME-DEPLOY-01-ACCESS
+    schema_version: manual-evidence/v1
     control: DEPLOY-01
     recipe: deploy/production-access
     operator:
-      identity: {{OPERATOR_IDENTITY}}
+      identity: "{{OPERATOR_IDENTITY}}"
       independent_of_owner: false
     observed_at: "{{OBSERVED_AT}}"
     target:

@@ -51,14 +51,18 @@ function consumer(name = 'consumer'): string {
 }
 
 function latestRun(runs: string): string {
-  const entries = readdirSync(runs).filter((entry) => entry.startsWith('pr-')).sort();
+  const entries = readdirSync(runs).filter((entry) => entry.startsWith('pr-') || entry.startsWith('release-')).sort();
   expect(entries.length).toBeGreaterThan(0);
   return join(runs, entries.pop() as string);
 }
 
-function fullFlow(dir: string): { readonly runDir: string; readonly gated: RunResult; readonly reported: RunResult } {
+function fullFlow(
+  dir: string,
+  stage: 'pr' | 'release' = 'pr',
+): { readonly runDir: string; readonly gated: RunResult; readonly reported: RunResult } {
   const runs = join(dir, '.hardening', 'runs');
-  expect(cli(['plan', '--app', dir, '--policy', REPO, '--stage', 'pr', '--environment', 'local', '--out', runs], dir).status).toBe(0);
+  const environment = stage === 'release' ? 'production' : 'local';
+  expect(cli(['plan', '--app', dir, '--policy', REPO, '--stage', stage, '--environment', environment, '--out', runs], dir).status).toBe(0);
   const runDir = latestRun(runs);
   expect(cli(['check', '--app', dir, '--policy', REPO, '--plan', join(runDir, 'plan.json'), '--out', runDir], dir).status).toBe(0);
   const gated = cli(['gate', '--app', dir, '--policy', REPO, '--run', runDir], dir);
@@ -81,18 +85,35 @@ describe('the compiled CLI works from outside the master repository', () => {
     expect(gated.status).toBe(1);
     expect(gated.stdout).toContain('gate: blocked');
     expect(reported.status).toBe(1);
-    expect(readFileSync(join(runDir, 'report.md'), 'utf8')).toContain('# Hardening report');
-  });
 
-  it('shows a pending manual requirement rather than forcing every control to pass', () => {
-    const dir = consumer();
-    const { runDir } = fullFlow(dir);
     const markdown = readFileSync(join(runDir, 'report.md'), 'utf8');
-
-    expect(markdown).toContain('manual_attestation');
-    expect(markdown).toContain('**Decision: blocked**');
+    expect(markdown).toContain('# Hardening report');
     // The one real check that ran is recorded as a pass, alongside everything that did not.
     expect(markdown).toMatch(/GOV-02 \| applicable \| satisfied/);
+  });
+
+  it('shows unmet manual requirements at release rather than forcing every control to pass', () => {
+    const dir = consumer();
+    const { runDir } = fullFlow(dir, 'release');
+    const markdown = readFileSync(join(runDir, 'report.md'), 'utf8');
+
+    expect(markdown).toContain('manual.missing');
+    expect(markdown).toContain('**Decision: blocked**');
+    expect(markdown).toMatch(/OPS-02 \| applicable \| unmet/);
+    // A release from a directory that is not a git repository has no clean source identity, so every
+    // check is additionally unmet on that ground. The manual requirements are still planned.
+
+    // The manual requirement is a planned obligation, visible in the evidence even though no tool
+    // result exists for it.
+    const evidence = JSON.parse(readFileSync(join(runDir, 'report.json'), 'utf8')) as {
+      expected_checks: { check_id: string }[];
+      results: { check_id: string }[];
+    };
+    const manualChecks = evidence.expected_checks.filter((check) => check.check_id.includes('manual_attestation'));
+    expect(manualChecks.length).toBeGreaterThan(0);
+    for (const check of manualChecks) {
+      expect(evidence.results.some((result) => result.check_id === check.check_id)).toBe(false);
+    }
   });
 
   it('never reports application production readiness from a kit result', () => {

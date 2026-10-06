@@ -142,7 +142,11 @@ export function passingResult(
 }
 
 export function allPassing(plan: ExecutionPlan, overrides: Partial<CheckResult> = {}): CheckResult[] {
-  return plan.expected_checks.map((check) => passingResult(check, overrides));
+  // Manual requirements are not tool runs, so they never receive a fabricated result. A test that
+  // wants them satisfied supplies manual evidence.
+  return plan.expected_checks
+    .filter((check) => check.execution?.mode !== 'manual')
+    .map((check) => passingResult(check, overrides));
 }
 
 export function evaluateWith(input: {

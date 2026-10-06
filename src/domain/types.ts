@@ -271,7 +271,7 @@ export interface ManualEvidence {
   readonly observed_configuration?: string;
   readonly supporting_refs?: readonly string[];
   readonly supporting_digests?: readonly string[];
-  readonly outcome: 'pass' | 'fail' | 'unsupported' | 'partial';
+  readonly outcome: 'pending' | 'pass' | 'fail' | 'unsupported' | 'partial';
   readonly notes?: string;
   readonly expires_at: string;
   readonly reassessment_trigger?: string;
@@ -312,6 +312,7 @@ export interface AssessmentRecord {
   readonly applicability_reason?: string;
   readonly status: Outcome;
   readonly owner: string;
+  readonly implementation_refs?: readonly string[];
   readonly evidence_refs?: readonly string[];
   readonly exception_refs?: readonly string[];
   readonly assessed_at: string;

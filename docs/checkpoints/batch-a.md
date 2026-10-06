@@ -2,6 +2,16 @@
 
 Steps 00–05. Generated 2026-10-06. Authorised batch at the time of writing: **A**.
 
+> **Post-checkpoint revision (6 October 2026).** A completion audit found several Batch A items that
+> this checkpoint had treated as done but which were not: manual-only controls were never planned or
+> evaluated, profile stage requirements were dominated by a hardcoded list, `assessments.yaml` was
+> not validated, interval and reference checks were unwired, and two templates did not validate.
+> All were fixed and tested; the suite grew from 205 to 280 tests, and the pull-request plan now
+> derives 33 checks rather than the 45 stated below (release derives 55). See
+> `docs/implementation-progress.md` → "Batch A completion pass" for the full account. The status
+> table, blockers, and owner review list below remain accurate; the check counts and test totals in
+> "Checks actually run" are superseded.
+
 ## Status
 
 | Step | State | Reason |

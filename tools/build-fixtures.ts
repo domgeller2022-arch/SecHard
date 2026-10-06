@@ -105,6 +105,34 @@ exceptions:
 );
 
 writeFileSync(
+  join(dir, 'assessments.yaml'),
+  `# FIXTURE: consumer assessment records. A recorded status is a claim, never proof.
+assessments:
+  - control: CTX-01
+    schema_version: assessment/v1
+    definition_version: 1
+    applicability: applicable
+    implementation_refs: []
+    owner: fixture-maintainer
+    status: pending
+    evidence_refs: []
+    exception_refs: []
+    assessed_at: "2026-10-01T00:00:00Z"
+
+  - control: BIZ-01
+    schema_version: assessment/v1
+    definition_version: 1
+    applicability: not_applicable
+    applicability_reason: "No payments or webhooks; the fixture manifest declares both disabled"
+    implementation_refs: []
+    owner: fixture-maintainer
+    status: not_applicable
+    assessed_at: "2026-10-01T00:00:00Z"
+`,
+  'utf8',
+);
+
+writeFileSync(
   join(dir, 'manual-evidence.yaml'),
   `# FIXTURE: manual records are operator attestations, not proof. These are synthetic.
 schema_version: manual-evidence/v1
@@ -118,7 +146,7 @@ records: []
 const invalidDir = join(root, 'invalid');
 mkdirSync(join(invalidDir, '.hardening'), { recursive: true });
 
-for (const file of ['app.yaml', 'exceptions.yaml', 'manual-evidence.yaml']) {
+for (const file of ['app.yaml', 'exceptions.yaml', 'manual-evidence.yaml', 'assessments.yaml']) {
   writeFileSync(join(invalidDir, '.hardening', file), 'schema_version: app/v1\nid: broken\n', 'utf8');
 }
 

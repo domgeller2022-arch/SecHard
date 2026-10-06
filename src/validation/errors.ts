@@ -60,7 +60,3 @@ export function issue(
 ): ValidationIssue {
   return { code, message, ...(file === undefined ? {} : { file }), ...(path === undefined ? {} : { path }) };
 }
-
-export function toJson(value: unknown): string {
-  return JSON.stringify(value, null, 2);
-}

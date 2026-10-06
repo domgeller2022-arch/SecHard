@@ -270,6 +270,12 @@ function evaluateCheck(
     );
   }
 
+  // A manual requirement is satisfied by a current operator attestation, never by a tool result and
+  // never by its absence.
+  if (check.execution?.mode === 'manual') {
+    return evaluateManualCheck(check, definition, controlId, reasons, context);
+  }
+
   if (context.results.length === 0) {
     reasons.push(
       reason('check.missing', `no result was produced for required check ${check.check_id}`, {
@@ -334,8 +340,6 @@ function evaluateCheck(
     waiverRefs.push(...evaluated.waiver_refs);
   }
 
-  reasons.push(...manualReasons(context, controlId));
-
   if (waiverRefs.length > 0 && reasons.every((item) => item.code === 'waiver.applied')) {
     return build(controlId, definition, 'waived', result.coverage, satisfiedChecks, reasons, waiverRefs);
   }
@@ -355,6 +359,68 @@ function evaluateCheck(
 
   satisfiedChecks.push(check.check_id);
   return build(controlId, definition, 'satisfied', result.coverage, satisfiedChecks, reasons, waiverRefs);
+}
+
+/**
+ * Evaluates a manual requirement against operator attestations.
+ *
+ * A record satisfies it only when it names the same recipe, records a `pass`, and is current: its
+ * own expiry has not passed and its observation is not older than the policy interval. A missing,
+ * expired, pending, or negative record leaves the requirement unmet, and the record is never
+ * converted into a tool result.
+ */
+function evaluateManualCheck(
+  check: ExpectedCheck,
+  definition: { readonly definition_version: number },
+  controlId: string,
+  existingReasons: readonly Reason[],
+  context: CheckContext,
+): ControlEvaluation {
+  const reasons: Reason[] = [...existingReasons];
+  const forRecipe = context.manual.filter((record) => record.recipe === check.recipe);
+  const maxAgeDays = context.policy.freshness.manual_evidence_default_max_age_days;
+
+  const current = forRecipe.filter((record) => {
+    const expires = Date.parse(record.expires_at);
+    const observed = Date.parse(record.observed_at);
+    if (Number.isNaN(expires) || Number.isNaN(observed)) return false;
+    if (expires <= context.now.getTime()) return false;
+    const ageDays = (context.now.getTime() - observed) / 86_400_000;
+    return ageDays <= maxAgeDays && observed <= context.now.getTime() + (context.policy.freshness.max_clock_skew_minutes ?? 0) * 60_000;
+  });
+
+  const passing = current.filter((record) => record.outcome === 'pass');
+  if (passing.length > 0) {
+    return build(controlId, definition, 'satisfied', 'complete', passing.map((record) => record.id), reasons, []);
+  }
+
+  if (forRecipe.length === 0) {
+    reasons.push(
+      reason('manual.missing', `no manual evidence exists for ${controlId} recipe '${check.recipe}'`, {
+        control_ids: [controlId],
+        check_id: check.check_id,
+      }),
+    );
+  } else if (current.length === 0) {
+    reasons.push(
+      reason('manual.stale', `manual evidence for ${controlId} recipe '${check.recipe}' is expired or older than ${maxAgeDays} days`, {
+        control_ids: [controlId],
+        check_id: check.check_id,
+      }),
+    );
+  } else {
+    for (const record of current) {
+      if (record.outcome === 'pass') continue;
+      reasons.push(
+        reason(`manual.${record.outcome}`, `manual evidence ${record.id} for ${controlId} recorded outcome '${record.outcome}'`, {
+          control_ids: [controlId],
+          check_id: check.check_id,
+        }),
+      );
+    }
+  }
+
+  return build(controlId, definition, 'unmet', 'unknown', [], reasons, []);
 }
 
 function build(
@@ -615,19 +681,6 @@ function findException(finding: Finding, exceptions: ReadonlyMap<string, Excepti
     if (exception.scope.rule_id !== undefined && exception.scope.rule_id === finding.rule_id) return exception;
   }
   return undefined;
-}
-
-function manualReasons(context: CheckContext, controlId: string): Reason[] {
-  const reasons: Reason[] = [];
-  for (const record of context.manual) {
-    if (record.outcome === 'pass') continue;
-    reasons.push(
-      reason('manual.negative', `manual evidence ${record.id} for ${controlId} recorded outcome '${record.outcome}'`, {
-        control_ids: [controlId],
-      }),
-    );
-  }
-  return reasons;
 }
 
 /**

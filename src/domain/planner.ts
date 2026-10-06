@@ -77,12 +77,16 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
     throw new Error(`unknown stage '${input.stage}': no requirements are defined for it`);
   }
 
-  const requiredMethods = new Set<string>(STAGE_METHODS[input.stage] ?? []);
+  // Profiles are authoritative for what a stage requires. The constant is only a fallback for a
+  // profile that does not define the stage at all.
+  const profileMethods = new Set<string>();
   for (const profile of input.profiles) {
     for (const method of profile.stage_requirements[input.stage]?.required_methods ?? []) {
-      requiredMethods.add(method);
+      profileMethods.add(method);
     }
   }
+  const requiredMethods =
+    profileMethods.size > 0 ? profileMethods : new Set<string>(STAGE_METHODS[input.stage] ?? []);
 
   const checks: ExpectedCheck[] = [];
   for (const [controlId, selection] of selected) {
@@ -99,8 +103,12 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
     if (applicability === 'not_applicable') continue;
 
     for (const method of control.verification) {
-      if (method.coverage === 'manual_only') continue;
       if (!requiredMethods.has(method.method)) continue;
+
+      // A human attestation is not a tool run, so it is planned as a manual requirement rather than
+      // silently skipped. Skipping it would let an applicable control such as OPS-02 (restore
+      // exercise) or PRIV-01 (retention review) never be evaluated at all.
+      const manual = method.method === 'manual_attestation' || method.coverage === 'manual_only';
 
       checks.push({
         // A control may declare the same method twice for different recipes (SEC-01 scans the repository
@@ -123,12 +131,14 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
           ...(input.appManifestDigest === undefined ? {} : { configuration_digest: input.appManifestDigest }),
         },
         expected_scope: scopeFor(method.method, input.environment),
-        execution: {
-          mode: 'internal',
-          timeout_ms: 600_000,
-          max_output_bytes: 8 * 1024 * 1024,
-          requires_isolation: false,
-        },
+        execution: manual
+          ? { mode: 'manual' }
+          : {
+              mode: 'internal',
+              timeout_ms: 600_000,
+              max_output_bytes: 8 * 1024 * 1024,
+              requires_isolation: false,
+            },
         required_coverage: method.coverage === 'automated' ? 'complete' : 'partial',
         evidence_freshness: {
           ...(stagePolicy.advisory_snapshot_max_age_hours === undefined

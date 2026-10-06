@@ -442,6 +442,62 @@ a valid approval. Release evaluation blocks on that, by design.
 
 ---
 
+## Batch A completion pass (2026-10-06)
+
+An audit of Steps 00–05 against their stated acceptance criteria found several items the earlier
+checkpoint treated as done that were not. They were fixed and tested. This pass stayed inside
+Batch A; nothing from Steps 06+ was started.
+
+### What was actually missing
+
+| Defect | Why it mattered | Fix |
+| --- | --- | --- |
+| **Applicable manual-only controls were never planned or evaluated.** SEC-03, OPS-02, and OPS-03 were silently absent from every plan, at every stage. | A release could ignore required restore, response, and credential-lifecycle evidence entirely — an implied pass, which the blueprint forbids. | The planner now plans manual requirements; the evaluator satisfies them only from a current passing attestation with a matching recipe. Missing, expired, pending, or negative records leave the requirement unmet. |
+| **Profile stage requirements were dominated by a hardcoded method list.** A union of `STAGE_METHODS` and the profiles meant the profiles could only add methods, never scope a stage. | The plan's intent that profiles define PR/release/operations requirements had no effect. | Profiles are authoritative; the constant is only a fallback for a profile that defines no stage. `manual_attestation` was added to the release stage of both profiles, so production release requires current operator evidence. |
+| **`assessments.yaml` was never loaded or validated.** The file, schema, and template existed; `validate`/`plan`/`gate` ignored it. | A consumer's assessments could be malformed, reference a forged control, or be written against a stale definition version, and nothing noticed. | `loadConsumer` loads and validates it; duplicate controls are rejected; a version conflict against the catalogue is reported; the evaluator receives the records (status remains a claim, never proof). |
+| **Record-freshness validation was unwired.** `checkIntervals` existed but nothing called it. | Malformed intervals (expiry before observation) were accepted as valid records. | `validate` rejects malformed intervals as errors and reports expired records as warnings, so an expired exception still lets a plan be derived and the finding shown. |
+| **Evidence references were not confined.** Path confinement was only used by unit tests. | A record could reference `../../../etc/passwd`, and remote references were indistinguishable from local ones. | Local references are confined to the application root, including through symlinked ancestors, without requiring the evidence to exist yet. Remote URLs are treated as references and are never fetched. |
+| **Two templates did not validate.** `assessments.template.yaml` records lacked the required `schema_version`; `manual-evidence.template.yaml` used `outcome: pending`, which the enum rejected; unquoted placeholders parsed as YAML flow maps. | The templates could not actually be used to create valid records — documentation standing in for working behaviour. | Fixed, `pending` added as an explicit manual-evidence outcome, placeholders quoted, and a test now validates every template after substitution. |
+| **Dead code** (`toJson`, `escapeJsonString`, `countFiles`, `confineToRun`, `readRunRecord`, `displayPath`) | Unused exports invite drift and make the real surface harder to review. | Removed. |
+
+### Behaviour changes the owner should know about
+
+- **A pull-request plan now derives 33 checks rather than 45, and a release plan 55 (15 of them
+  manual).** Pull requests require no manual evidence by design; production release requires current
+  operator evidence for every applicable manual control. The reduction at PR is the profile method
+  list taking effect for the first time; it is not lost coverage.
+- **A release from a directory that is not a Git repository blocks on source identity.** This was
+  already intended, but the integration fixture surfaced it: `resolveSourceIdentity` returns a zero
+  commit and a dirty tree, so `release` evaluation blocks. Correct behaviour, now covered by a test.
+
+### Checks actually run
+
+- `npx tsc --noEmit` → exit 0. `npm run build` → exit 0. `npm run lint` → exit 0 (it caught a missing
+  final newline introduced by the dead-code removal).
+- `npx vitest run` → **280 tests, 12 files, all passing** (17 new consumer-record and template tests,
+  plus the manual-requirement tests).
+- `node dist/cli.js plan --stage pr` → 33 expected checks; `--stage release` → 55, including
+  `OPS-02:manual_attestation:ops/restore-exercise:release`.
+- `node dist/cli.js check` on the release plan → 40 results; no result is fabricated for a manual
+  requirement.
+- `node dist/cli.js gate` on that run → exit 1, blocked, with `manual.missing` and
+  `policy.control_not_approved` among the reasons.
+- A deliberately corrupted consumer (forged control ID, traversal reference, stale definition
+  version) → `validate` exit 2 with `schema.invalid`, `path.outside_root`, and
+  `semantic.version_conflict`.
+
+### Remaining limitations after this pass
+
+- Manual interval defaults are the policy-wide 30 days; per-control intervals and recipe-specific
+  exercise windows are Step 14.
+- Evidence-reference *existence* and digest checks are Step 14; only escape is rejected now.
+- The `check` command still reports unimplemented recipes as `unsupported`. Scanner integration is
+  Steps 06–11.
+- All 35 controls remain `draft` with zero approvals, so release evaluation blocks on approvals in
+  addition to the missing scanner coverage. That is intended.
+
+---
+
 ## Batch A verification summary
 
 | Check | Command | Result |
@@ -450,7 +506,7 @@ a valid approval. Release evaluation blocks on that, by design.
 | Type check | `npm run typecheck` | pass |
 | Build | `npm run build` | pass |
 | Hygiene lint | `npm run lint` | pass |
-| Unit and domain tests | `npm test` | 205 tests, 9 files, pass |
+| Unit and domain tests | `npm test` | 280 tests, 12 files, pass (count grew during the completion pass) |
 | Integration tests | `npm run test:integration` | pass, CLI run from outside the repository |
 | Matrix generation | `npm run generate:matrix` | pass, byte-identical on rerun |
 | CLI help/version | `node dist/cli.js help` / `version` | pass |

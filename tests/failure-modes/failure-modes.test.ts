@@ -263,45 +263,53 @@ describe('a recorded status is a claim, not proof', () => {
 
 describe('manual evidence freshness and correspondence', () => {
   it('blocks when a manual record has already expired', () => {
-    const plan = planFor('pr');
+    const plan = planFor('release');
     const expired: ManualEvidence = {
       schema_version: 'manual-evidence/v1',
       id: 'ME-OLD',
-      control: 'CTX-01',
-      recipe: 'inventory/review',
+      control: 'OPS-02',
+      recipe: 'ops/restore-exercise',
       operator: { identity: 'operator' },
       observed_at: '2025-01-01T00:00:00Z',
-      target: { environment: 'local' },
+      target: { environment: 'production' },
       scope_fingerprint: 'fp',
       outcome: 'pass',
       expires_at: '2025-04-01T00:00:00Z',
     };
-    // The gate blocks the expired record as unusable evidence rather than counting it.
-    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [expired] });
-    expect(decision.satisfied).toBe(true);
-    const outcome = decision.control_outcomes.find((item) => item.control === 'CTX-01');
-    // A passing but expired record is not sufficient evidence for CTX-01 on its own; the recorded
-    // manual check still has to have run.
-    expect(outcome?.outcome === 'satisfied' || outcome?.outcome === 'unmet').toBe(true);
+    const decision = evaluateWith({
+      plan,
+      results: allPassing(plan),
+      manualEvidence: [expired],
+      stage: 'release',
+      environment: 'production',
+    });
+    expect(decision.satisfied).toBe(false);
+    expect(codes(decision.reasons)).toContain('manual.stale');
   });
 
   it('blocks when a manual record reports a negative outcome', () => {
-    const plan = planFor('pr');
+    const plan = planFor('release');
     const negative: ManualEvidence = {
       schema_version: 'manual-evidence/v1',
       id: 'ME-NEG',
-      control: 'CTX-01',
-      recipe: 'inventory/review',
+      control: 'OPS-02',
+      recipe: 'ops/restore-exercise',
       operator: { identity: 'operator' },
       observed_at: '2026-10-01T00:00:00Z',
-      target: { environment: 'local' },
+      target: { environment: 'production' },
       scope_fingerprint: 'fp',
       outcome: 'fail',
       expires_at: '2026-11-01T00:00:00Z',
     };
-    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [negative] });
+    const decision = evaluateWith({
+      plan,
+      results: allPassing(plan),
+      manualEvidence: [negative],
+      stage: 'release',
+      environment: 'production',
+    });
     expect(decision.satisfied).toBe(false);
-    expect(codes(decision.reasons)).toContain('manual.negative');
+    expect(codes(decision.reasons)).toContain('manual.fail');
   });
 });
 

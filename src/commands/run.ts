@@ -10,12 +10,14 @@ import { loadConsumer, loadPolicy, resolveSourceIdentity, type LoadedPolicy, typ
 import { buildReport } from './report.js';
 import type { ApplicabilityRule } from '../domain/applicability.js';
 import type { PlanInput } from '../domain/planner.js';
-import type { CheckResult, ExecutionPlan, GateDecision, ManifestRecord, ReleaseEvidence } from '../domain/types.js';
+import type { AssessmentRecord, CheckResult, ExecutionPlan, GateDecision, ManifestRecord, ReleaseEvidence } from '../domain/types.js';
 
 export interface CommandOutcome {
   readonly exitCode: 0 | 1 | 2;
   readonly stdout: readonly string[];
   readonly stderr: readonly string[];
+  /** Problems that should be visible but do not make the records unusable. */
+  readonly warnings?: readonly string[];
 }
 
 export interface PlanOutcome extends CommandOutcome {
@@ -46,15 +48,22 @@ export function validateCommand(paths: Paths): CommandOutcome {
     // A record can be well formed on its own and still contradict another record. Reference
     // integrity is checked, not just individual shapes.
     ...(policyOutcome.value !== undefined && manifest !== undefined
-      ? crossCheck(policyOutcome.value, manifest)
+      ? crossCheck(policyOutcome.value, manifest, consumer.value?.assessments ?? [])
       : []),
   ];
+
+  const warnings = consumer.warnings ?? [];
 
   if (issues.length === 0) {
     return {
       exitCode: 0,
-      stdout: ['validate: OK', `  policy records: ${policyOutcome.value?.profiles.length ?? 0} profiles, ${policyOutcome.value?.controls.length ?? 0} controls`],
+      stdout: [
+        warnings.length === 0 ? 'validate: OK' : `validate: OK (${warnings.length} warning(s))`,
+        `  policy records: ${policyOutcome.value?.profiles.length ?? 0} profiles, ${policyOutcome.value?.controls.length ?? 0} controls`,
+        `  consumer records: ${consumer.value?.assessments.length ?? 0} assessments, ${consumer.value?.exceptions.length ?? 0} exceptions, ${consumer.value?.manualEvidence.length ?? 0} manual records`,
+      ],
       stderr: [],
+      warnings,
     };
   }
 
@@ -62,6 +71,7 @@ export function validateCommand(paths: Paths): CommandOutcome {
     exitCode: 2,
     stdout: [],
     stderr: [`validate: ${issues.length} issue(s)`, ...formatIssues(issues)],
+    warnings,
   };
 }
 
@@ -190,6 +200,10 @@ export function checkCommand(
   const results: CheckResult[] = [];
 
   for (const check of plan.expected_checks) {
+    // A manual requirement is satisfied by an operator attestation, not by this command. Producing a
+    // result here would either fabricate evidence or mislabel the requirement as unsupported.
+    if (check.execution?.mode === 'manual') continue;
+
     if (check.recipe !== 'policy/record-consistency') {
       // Every other recipe belongs to a later batch. Reporting `unsupported` is the honest outcome;
       // claiming a pass would be a fabricated result.
@@ -308,6 +322,7 @@ export function gateCommand(
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
     exceptions: consumer.value?.exceptions ?? [],
+    assessments: consumer.value?.assessments ?? [],
     approvals: policy.approvals,
     controlDefinitions: policy.controls,
     policy: policy.policy,
@@ -333,8 +348,17 @@ export function gateCommand(
   } as GateOutcome;
 }
 
-/** Contradictions between records that no single schema can catch on its own. */
-function crossCheck(policy: LoadedPolicy, manifest: ManifestRecord): ValidationIssue[] {
+/**
+ * Contradictions between records that no single schema can catch on its own.
+ *
+ * Exported so it can be exercised directly: reference integrity and version conflicts are the kind
+ * of check that silently stops working if it is only tested through the CLI.
+ */
+export function crossCheck(
+  policy: LoadedPolicy,
+  manifest: ManifestRecord,
+  assessments: readonly AssessmentRecord[],
+): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   for (const profileId of manifest.profiles) {
@@ -357,6 +381,28 @@ function crossCheck(policy: LoadedPolicy, manifest: ManifestRecord): ValidationI
   }
 
   const controlsById = new Map(policy.controls.map((control) => [control.id, control]));
+
+  // An assessment names a definition version. If the catalogue has moved on, the record may have
+  // been written against different acceptance criteria, so it is a conflict rather than a detail.
+  for (const assessment of assessments) {
+    const control = controlsById.get(assessment.control);
+    if (control === undefined) {
+      issues.push({
+        code: 'semantic.unknown_reference',
+        message: `assessment references unknown control '${assessment.control}'`,
+        file: '.hardening/assessments.yaml',
+      });
+      continue;
+    }
+    if (assessment.definition_version !== control.definition_version) {
+      issues.push({
+        code: 'semantic.version_conflict',
+        message: `assessment for ${assessment.control} is written against definition version ${assessment.definition_version}, but the catalogue defines version ${control.definition_version}`,
+        file: '.hardening/assessments.yaml',
+      });
+    }
+  }
+
   for (const profileId of manifest.profiles) {
     for (const entry of policy.profiles.find((profile) => profile.id === profileId)?.controls ?? []) {
       const control = controlsById.get(entry.control);

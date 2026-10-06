@@ -1,7 +1,7 @@
 schema_version: app/v1
-id: {{APP_ID}}
-name: {{APP_NAME}}
-description: {{APP_DESCRIPTION}}
+id: "{{APP_ID}}"
+name: "{{APP_NAME}}"
+description: "{{APP_DESCRIPTION}}"
 
 stack:
   kind: nextjs-supabase
@@ -50,14 +50,14 @@ profiles:
   - nextjs-supabase
 
 policy_lock:
-  repository: {{POLICY_REPOSITORY}}
+  repository: "{{POLICY_REPOSITORY}}"
   commit: "{{POLICY_COMMIT}}"
   policy_digest: "{{POLICY_DIGEST}}"
   locked_at: "{{LOCKED_AT}}"
 
 maintainer:
-  name: {{MAINTAINER_NAME}}
-  contact: {{MAINTAINER_CONTACT}}
+  name: "{{MAINTAINER_NAME}}"
+  contact: "{{MAINTAINER_CONTACT}}"
 
 threat_model_ref: docs/threat-model.md
 supported_versions: []

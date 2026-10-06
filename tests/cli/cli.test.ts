@@ -193,12 +193,16 @@ describe('plan, check, gate, report end to end', () => {
 
     const evidence = JSON.parse(readFileSync(join(runDir, 'report.json'), 'utf8')) as {
       decision: { outcome: string; kit_readiness: string; application_production_readiness: string };
-      expected_checks: unknown[];
+      expected_checks: { method?: string }[];
       results: unknown[];
       control_outcomes: { outcome: string }[];
     };
     expect(evidence.decision.outcome).toBe('blocked');
-    expect(evidence.expected_checks.length).toBe(evidence.results.length);
+    // At a pull request the profile requires no manual evidence, so every expected check is an
+    // executed one. Manual requirements appear at release, where they must be met by attestation.
+    const executed = evidence.expected_checks.filter((check) => check.method !== 'manual_attestation');
+    expect(evidence.results.length).toBe(executed.length);
+    expect(evidence.expected_checks.some((check) => check.method === 'manual_attestation')).toBe(false);
     expect(evidence.decision.kit_readiness).toBe('pending');
     expect(evidence.decision.application_production_readiness).toBe('pending');
 

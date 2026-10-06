@@ -7,14 +7,14 @@
 # `not_applicable` requires an `applicability_reason` tied to the manifest. It is not a way to
 # silence a control you have not implemented: enabling the feature while declaring the control
 # not_applicable produces a visible coverage gap, not a pass.
-schema_version: assessments/v1
 assessments:
   - control: CTX-01
+    schema_version: assessment/v1
     definition_version: 1
     applicability: applicable
     applicability_reason: ""
     implementation_refs: ["docs/threat-model.md"]
-    owner: {{MAINTAINER_NAME}}
+    owner: "{{MAINTAINER_NAME}}"
     status: pending
     status_reason: ""
     evidence_refs: []
@@ -24,11 +24,12 @@ assessments:
       - A new external interface is added
 
   - control: AUTHZ-01
+    schema_version: assessment/v1
     definition_version: 1
     applicability: applicable
     applicability_reason: ""
     implementation_refs: ["tests/authorization/ownership.test.ts"]
-    owner: {{MAINTAINER_NAME}}
+    owner: "{{MAINTAINER_NAME}}"
     status: pending
     evidence_refs: []
     exception_refs: []
@@ -37,10 +38,11 @@ assessments:
       - A new data access path is added
 
   - control: SEC-01
+    schema_version: assessment/v1
     definition_version: 1
     applicability: applicable
     implementation_refs: []
-    owner: {{MAINTAINER_NAME}}
+    owner: "{{MAINTAINER_NAME}}"
     status: pending
     evidence_refs: []
     exception_refs: []
@@ -48,10 +50,11 @@ assessments:
 
   # Example of a legitimately absent feature. Only valid while the manifest also disables it.
   - control: BIZ-01
+    schema_version: assessment/v1
     definition_version: 1
     applicability: not_applicable
     applicability_reason: "No payments or webhooks; the manifest declares both disabled"
     implementation_refs: []
-    owner: {{MAINTAINER_NAME}}
+    owner: "{{MAINTAINER_NAME}}"
     status: not_applicable
     assessed_at: "{{ASSESSED_AT}}"

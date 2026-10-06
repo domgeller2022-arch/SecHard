@@ -27,7 +27,12 @@ stage_requirements:
     require_clean_source: false
     require_actual_tool_origin: true
   release:
-    required_methods: [schema_validation, policy_consistency, secret_scan, dependency_scan]
+    required_methods:
+      - schema_validation
+      - policy_consistency
+      - secret_scan
+      - dependency_scan
+      - manual_attestation
     require_clean_source: true
     require_actual_tool_origin: true
   operations:
