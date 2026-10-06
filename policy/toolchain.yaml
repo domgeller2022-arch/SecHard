@@ -1,0 +1,101 @@
+schema: hardening/toolchain/v1
+
+# Reviewed toolchain. Exact versions, identities, licences, and how each was verified.
+# Verified on: 2026-10-06
+# Verified by: Step 00 preflight (npm registry metadata)
+#
+# Status values:
+#   verified       version, identity, and licence checked against a primary source
+#   planned        selection intent only; verified when the step that needs it begins
+#   blocked        cannot be selected until an owner decision or environment fix
+
+runtime:
+  status: verified
+  node:
+    major: 24
+    codename: Krypton
+    tested_patch: 24.21.0
+    lts_start: 2025-10-28
+    maintenance_start: 2026-10-20
+    end_of_life: 2028-04-30
+    source: https://raw.githubusercontent.com/nodejs/Release/main/schedule.json
+    cross_check: https://nodejs.org/dist/index.json
+  node_host_observed:
+    version: 25.8.2
+    path: /usr/local/bin/node
+    note: >-
+      Build host runtime is outside the supported line and is excluded by vitest@5 engines.
+      Results produced on this host require re-verification on Node 24.21.0.
+    engines_enforced: ">=24 <25"
+
+package_manager:
+  status: verified
+  name: pnpm
+  version: 12.9.1
+  licence: MIT
+  source: https://registry.npmjs.org/pnpm
+  install_mode: frozen_lockfile
+  installed_on_host: false
+  note: >-
+    Not installed. Corepack is not bundled in Node 25, and installing runtimes requires
+    agent_may_install_runtimes, which is still TODO.
+
+core_dependencies:
+  status: verified
+  packages:
+    - name: ajv
+      version: 8.20.0
+      licence: MIT
+      use: "JSON Schema draft 2020-12 via Ajv2020"
+    - name: ajv-formats
+      version: 3.0.1
+      licence: MIT
+      use: "Ajv format keywords"
+    - name: yaml
+      version: 2.9.1
+      licence: ISC
+      use: "Bounded YAML parsing with duplicate-key, tag, and alias control"
+    - name: typescript
+      version: 7.0.2
+      licence: Apache-2.0
+      use: "Strict type checking and build"
+    - name: vitest
+      version: 5.0.3
+      licence: MIT
+      use: "Test runner"
+    - name: "@types/node"
+      version: 26.6.4
+      licence: MIT
+      use: "Node type definitions"
+
+integrity:
+  method: registry_dist_integrity
+  detail: >-
+    The package manager verifies each package's registry-published dist.integrity (sha512) on
+    install and the lockfile records it. Per-dependency digest pinning of the whole transitive
+    graph is Step 06 work (policy/dependency-policy.yaml) and is not claimed here.
+
+security_tools:
+  status: planned
+  note: >-
+    Versions are intentionally absent. Each is selected, licensed, and pinned with an immutable
+    reference or verified digest in its own step, not pre-declared here.
+  gitleaks: { step: 9, purpose: "Repository and history secret detection" }
+  opengrep: { step: 9, purpose: "Static analysis for the reference stack" }
+  osv_scanner: { step: 9, purpose: "Dependency advisories" }
+  zizmor: { step: 9, purpose: "GitHub workflow analysis" }
+  zap_baseline: { step: 11, purpose: "Passive live scan", requires_docker: true }
+  testssl: { step: 11, purpose: "Separate TLS verification" }
+
+reference_stack:
+  status: planned
+  nextjs: { step: 7 }
+  supabase_cli: { step: 7, requires_docker: true }
+  playwright: { step: 7 }
+
+platforms:
+  supported_execution_environment: linux-ci
+  local_partial:
+    macos: >-
+      Partial. Support is claimed only after the documented supported subset has actually been run
+      on macOS. Build host observed: macOS 26.3.1 x86_64.

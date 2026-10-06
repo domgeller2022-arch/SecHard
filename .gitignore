@@ -1,0 +1,47 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Generated run directories and reports. A run directory holds raw tool output, which may contain
+# material that must not be committed. Evidence *references* and digests belong in version control.
+.hardening/runs/
+.hardening/evidence/
+runs/
+*.report.json
+report.md
+
+# Local database and container state from the reference stack (Step 07)
+supabase/.branches/
+supabase/.temp/
+examples/**/node_modules/
+examples/**/.next/
+
+# Credentials and local configuration. Anything that can authenticate is never committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.netrc
+.npmrc.local
+.pnpmrc.local
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Python caches from helper scripts
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
