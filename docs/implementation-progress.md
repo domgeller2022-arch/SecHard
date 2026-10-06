@@ -154,8 +154,8 @@ A blocker stops only the work that depends on it. Nothing here is worked around 
 
 | # | Blocker | Evidence | Effect | Handling |
 | --- | --- | --- | --- | --- |
-| E1 | pnpm 12.9.1 not installed and may not be installed (B14) | `command -v pnpm` → not found; corepack not bundled in Node 25 | Step 01 "clean install with the pinned package manager builds the CLI" cannot be executed | Dependency graph built and verified with npm in `--no-package-lock` mode; **no npm lockfile is committed**; pnpm acceptance left explicitly unverified |
-| E2 | Host runtime is Node 25.8.2, outside the supported Node 24 line, and excluded by `vitest@5` engines | `node --version`, `npm view vitest engines` | Checks run on an unsupported host runtime | All results recorded as "verified on Node 25.8.2; re-verification on Node 24.21.0 required". `engines` in `package.json` restricts to `>=24 <25` so the mismatch fails loudly rather than silently |
+| E1 | ~~pnpm not installed~~ **RESOLVED 2026-10-06** | `pnpm --version` → 12.9.1 | — | pnpm installed under B14. `pnpm install --frozen-lockfile` verified; `pnpm-lock.yaml` committed |
+| E2 | ~~Host runtime unsupported~~ **RESOLVED 2026-10-06** | `~/.local/opt/node-v24.21.0/bin/node --version` → v24.21.0 | — | Node 24.21.0 installed from the official tarball with a verified SHA-256. Full suite re-run on it; **all current results are on the supported runtime** |
 | E3 | **Docker is absent** (earlier: CLI present, daemon stopped) | 2026-10-06 preflight: `/usr/local/bin/docker` 29.6.2, daemon unreachable (`no such file or directory` on `~/.docker/run/docker.sock`). Later observation the same day: the symlink points at a removed `/Applications/Docker.app`, and no `podman`, `colima`, `limactl`, `nerdctl`, or `orbctl` exists. | Steps 07 (local Supabase), 08–10 (they need the app), and 11 (ZAP) | **Batch B stopped at Step 07.** The owner must install a supported container runtime or authorise a different approach |
 
 ---
@@ -518,6 +518,66 @@ fabricated deliverable, so the batch stops here.
     application code yet (Step 07+).
 - **Owner decisions or external setup still needed:** B13 (registries), B14 (runtimes/pnpm).
 - **Next step:** Step 07, blocked on B12/E3.
+
+### Step 06 — blocked sub-items resolved (owner granted runtimes + registries)
+
+After the owner granted `agent_may_install_runtimes: true` and `network_access_to_registries: true`,
+the blocked verification was completed. **This also resolves E1 and E2 from Batch A.**
+
+- **State:** Step 06 is now `verified` in full. Scanner identity verification remains Step 09 work.
+- **Files changed:** `pnpm-workspace.yaml` (new), `.npmrc` (rewritten), `package.json`,
+  `pnpm-lock.yaml` (new), `policy/toolchain.yaml`, `docs/supported-versions.md`,
+  `tests/execution/install-policy.test.ts`.
+- **Actual checks run, with results:**
+  - **Node 24.21.0 installed and verified.** Official `darwin-x64` tarball, SHA-256 checked against
+    `https://nodejs.org/dist/v24.21.0/SHASUMS256.txt` → `1462cb3b…e8097`, exact match. Extracted to
+    `~/.local/opt/node-v24.21.0`. A version manager was not used because installing one means running
+    an installer script; the tarball plus published digest is inspectable and verifiable.
+  - **`pnpm install --frozen-lockfile` → exit 0, lockfile up to date.** It reports "Lockfile passes
+    supply-chain policies". This is the Step 01 acceptance check that had been blocked since Batch A.
+  - **`pnpm run build`, `pnpm run typecheck`, `pnpm run lint` → all pass on Node 24.21.0.**
+  - **Full suite on Node 24.21.0: 338 unit tests + 8 integration tests, all passing.**
+  - **Release-age policy verified against the real package manager.** `minimumReleaseAge: 10080`
+    refused `nanoid@6.0.2` (published 18.5h earlier) with `ERR_PNPM_NO_MATURE_MATCHING_VERSION`,
+    naming the publish time and cutoff, exit 1. An older package installed normally.
+  - **Install-script default deny verified.** An unapproved hook **failed the install**
+    (`ERR_PNPM_IGNORED_BUILDS`, exit 1) and did not run — verified with `core-js@3.37.1` and with a
+    local tarball fixture carrying a postinstall script. `allowBuilds: { pkg: true }` ran the reviewed
+    hook; `allowBuilds: { pkg: false }` recorded a denial without running it.
+  - **`engineStrict` verified**: under Node 25 the install failed with
+    `ERR_PNPM_UNSUPPORTED_ENGINE`; under Node 24.21.0 it succeeded.
+  - **`strictPeerDependencies` verified**: the install failed with `ERR_PNPM_PEER_DEP_ISSUES` when
+    `vitest`'s peer `vite` was undeclared.
+- **Significant corrections found and applied:**
+  1. **pnpm 12 does not read pnpm settings from `.npmrc`.** `minimumReleaseAge` in `.npmrc` (both
+     `kebab-case` and `camelCase`) was silently ignored; `engine-strict` in `.npmrc` was ignored while
+     `engineStrict` in `pnpm-workspace.yaml` was enforced. All pnpm settings now live in
+     `pnpm-workspace.yaml`, and `.npmrc` is documented as npm-only.
+  2. **`ignore-scripts=true` in `.npmrc` is ignored by pnpm.** It was previously described as the
+     mechanism that blocks dependency hooks; that was untested and wrong. The real mechanism is
+     `allowBuilds` default-deny, which is stronger: it fails the install rather than skipping quietly.
+     `.npmrc`, `policy/toolchain.yaml`, and the tests were corrected.
+  3. **The age policy immediately caught this repository's own dependencies.** `vitest@5.0.3` and
+     `@types/node@26.6.4` were younger than 7 days, so the install was refused. Rather than take a
+     package-wide age exemption — which the policy forbids — they were moved to the newest mature
+     versions: `vitest@5.0.2` and `@types/node@24.19.0`. The latter also matches the Node 24 runtime
+     better than the 26.x types originally chosen. `vite@8.3.1` was added as an explicit peer
+     dependency because strict peer resolution requires it.
+  4. **`minimumReleaseAge` accepts a range fallback.** With a caret range and no strict setting, pnpm
+     silently resolved to the newest *mature* version (skipping an 18h-old release). Exact-version
+     pinning plus `minimumReleaseAge` produces a hard refusal, which is what this repository relies on.
+     The distinct effect of `minimumReleaseAgeStrict` was not isolated, so it is not set.
+- **Limitations and unresolved findings:**
+  - `minimumReleaseAgeExclude` is **package-wide, not version-specific**, so the exact-version
+    exception in `policy/dependency-policy.yaml` cannot be expressed directly in pnpm. The
+    compensating control is: pin the exact version in the manifest, add a temporary exclusion, and
+    hold a policy exception with an expiry; the exclusion must be removed when the version matures or
+    the exception expires. Recorded in the policy notes.
+  - The live download path in `src/execution/download.ts` has still not been exercised against a real
+    registry; it is tested against a local server. Step 09 exercises it for real when tools are
+    downloaded.
+- **Next step:** Step 09's scanner identity work is now unblocked; Steps 07–10 remain blocked on the
+  container runtime.
 
 ### Steps 07–10 — blocked
 

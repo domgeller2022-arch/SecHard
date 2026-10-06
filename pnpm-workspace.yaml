@@ -1,0 +1,34 @@
+# pnpm settings. pnpm 12.9.1 reads these from this file, NOT from .npmrc.
+#
+# Verified against pnpm 12.9.1 on 2026-10-06 with the recorded evidence in
+# docs/implementation-progress.md (Step 06). Each setting below was exercised, not assumed:
+#
+#   engineStrict              Refused an install under Node 25 against `engines: >=24 <25`
+#                             (ERR_PNPM_UNSUPPORTED_ENGINE) and accepted Node 24.21.0.
+#   saveExact                 Saved an exact version rather than a caret range.
+#   minimumReleaseAge         Refused nanoid@6.0.2 (published 18h earlier) with
+#                             ERR_PNPM_NO_MATURE_MATCHING_VERSION, naming the cutoff.
+#   allowBuilds               Default deny: an unapproved install script failed the install
+#                             (ERR_PNPM_IGNORED_BUILDS) and did not run. `pkg: true` ran the
+#                             reviewed hook; `pkg: false` recorded a review decision without
+#                             running it.
+#
+# minimumReleaseAge is in MINUTES. 10080 = 7 days, the reviewed policy value.
+# It is a delay, not a safety proof.
+minimumReleaseAge: 10080
+
+# Refuse to install when the running Node does not satisfy `engines`.
+engineStrict: true
+
+# Exact versions only. A caret range turns a lockfile update into a silent policy change.
+saveExact: true
+
+# No implicit peer resolution and no silent peer conflict.
+autoInstallPeers: false
+strictPeerDependencies: true
+
+# Install scripts are denied unless a package is listed here with `true` after review.
+# `false` records a review decision to deny a package that ships a hook and does not need it.
+# The list is empty and must stay empty until a hook is reviewed: an unapproved hook fails the
+# install, which is the desired outcome. See policy/dependency-policy.yaml.
+allowBuilds: {}

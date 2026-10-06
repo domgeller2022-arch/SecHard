@@ -20,13 +20,16 @@ runtime:
     end_of_life: 2028-04-30
     source: https://raw.githubusercontent.com/nodejs/Release/main/schedule.json
     cross_check: https://nodejs.org/dist/index.json
-  node_host_observed:
-    version: 25.8.2
-    path: /usr/local/bin/node
+  supported_runtime_installed:
+    version: 24.21.0
+    path: ~/.local/opt/node-v24.21.0/bin/node
+    installed_at: "2026-10-06"
+    method: official tarball, SHA-256 verified against nodejs.org/dist/v24.21.0/SHASUMS256.txt
+    tarball_sha256: 1462cb3b3046b815cf8ea436d3da450ec1a9f11dac7e5a46b0ada5305d7e8097
     note: >-
-      Build host runtime is outside the supported line and is excluded by vitest@5 engines.
-      Results produced on this host require re-verification on Node 24.21.0.
-    engines_enforced: ">=24 <25"
+      Installed under agent_may_install_runtimes: true. Verification results for this repository
+      were produced with this runtime. The host also carries Node v25.8.2, which is outside the
+      supported line and is no longer used for verification.
 
 package_manager:
   status: verified
@@ -35,10 +38,40 @@ package_manager:
   licence: MIT
   source: https://registry.npmjs.org/pnpm
   install_mode: frozen_lockfile
-  installed_on_host: false
-  note: >-
-    Not installed. Corepack is not bundled in Node 25, and installing runtimes requires
-    agent_may_install_runtimes, which is still TODO.
+  installed_on_host: true
+  settings_location: pnpm-workspace.yaml
+  settings_note: >-
+    pnpm 12 no longer reads pnpm settings from .npmrc. `minimumReleaseAge` in .npmrc (kebab or
+    camel) was ignored and the setting only took effect from pnpm-workspace.yaml. `engine-strict`
+    in .npmrc was likewise ignored while `engineStrict` in pnpm-workspace.yaml was enforced.
+    `.npmrc` is retained only for a stray npm invocation.
+  verified_behaviours:
+    - setting: minimumReleaseAge
+      value: 10080
+      observed: >-
+        Refused nanoid@6.0.2 (published 18.5h earlier) with ERR_PNPM_NO_MATURE_MATCHING_VERSION,
+        naming the publish time and cutoff, exit 1. Units are minutes. Confirmed enforced.
+    - setting: allowBuilds
+      value: "{}"
+      observed: >-
+        Default deny. An unapproved install script failed the install with ERR_PNPM_IGNORED_BUILDS
+        and did not run (verified with core-js@3.37.1 and a local tarball fixture). `pkg: true` ran
+        the reviewed hook; `pkg: false` recorded a denial without running it.
+    - setting: engineStrict
+      value: "true"
+      observed: ERR_PNPM_UNSUPPORTED_ENGINE under Node 25 against engines >=24 <25; accepted Node 24.21.0.
+    - setting: saveExact
+      value: "true"
+      observed: Exact versions saved rather than caret ranges.
+    - setting: strictPeerDependencies
+      value: "true"
+      observed: >-
+        Failed the install with ERR_PNPM_PEER_DEP_ISSUES when vitest's peer vite was not declared.
+        vite was added explicitly rather than relaxing the setting.
+    - setting: supply_chain_lockfile_check
+      observed: >-
+        `pnpm install --frozen-lockfile` reports "Lockfile passes supply-chain policies" by default.
+        The --trust-lockfile flag skips that verification and is not used.
 
 core_dependencies:
   status: verified
@@ -60,13 +93,17 @@ core_dependencies:
       licence: Apache-2.0
       use: "Strict type checking and build"
     - name: vitest
-      version: 5.0.3
+      version: 5.0.2
       licence: MIT
       use: "Test runner"
-    - name: "@types/node"
-      version: 26.6.4
+    - name: vite
+      version: 8.3.1
       licence: MIT
-      use: "Node type definitions"
+      use: "Declared explicitly as vitest's peer because strict peer resolution is enabled"
+    - name: "@types/node"
+      version: 24.19.0
+      licence: MIT
+      use: "Node type definitions matching the supported runtime"
 
 integrity:
   method: registry_dist_integrity

@@ -52,6 +52,47 @@ digests. Suite now **345 tests, 17 files**.
 none is an install-time hook, and the build and full suite pass with `ignore-scripts=true`. Guarded
 by a test that fails if a future dependency adds one.
 
+### Verified — Step 06 unblocked (6 October 2026)
+
+The owner granted `agent_may_install_runtimes: true` and `network_access_to_registries: true`.
+The blocked Step 06 verification was completed, and **two long-standing environment blockers are
+resolved**.
+
+- **Node 24.21.0 installed on the supported runtime.** Official `darwin-x64` tarball, SHA-256
+  verified against `SHASUMS256.txt` (`1462cb3b…e8097`). All verification now runs on Node 24.
+  **E2 resolved.**
+- **pnpm 12.9.1 installed; `pnpm install --frozen-lockfile` builds the CLI.** `pnpm-lock.yaml` is
+  committed. This is the Step 01 acceptance check that had been blocked since Batch A.
+  **E1 resolved.**
+- **Full suite on Node 24.21.0 with pnpm: 338 unit + 8 integration tests, all passing.**
+- **The seven-day release-age policy is enforced.** `minimumReleaseAge: 10080` refused
+  `nanoid@6.0.2` (18.5h old) with `ERR_PNPM_NO_MATURE_MATCHING_VERSION`, naming the cutoff.
+- **Install scripts are denied by default and an unapproved one fails the install**
+  (`ERR_PNPM_IGNORED_BUILDS`, exit 1, script did not run). Verified with `core-js@3.37.1` and a local
+  tarball fixture. `allowBuilds: { pkg: true }` ran the reviewed hook; `false` recorded a denial.
+
+**Corrections applied** (each was previously stated as if true and was not):
+
+1. **pnpm 12 does not read pnpm settings from `.npmrc`.** `minimumReleaseAge` and `engine-strict` in
+   `.npmrc` were silently ignored; their `pnpm-workspace.yaml` forms (`minimumReleaseAge`,
+   `engineStrict`) are enforced. A new `pnpm-workspace.yaml` holds all pnpm settings; `.npmrc` is
+   documented as npm-only.
+2. **`ignore-scripts=true` in `.npmrc` is ignored by pnpm** and was wrongly described as the control
+   that blocks dependency hooks. The real control is `allowBuilds` default-deny, which is stronger:
+   it fails the install rather than skipping quietly. Documentation and tests corrected.
+3. **The age policy caught our own dependencies.** `vitest@5.0.3` and `@types/node@26.6.4` were
+   younger than 7 days, so the install was refused. Instead of a forbidden package-wide exemption,
+   they were moved to mature versions: `vitest@5.0.2` and `@types/node@24.19.0` (the latter also
+   matches the Node 24 runtime better). `vite@8.3.1` added as an explicit peer because strict peer
+   resolution requires it.
+4. **Range fallback**: with a caret range, pnpm silently resolves to the newest *mature* version.
+   Exact pins plus `minimumReleaseAge` produce a hard refusal, which is what this repository relies
+   on. `minimumReleaseAgeStrict`'s distinct effect was not isolated, so it is not set.
+5. **`minimumReleaseAgeExclude` is package-wide, not version-specific**, so the exact-version
+   exception cannot be expressed directly in pnpm. Compensating control recorded in
+   `policy/dependency-policy.yaml`: pin the exact version, add a temporary exclusion, hold an
+   expiring policy exception, and remove the exclusion when the version matures.
+
 ### Blocked — Batch B remainder
 
 - **Steps 07–10 are blocked.** Docker is **absent** from this machine — the CLI symlink points at a
