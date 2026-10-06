@@ -1,0 +1,75 @@
+schema: hardening/gate-policy/v1
+policy_version: 1
+review_status: draft
+
+# Authority: this file and the control catalogue define what blocks. A consumer's own configuration
+# can add obligations and request waivers; it cannot delete a check, relax a threshold, or widen a
+# freshness window.
+
+stages:
+  pr:
+    description: Pull-request evaluation.
+    require_clean_source: false
+    advisory_snapshot_max_age_hours: 168
+    require_actual_tool_origin: true
+  release:
+    description: Release evaluation.
+    require_clean_source: true
+    advisory_snapshot_max_age_hours: 24
+    require_actual_tool_origin: true
+  operations:
+    description: Ongoing operational checks.
+    require_clean_source: false
+    advisory_snapshot_max_age_hours: 168
+    require_actual_tool_origin: false
+
+freshness:
+  manual_evidence_default_max_age_days: 30
+  manual_evidence_exercise_max_age_days: 90
+  max_clock_skew_minutes: 5
+  reject_future_evidence: true
+  notes: >-
+    Scanner and test results are valid only for the exact source commit, policy commit, and target
+    they record. Rejecting implausible future evidence matters: a result dated ahead of the clock
+    would otherwise be treated as fresh forever.
+
+risk:
+  # A finding blocks unless it is excepted. Severity below is used for reporting priority, never to
+  # downgrade a blocking decision on its own.
+  blocking_severities: [critical, high]
+  unknown_severity_requires_triage: true
+  notes: >-
+    Confirmed authorization failures, privileged-secret exposure, and failed security invariants block
+    regardless of any scanner label. Unknown severity is preserved and requires explicit triage; it
+    is never silently treated as low.
+
+control_categories:
+  # Controls in these categories are never satisfied by an excepted execution error. An error means
+  # the work did not produce an answer, which is different from an accepted risk.
+  error_not_exceptable:
+    - CI-03
+    - REL-01
+    - EXC-01
+    - GOV-02
+  never_exceptable: [CI-03, REL-01, EXC-01, GOV-02, AUTHZ-01, AUTHZ-02, AUTHZ-03, AGT-03]
+
+coverage:
+  # Zero findings is meaningful only when expected scope was examined.
+  require_expected_scope_for_pass: true
+  empty_scope_blocks: true
+  unknown_severity_triage_states: [false_positive, accepted, fixed]
+
+evidence:
+  fixture_origin_can_satisfy_release: false
+  manual_attestation_can_satisfy_automated_method: false
+  duplicate_check_ids_block: true
+  notes: >-
+    Fixture-origin results are acceptable for parser and domain unit tests only. They never satisfy a
+    real release requirement.
+
+unsupported_scope:
+  # Recorded so a gap is visible rather than mistaken for a pass.
+  block_release_on_unsupported_required_coverage: true
+  notes: >-
+    A control whose required coverage cannot be established is unsupported, and blocks the applicable
+    gate. It is never reported as satisfied.
