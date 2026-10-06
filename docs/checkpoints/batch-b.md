@@ -2,6 +2,15 @@
 
 Steps 06–10. Generated 2026-10-06. Authorised batch: **B**.
 
+> **Update (same day, after owner grants).** The owner granted `agent_may_install_runtimes: true`
+> and `network_access_to_registries: true`. **Step 06 is now verified in full** (environment blockers
+> E1 and E2 resolved; Node 24.21.0 installed with a verified digest; pnpm 12.9.1 installed;
+> `pnpm install --frozen-lockfile` builds the CLI), and **Step 09 is verified** (four scanners
+> downloaded, digest-pinned, and run against real vulnerable and fixed fixtures).
+> **Steps 07, 08, and 10 remain blocked** on the absent container runtime (E3), as does Step 09's
+> app-integrated scan. The status table below is superseded by this paragraph; the blockers and
+> owner actions remain accurate.
+
 **This batch is not complete.** Step 06 was implemented and verified as far as this machine permits.
 Steps 07–10 are blocked and were deliberately not started. The batch stops here per the kickoff
 rule: continue with what does not depend on the missing items, and mark dependent work blocked.
@@ -10,10 +19,10 @@ rule: continue with what does not depend on the missing items, and mark dependen
 
 | Step | State | Reason |
 | --- | --- | --- |
-| 06 — Control dependency and tool execution | `verified` with three `blocked` sub-items | The execution layer, provisioning policy, digest-gated downloads, and install-script policy are implemented and tested with real processes. pnpm behaviour, scanner identity verification, and the live download path are blocked on **B14** and **B13**. |
+| 06 — Control dependency and tool execution | **`verified` (complete)** | Execution layer, provisioning policy, digest-gated downloads, install-script policy, release-age enforcement, and pinned pnpm all verified on Node 24.21.0. E1 and E2 resolved. |
 | 07 — Secure local reference app | `blocked` | Requires a container runtime for local Supabase. **Docker is absent** (E3), and `docker_available` is unfilled (**B12**). |
 | 08 — Authorization and session verification | `blocked` | Depends on Step 07. There is no application and no database to test against. |
-| 09 — Scanner adapters | `blocked` | Depends on Step 06 (met) but needs Step 08's app for the integrated profile, and real positive detections require downloaded, pinned tools. Network provisioning is unfilled (**B13**). |
+| 09 — Scanner adapters | **`verified`** (app-integrated scan `blocked`) | Four scanners pinned and digest-verified; real positive detections and clean fixed negatives for all four. The app-integrated scan needs Step 08. |
 | 10 — Build and client-secret checks | `blocked` | Depends on Steps 08–09. There is no application and no build to inspect. |
 
 ## What now works
@@ -105,8 +114,9 @@ existing controls: DEP-01, DEP-02, CI-02, and the execution half of AGT-02.
 - **The install-script guarantee is only as strong as our own toolchain today.** Verified: our
   dependency set needs no hook and builds with scripts disabled. Unverified: that pnpm keeps an
   unapproved hook disabled.
-- **No real tool has been downloaded or run.** All scanner interaction is refusal plus unit-level
-  download verification against a local server.
+- **Four real tools are pinned and have been run** against fixtures; the app-integrated scan is not
+  performed. **One synthetic placeholder token remains in git history** (see the progress record) and
+  is deliberately left visible.
 - **Nothing has been executed against an application**, because there is no application.
 - **`application_execution` isolation is a policy statement**, not an enforced environment.
 - **All 35 controls remain `draft`** with zero approvals, and no scanner coverage exists, so release
@@ -126,6 +136,7 @@ existing controls: DEP-01, DEP-02, CI-02, and the execution half of AGT-02.
    leak fixture.
 
 **What the owner must prepare:** install and start a container runtime and set `docker_available:
-true`; decide **B14** (runtime installation) so pnpm can finish Step 06's blocked verification; decide
-**B13** (registry access) so scanners can be downloaded and pinned. Optionally approve the 35 control
-definitions.
+true` (the only remaining environment blocker); optionally approve the 35 control definitions
+(`node dist/cli.js approvals --policy .` prints the digests); and decide what to do about the one
+synthetic placeholder token still present in this repository's **git history** (left visible rather
+than allowlisted — either rewrite the local history or accept a narrow documented allowlist).

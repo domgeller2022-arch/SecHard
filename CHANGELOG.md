@@ -123,6 +123,12 @@ them while adapter verification still detects them.
 4 zizmor findings vs 0; OSV advisories for `lodash@4.17.15`; 3 Opengrep findings vs 0. Full suite:
 **357 unit + 8 integration tests.**
 
+**Initial history review run.** `gitleaks git .` over 13 commits found 1 finding: a synthetic
+non-functional placeholder token in `tests/cli/cli.test.ts` at commit `5ac4a0b4`. The working tree is
+clean; history is not. It is recorded as an assessed, visible finding rather than allowlisted, since
+suppressing a token-shaped value is how a real leak is missed later. History rewrite was not
+performed: it changes commit identities and was not authorised.
+
 **Defects found by running the tools, and fixed:**
 
 1. **The first real scan of this repository found 4 leaks** — synthetic GitHub tokens committed as

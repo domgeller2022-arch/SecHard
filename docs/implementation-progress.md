@@ -634,6 +634,17 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   - Opengrep → complete when its reported scanned-file list matches the intended scope.
   - OSV-Scanner → **partial** unless the caller supplies the lockfile's package count, because
     "some packages checked" is not "the lockfile was covered".
+  - **Initial history review run.** `gitleaks git .` over this repository's full history (13
+    commits, ~918 KB) found **1 finding**: `generic-api-key` in `tests/cli/cli.test.ts`, in commit
+    `5ac4a0b4`. The working tree is clean because the literal was removed in a later commit, but the
+    history still contains it. **Assessment: the value was a synthetic, non-functional placeholder
+    (`ghp_` followed by the sequential alphabet) that was never issued by any provider and never
+    valid for any account.** There is nothing to rotate. It is left **visible and unresolved** rather
+    than allowlisted, because allowlisting a token-shaped value in a scanner config is how a real
+    leak gets missed later. Remediation options for the owner: rewrite the local history (not
+    performed — it rewrites commit identities and was not authorised), or accept a narrow,
+    documented allowlist for that exact value. Until one is chosen the master repository's own
+    history scan will report this finding, which is the honest state.
 - **Limitations and unresolved findings:**
   - **No app-integrated scan** (needs Step 08).
   - **No history scan yet.** Gitleaks' `git` mode over full history is a recipe for Step 13's CI and
