@@ -1,0 +1,10 @@
+{
+  "$comment": "Reviewed master-repository identity and immutable commit. Generated at adoption time by the owner's chosen mechanism; every field must be filled with real values, never placeholders.",
+  "schema": "hardening/policy-lock/v1",
+  "repository": "REPLACE_WITH_OWNER_AND_REPO",
+  "commit": "REPLACE_WITH_40_HEX_REVIEWED_COMMIT",
+  "policy_digest": "REPLACE_WITH_64_HEX_SHA256_OF_POLICY_INPUTS",
+  "locked_at": "REPLACE_WITH_RFC3339_TIMESTAMP",
+  "verified_by": "REPLACE_WITH_REVIEWER",
+  "notes": "A digest detects that a file changed. It does not prove who produced it, and it is not a signature."
+}

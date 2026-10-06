@@ -1,0 +1,157 @@
+schema_version: profile/v1
+id: nextjs-supabase
+definition_version: 1
+review_status: draft
+title: Next.js App Router with Supabase
+extends: [core]
+description: >-
+  The reference stack profile. Adds the authentication, authorization, data-policy, input, and build
+  controls that apply to a Next.js App Router application backed by Supabase Postgres with
+  row-level security.
+
+  Excluded features are declared explicitly. Enabling one produces a coverage gap and an additional
+  verification requirement; it never produces an implied pass.
+
+  These version constraints are declared support intent for the reference stack. They are verified
+  in Step 07 when the pinned releases are actually selected and tested, and are not verified today.
+controls:
+  - { control: CTX-01 }
+  - { control: GOV-01 }
+  - { control: GOV-02 }
+  - { control: AGT-01 }
+  - { control: AGT-02 }
+  - { control: AGT-03 }
+  - { control: DEP-01 }
+  - { control: DEP-02 }
+  - { control: DEP-03 }
+  - { control: SEC-01 }
+  - { control: SEC-02 }
+  - { control: SEC-03 }
+  - { control: CI-01 }
+  - { control: CI-02 }
+  - { control: CI-03 }
+  - { control: CODE-01 }
+  - { control: QUAL-01 }
+  - { control: AUTH-01 }
+  - { control: AUTH-02 }
+  - { control: AUTHZ-01 }
+  - { control: AUTHZ-02 }
+  - { control: AUTHZ-03 }
+  - { control: DATA-01 }
+  - { control: WEB-01 }
+  - { control: WEB-02 }
+  - { control: ABUSE-01 }
+  - { control: BIZ-01 }
+  - { control: DEPLOY-01 }
+  - { control: OPS-01 }
+  - { control: OPS-02 }
+  - { control: OPS-03 }
+  - { control: PRIV-01 }
+  - { control: REL-01 }
+  - { control: REL-02 }
+  - { control: EXC-01 }
+excluded_features:
+  - payments
+  - webhooks
+  - uploads
+  - tenancy
+  - runtime_ai
+stage_requirements:
+  pr:
+    required_methods:
+      - schema_validation
+      - policy_consistency
+      - static_analysis
+      - secret_scan
+      - dependency_scan
+      - workflow_analysis
+      - authorization_test
+      - functional_test
+    require_clean_source: false
+    require_actual_tool_origin: true
+    required_recipes:
+      - authorization/ownership
+      - authorization/security-fields
+      - data/grants-and-policies
+      - web/negative-inputs
+  release:
+    required_methods:
+      - schema_validation
+      - policy_consistency
+      - static_analysis
+      - secret_scan
+      - dependency_scan
+      - workflow_analysis
+      - authorization_test
+      - functional_test
+      - build_check
+      - client_asset_inspection
+      - live_http_check
+      - tls_check
+    require_clean_source: true
+    require_actual_tool_origin: true
+    required_recipes:
+      - authorization/ownership
+      - authorization/role-and-tenant
+      - authorization/security-fields
+      - data/grants-and-policies
+      - build/client-assets
+      - build/leak-fixture
+      - web/http-requirements
+      - web/tls
+  operations:
+    required_methods: [policy_consistency, dependency_scan, manual_attestation]
+    require_clean_source: false
+    require_actual_tool_origin: false
+    required_recipes:
+      - ops/restore-exercise
+      - ops/response-exercise
+      - ops/alert-delivery
+support_constraints:
+  platforms: [linux-ci]
+  runtime:
+    node: "24.x"
+    nextjs: "declared in app.yaml; pinned in Step 07"
+    supabase: "declared in app.yaml; pinned in Step 07"
+  notes: >-
+    Local HTTP development does not satisfy the production transport requirement, and Docker is
+    required for local Supabase. Supabase publishable keys are intended for clients; secret keys
+    bypass row-level security and require their own backend authorization verification. Legacy
+    anon and service-role keys are deprecated by the end of 2026, and creating a new key does not
+    revoke an old one.
+permitted_exceptions:
+  - { control: CTX-01, policy: permitted, max_duration_days: 90 }
+  - { control: GOV-01, policy: permitted, max_duration_days: 30 }
+  - { control: GOV-02, policy: never }
+  - { control: AGT-01, policy: permitted, max_duration_days: 30 }
+  - { control: AGT-02, policy: permitted, max_duration_days: 90 }
+  - { control: AGT-03, policy: never, note: "Real checks and protected tests are not exceptable" }
+  - { control: DEP-01, policy: permitted, max_duration_days: 14 }
+  - { control: DEP-02, policy: permitted, max_duration_days: 90 }
+  - { control: DEP-03, policy: permitted, max_duration_days: 30 }
+  - { control: SEC-01, policy: permitted, max_duration_days: 14 }
+  - { control: SEC-02, policy: permitted, max_duration_days: 7, note: "A privileged key in a client bundle needs containment, not a waiver" }
+  - { control: SEC-03, policy: permitted, max_duration_days: 30 }
+  - { control: CI-01, policy: never }
+  - { control: CI-02, policy: permitted, max_duration_days: 30 }
+  - { control: CI-03, policy: never }
+  - { control: CODE-01, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-01, policy: permitted, max_duration_days: 30 }
+  - { control: AUTH-01, policy: never }
+  - { control: AUTH-02, policy: permitted, max_duration_days: 30 }
+  - { control: AUTHZ-01, policy: never, note: "Confirmed cross-user access needs containment and remediation" }
+  - { control: AUTHZ-02, policy: never, note: "Confirmed cross-tenant access needs containment and remediation" }
+  - { control: AUTHZ-03, policy: never, note: "Ownership transfer by a client needs remediation" }
+  - { control: DATA-01, policy: permitted, max_duration_days: 14 }
+  - { control: WEB-01, policy: permitted, max_duration_days: 60 }
+  - { control: WEB-02, policy: permitted, max_duration_days: 30 }
+  - { control: ABUSE-01, policy: permitted, max_duration_days: 60 }
+  - { control: BIZ-01, policy: permitted, max_duration_days: 30, note: "Requires maintained external verification, not only an exception" }
+  - { control: DEPLOY-01, policy: permitted, max_duration_days: 30 }
+  - { control: OPS-01, policy: permitted, max_duration_days: 30 }
+  - { control: OPS-02, policy: permitted, max_duration_days: 90 }
+  - { control: OPS-03, policy: permitted, max_duration_days: 90 }
+  - { control: PRIV-01, policy: permitted, max_duration_days: 90 }
+  - { control: REL-01, policy: never }
+  - { control: REL-02, policy: permitted, max_duration_days: 90 }
+  - { control: EXC-01, policy: never }

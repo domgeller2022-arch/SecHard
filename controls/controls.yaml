@@ -1,0 +1,1045 @@
+schema_version: control-catalogue/v1
+catalogue_version: 1
+controls:
+  - id: CTX-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Inventory and threat model
+    purpose: >-
+      Record what the application is, what it exposes, and where the trust boundaries are, so that
+      every other control is evaluated against an actual system rather than an assumption.
+    applicability: { rule: always }
+    acceptance:
+      - Assets, data flows, interfaces, and trust boundaries are recorded and reviewed
+      - Declared features match what is actually implemented and deployed
+      - A selected profile and a pinned policy reference are recorded
+      - The inventory is reassessed when a significant application change lands
+    verification:
+      - method: schema_validation
+        recipe: manifest/validate
+        coverage: automated
+      - method: manual_attestation
+        recipe: inventory/review
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: configuration_record }
+    limitations:
+      - Schema validation confirms the manifest is well formed; it cannot confirm the manifest is true
+      - Threat model quality depends on reviewer judgement, not on tooling
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new external interface is added
+      - A new category of personal or sensitive data is stored
+      - The reference stack or a major version changes
+
+  - id: GOV-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Repository protections
+    purpose: >-
+      Ensure that required checks and reviewed sensitive-file changes are actually enforced by the
+      hosting platform, and that bypass access is known.
+    applicability: { rule: always }
+    acceptance:
+      - Required checks are configured on protected branches with the expected check source
+      - Changes to controls, policy, workflows, and security tests require review
+      - Permitted bypass identities are recorded and justified
+      - Stale reviews are dismissed when new commits land
+    verification:
+      - method: policy_consistency
+        recipe: governance/protections
+        coverage: mixed
+      - method: manual_attestation
+        recipe: governance/platform-settings
+        coverage: mixed
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+      - { kind: configuration_record }
+    limitations:
+      - Adding workflow YAML does not create a platform protection; the setting must be inspected
+      - A maintainer who can bypass protections can defeat the gate, and that limit is inherent
+    owner_role: repository-owner
+    reassessment_triggers:
+      - Repository visibility changes
+      - The hosting platform changes its protection model
+      - A bypass identity is added or removed
+
+  - id: GOV-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Versioned control policy
+    purpose: >-
+      Keep control definitions, mappings, supported versions, and the pinned policy identity valid
+      and mutually consistent so results cannot be reinterpreted under different rules.
+    applicability: { rule: always }
+    acceptance:
+      - Every control definition validates against its schema and has at least one verification method
+      - External mappings distinguish a related risk from verified coverage
+      - The application pins an immutable reviewed policy commit
+      - A policy change identifies affected assessments and requires reassessment
+    verification:
+      - method: policy_consistency
+        recipe: policy/validate
+        coverage: automated
+      - method: schema_validation
+        recipe: control/validate
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Validates internal consistency only; it does not assess whether a control definition is adequate
+      - A standards mapping remains a claim until a reviewer checks it against the pinned edition
+    owner_role: repository-owner
+    reassessment_triggers:
+      - A control definition, profile, or policy file changes
+      - The pinned policy commit changes
+
+  - id: AGT-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Restricted agent permissions
+    purpose: >-
+      Limit what an AI coding agent can reach and do through enforcement outside the model, rather
+      than through instructions it could be persuaded to ignore.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - Runtime, filesystem, credential, and network restrictions are configured and tested
+      - The agent cannot obtain deployment or publishing credentials
+      - Restrictions are enforced by the tool or platform, not by prompt text
+    verification:
+      - method: policy_consistency
+        recipe: agent/permissions
+        coverage: mixed
+      - method: manual_attestation
+        recipe: agent/runtime-restrictions
+        coverage: mixed
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+      - { kind: configuration_record }
+    limitations:
+      - This repository cannot observe the owner's local agent configuration directly
+      - A separate directory and an environment allowlist are not isolation
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The agent tool or its version changes
+      - A new credential becomes reachable from the agent environment
+
+  - id: AGT-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Untrusted context handling
+    purpose: >-
+      Treat fetched pages, dependency text, issue content, and tool output as data that cannot
+      authorize an install, expose a secret, or change policy.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - External content is treated as untrusted data and cannot alter instructions or permissions
+      - Permitted tools and the reasons for them are recorded
+      - New installs require identity and licence verification before execution
+    verification:
+      - method: policy_consistency
+        recipe: agent/untrusted-context
+        coverage: mixed
+      - method: manual_attestation
+        recipe: agent/tool-inventory
+        coverage: mixed
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - Instruction text alone does not enforce anything; only permission boundaries do
+      - Cannot detect every prompt-injection pattern in third-party content
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The agent tool changes
+      - A new external integration is added to the development workflow
+
+  - id: AGT-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Real checks and protected tests
+    purpose: >-
+      Ensure a reported result corresponds to work that actually executed, and that security tests
+      are not quietly removed or weakened.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - Each claimed pass corresponds to a captured execution record from the checking system
+      - Deleted, skipped, or weakened security tests require explicit review and a stated reason
+      - No result is claimed from simulated, mocked, or unavailable tooling
+    verification:
+      - method: policy_consistency
+        recipe: agent/test-change-review
+        coverage: mixed
+      - method: functional_test
+        recipe: agent/security-test-suite
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A test count or coverage percentage flags change but does not prove correctness
+      - Review of intent requires reading the assertion, not a heuristic over the diff
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A security test is deleted, skipped, or modified
+      - The CI system changes how results are collected
+
+  - id: DEP-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Controlled dependency resolution
+    purpose: >-
+      Ensure every dependency comes from a reviewed source at a reviewed version, and that
+      installing does not silently change what the application runs.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Package identity, source, licence, and version are verified before installation
+      - A lockfile is committed and installs use the frozen mode
+      - Runtime and package-manager versions are pinned
+      - Direct and transitive lockfile changes are reviewed
+    verification:
+      - method: dependency_scan
+        recipe: dependency/lockfile-policy
+        coverage: automated
+      - method: policy_consistency
+        recipe: dependency/pins
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: configuration_record }
+    limitations:
+      - A frozen lockfile guarantees reproducibility, not that the resolved versions are safe
+      - Install-time age delay reduces recency risk but is not a safety guarantee
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A dependency is added, removed, or upgraded
+      - The package manager or lockfile format changes
+
+  - id: DEP-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Install-script policy
+    purpose: >-
+      Restrict dependency install scripts by default, because a script runs with the developer's
+      privileges during installation.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Install scripts are disabled by default and every necessary hook is reviewed individually
+      - An unapproved install script fails or remains disabled
+      - Any exception names the package, the hook, the reason, and an expiry
+    verification:
+      - method: policy_consistency
+        recipe: dependency/install-scripts
+        coverage: mixed
+      - method: functional_test
+        recipe: dependency/install-hook-test
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A reviewed native build hook still executes code; review reduces risk but does not remove it
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A dependency with a build hook is added
+      - An install-script exception expires
+
+  - id: DEP-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Advisory checks and updates
+    purpose: >-
+      Detect known vulnerable dependencies with fresh advisory data and keep them updated, while
+      stating that advisory coverage is not the same as safety.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - The supported lockfile format is scanned against a recent advisory snapshot
+      - Advisory data age is within the stage limit
+      - An updater is configured and the urgent security-fix route is documented and exercised
+    verification:
+      - method: dependency_scan
+        recipe: osv/lockfile
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Advisory snapshots are valid for at most 7 days for pull-request evaluation and 24 hours for release evaluation
+      - Advisories cover known vulnerabilities, not malicious or compromised packages
+      - Updater behaviour and package-manager enforcement are separate mechanisms
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new significant advisory affects a used dependency
+      - The updater or scanner configuration changes
+
+  - id: SEC-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Secret detection
+    purpose: >-
+      Find credentials committed to the repository, including in history, before they are used.
+    applicability: { rule: always }
+    acceptance:
+      - Repository and change scans run with valid scope and a fresh tool version
+      - Initial history is reviewed, with shallow-clone limitations recorded
+      - Findings are resolved or explicitly assessed; unknown severity stays visible
+      - Secret material is redacted in all emitted output
+    verification:
+      - method: secret_scan
+        recipe: gitleaks/repository
+        coverage: automated
+      - method: secret_scan
+        recipe: gitleaks/history
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Shallow clones limit history coverage and the limitation must be recorded
+      - Detection is pattern based; absence of findings is not proof of absence
+      - A verified leak still requires credential rotation, not only removal from the commit
+    owner_role: repository-owner
+    reassessment_triggers:
+      - A new contributor or automation gains repository access
+      - Scan scope or exclusions change
+
+  - id: SEC-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Client and artifact secret boundary
+    purpose: >-
+      Ensure privileged credentials never reach a browser-shipped bundle, while distinguishing them
+      from keys that are intended to be public.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Browser-shipped assets are inventoried and inspected
+      - Privileged keys are absent from client output
+      - Intended publishable keys are classified as such rather than flagged as leaks
+    verification:
+      - method: client_asset_inspection
+        recipe: build/client-assets
+        coverage: automated
+      - method: build_check
+        recipe: build/leak-fixture
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A browser-only scan cannot claim coverage of every build output
+      - Classification of a publishable key is a reviewed judgement, not an automatic result
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The build pipeline or bundler configuration changes
+      - The provider's key types change
+
+  - id: SEC-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Credential lifecycle
+    purpose: >-
+      Keep credentials least-privileged, stored deliberately, owned by a person, and revocable.
+    applicability: { rule: when_any_feature_enabled, features: [accounts, hosting, interfaces] }
+    acceptance:
+      - Every credential has a named owner, purpose, scope, and least-privilege grant
+      - Storage and access paths are reviewed
+      - Rotation and revocation procedures exist and have been exercised
+      - Revocation is verified after a suspected exposure
+    verification:
+      - method: manual_attestation
+        recipe: credentials/inventory
+        coverage: manual_only
+      - method: manual_attestation
+        recipe: credentials/rotation-drill
+        coverage: manual_only
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+    limitations:
+      - Credential inventory lives with the provider; this repository cannot read it
+      - Creating a replacement key does not revoke the old one
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A credential is created, rotated, or revoked
+      - A suspected exposure occurs
+
+  - id: CI-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Isolated untrusted execution
+    purpose: >-
+      Ensure jobs that analyse untrusted code cannot reach deployment or publishing credentials or a
+      privileged execution context.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - Jobs analysing untrusted pull requests use minimal permissions and no inherited secrets
+      - Candidate code is never executed in a privileged context
+      - Untrusted work runs in an ephemeral or otherwise isolated environment
+    verification:
+      - method: workflow_analysis
+        recipe: zizmor/workflows
+        coverage: mixed
+      - method: manual_attestation
+        recipe: ci/permissions
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: configuration_record }
+    limitations:
+      - Workflow analysis cannot prove platform settings such as required checks or environment rules
+      - Fork pull requests legitimately lack secrets, which changes what can be verified there
+    owner_role: repository-owner
+    reassessment_triggers:
+      - A workflow gains deployment, publishing, or package-write permissions
+      - A new untrusted event trigger is added
+
+  - id: CI-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Immutable execution inputs
+    purpose: >-
+      Constrain the whole execution chain. Pinning only an action's outer reference still leaves the
+      binary, image, rule pack, or configuration it downloads at runtime unpinned.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Actions, scanner binaries, images, and rule packs use reviewed immutable references or verified digests
+      - Runtime downloads are pinned, not just the step that performs them
+      - Untrusted work is separated from privileged work and credentials
+    verification:
+      - method: workflow_analysis
+        recipe: ci/pins
+        coverage: mixed
+      - method: policy_consistency
+        recipe: ci/toolchain-pins
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Digest pinning detects change but does not prove a producer's identity
+      - A pinned compromised binary remains compromised; this control limits propagation
+    owner_role: repository-owner
+    reassessment_triggers:
+      - An action, scanner, image, or rule pack is upgraded
+      - A supply-chain incident affects a used tool
+
+  - id: CI-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Complete gate execution
+    purpose: >-
+      Ensure the required work actually ran. A green job, an existing artifact, or a skipped job is
+      not evidence that every expected check completed.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - The expected check list is derived before execution and cannot be reduced afterwards
+      - Missing, skipped, errored, unsupported, or incomplete required work blocks the decision
+      - The final gate evaluates dependency job outcomes rather than relying on a job's presence
+      - Cancellation or a missing final job never satisfies the required check
+    verification:
+      - method: policy_consistency
+        recipe: gate/completeness
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - The platform treats skipped and neutral statuses as successful, so the gate must inspect expected work
+      - Without platform access, enforcement cannot be verified and is recorded as pending
+    owner_role: repository-owner
+    reassessment_triggers:
+      - The gate logic or required-check configuration changes
+      - A new check is added to a profile
+
+  - id: CODE-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Supported static analysis
+    purpose: >-
+      Run static analysis over the expected source and rules, and prove the rule set actually detects
+      the matching vulnerable fixture.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - The scan covers the expected languages and rule pack, and scope is recorded
+      - The rule set detects its vulnerable fixture and passes its fixed fixture
+      - Documented limits such as intra-file scope are stated rather than implied away
+    verification:
+      - method: static_analysis
+        recipe: opengrep/rules
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Static analysis is not an authorization proof and does not establish runtime behaviour
+      - Intra-file taint mode includes inter-method flow within a file but not universal cross-file analysis
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The supported languages or rule pack change
+      - The scanner version changes
+
+  - id: QUAL-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Functional and quality checks
+    purpose: >-
+      Run the functional, type, lint, and configured maintainability checks that would otherwise let a
+      broken change through, while keeping quality results separate from security outcomes.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - Functional tests, type checks, and linting run successfully
+      - Quality thresholds are calibrated rather than set to fail everything
+      - Quality results are reported separately from security control outcomes
+    verification:
+      - method: functional_test
+        recipe: quality/test-suite
+        coverage: automated
+      - method: build_check
+        recipe: quality/type-and-lint
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A duplication or complexity metric is a maintainability signal, not a security finding
+      - A global threshold must not fail deliberately vulnerable fixtures in a way that hides real results
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The test framework or quality tooling changes
+      - A threshold is raised or lowered
+
+  - id: AUTH-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Server authentication and sessions
+    purpose: >-
+      Ensure identity is verified server-side, and that tokens, cookies, expiry, and invalidation meet
+      a stated session policy.
+    applicability: { rule: when_feature_enabled, features: [accounts] }
+    acceptance:
+      - Every protected endpoint verifies identity before reading or mutating private data
+      - Cookie and token attributes match the documented session policy
+      - Expired and invalid sessions are rejected, and sign-out behaves as stated
+      - The provider's actual revocation limitations are documented rather than assumed away
+    verification:
+      - method: authorization_test
+        recipe: auth/session-behaviour
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Supported provider libraries are used; no custom cryptography is invented
+      - A client-side route guard does not demonstrate endpoint authorization
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The authentication provider or session library changes
+      - The session policy changes
+
+  - id: AUTH-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Recovery and privileged access
+    purpose: >-
+      Ensure account recovery and linking resist takeover, and that privileged access and role removal
+      are actually verified.
+    applicability: { rule: when_feature_enabled, features: [accounts, recovery] }
+    acceptance:
+      - Recovery tokens are single-use, short-lived, and bound to the intended account
+      - Recovery cannot be used to link or take over a different account
+      - Administrative accounts require multi-factor authentication
+      - Role removal takes effect as documented
+    verification:
+      - method: authorization_test
+        recipe: auth/recovery-isolation
+        coverage: automated
+      - method: manual_attestation
+        recipe: auth/admin-mfa
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+    limitations:
+      - Recovery-flow behaviour is owned by the identity provider and cannot be fully verified locally
+      - MFA state is visible in provider configuration, not in the application
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The identity provider changes
+      - An administrative role is created or removed
+
+  - id: AUTHZ-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Resource ownership
+    purpose: >-
+      Ensure a private record belongs to its owner, and that a second account cannot read or modify
+      it through any supported path.
+    applicability: { rule: when_feature_enabled, features: [private_resources] }
+    acceptance:
+      - Owners can perform explicitly permitted operations
+      - Other users cannot read, list, update, or delete the resource, including via a direct data API
+      - Denied writes leave the stored record unchanged, verified through a separate trusted channel
+      - Allowed positive cases succeed, so a deny-everything policy fails the suite
+    verification:
+      - method: authorization_test
+        recipe: authorization/ownership
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - This recipe alone does not cover role or tenant isolation
+      - An HTTP denial code alone is insufficient; stored data must be inspected after the denial
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new data access path is added
+      - Ownership or provider policies change
+
+  - id: AUTHZ-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Roles and tenant boundaries
+    purpose: >-
+      Ensure unauthorized roles and other tenants cannot reach functions, records, collections, or
+      cached results. Where roles or tenancy are absent, the gap is explicit.
+    applicability: { rule: when_any_feature_enabled, features: [roles, tenancy] }
+    acceptance:
+      - Unauthorized roles cannot invoke privileged functions or read privileged records
+      - Actors in separate tenants cannot reach each other's data, including through cached results
+      - Where roles or tenancy are not implemented, the absence is recorded as a coverage gap
+    verification:
+      - method: authorization_test
+        recipe: authorization/role-and-tenant
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - This control is unknown, not satisfied, when the manifest does not declare roles or tenancy
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A custom role model is introduced
+      - Multi-tenancy is added
+
+  - id: AUTHZ-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Trusted security fields
+    purpose: >-
+      Ensure owner, tenant, role, entitlement, and other security-sensitive properties cannot be
+      changed by a client without authorization.
+    applicability: { rule: when_feature_enabled, features: [private_resources] }
+    acceptance:
+      - A client-supplied owner, tenant, role, or entitlement field cannot transfer ownership or elevate privilege
+      - Security-sensitive properties are protected on write, not merely hidden in the interface
+      - Injection through update and create payloads is tested with a real mutation
+    verification:
+      - method: authorization_test
+        recipe: authorization/security-fields
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A field hidden in the user interface proves nothing about the write path
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new security-sensitive field is added to a record
+      - The data access layer changes
+
+  - id: DATA-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Provider data policies
+    purpose: >-
+      Review and test the provider's grants, row-level security policies, storage access, and any
+      privileged backend path that bypasses them.
+    applicability: { rule: when_feature_enabled, features: [private_resources] }
+    acceptance:
+      - Table and storage policies are operation specific and applied through migrations
+      - Privileged views and functions are inventoried with their execution context
+      - A privileged backend path has its own independent authorization verification
+      - Client restriction demonstrations never use privileged credentials
+    verification:
+      - method: authorization_test
+        recipe: data/grants-and-policies
+        coverage: automated
+      - method: policy_consistency
+        recipe: data/migration-inventory
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A secret or service-role credential bypasses row-level security, so backend authorization must be verified separately
+      - Publishable keys identify no user on their own; user identity is handled separately
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A migration changes grants or policies
+      - The provider's key types change
+
+  - id: WEB-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Safe input and output boundaries
+    purpose: >-
+      Ensure injection, XSS, CSRF, SSRF, and upload paths have applicable negative tests or explicit
+      manual checks.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces] }
+    acceptance:
+      - Each applicable injection, XSS, CSRF, SSRF, and upload path has a negative test or a recorded manual check
+      - Malformed and oversized input fails safely without disclosing internals
+      - Absent feature cases are declared rather than left untested silently
+    verification:
+      - method: functional_test
+        recipe: web/negative-inputs
+        coverage: mixed
+      - method: manual_attestation
+        recipe: web/manual-boundaries
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - Static analysis does not establish that every runtime injection path is covered
+      - SSRF and upload coverage is only meaningful where the feature is enabled
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new input path or integration is added
+      - A previously excluded feature is enabled
+
+  - id: WEB-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Transport and browser protections
+    purpose: >-
+      Verify HTTPS and TLS, plus route-appropriate headers, cookie attributes, and CSP and CORS
+      behaviour, as explicit requirements rather than a letter grade.
+    applicability: { rule: when_environment, environments: [staging, production] }
+    acceptance:
+      - TLS is verified with a dedicated check, separately from HTTP behaviour
+      - Required headers, cookie attributes, and CSP and CORS behaviour are asserted per route class
+      - Plain local HTTP development does not satisfy a production transport requirement
+    verification:
+      - method: live_http_check
+        recipe: web/http-requirements
+        coverage: automated
+      - method: tls_check
+        recipe: web/tls
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A passive scan does not claim active, authenticated, or business-logic coverage
+      - Header requirements differ by route, so a single global assertion is not sufficient
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new internet-facing route class is added
+      - The reverse proxy or CDN configuration changes
+
+  - id: ABUSE-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Bounded resource use
+    purpose: >-
+      Protect expensive requests and ensure failure paths stay safe when quotas, sizes, time, or
+      concurrency are exceeded.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, accounts] }
+    acceptance:
+      - Rate, quota, payload-size, timeout, and concurrency limits apply to costly or exposed operations
+      - Exceeding a limit fails safely without leaking internals or allowing unbounded cost
+      - Relevant resource-limit tests exist and pass
+    verification:
+      - method: functional_test
+        recipe: abuse/resource-limits
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Rate limiting may be enforced at a provider edge and is then only observable indirectly
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new costly operation or provider is added
+      - Limits are changed
+
+  - id: BIZ-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Transaction and webhook integrity
+    purpose: >-
+      Keep money and credit state server-authoritative, and make webhook handling resistant to
+      forgery, duplication, and replay.
+    applicability: { rule: when_any_feature_enabled, features: [payments, webhooks] }
+    acceptance:
+      - Entitlement and balance state is derived server-side, not from a browser success page
+      - Webhook signatures are verified and duplicates and replays are handled
+      - Concurrent requests cannot grant an entitlement twice
+      - A maintained or documented external verification is required where automation is absent
+    verification:
+      - method: functional_test
+        recipe: biz/transaction-integrity
+        coverage: automated
+      - method: manual_attestation
+        recipe: biz/provider-webhooks
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+    limitations:
+      - The reference example excludes payments, so this control is out of scope there by design
+      - Declaring the recipe optional must never make a payments application green
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A payment or webhook integration is added or changed
+      - Entitlement logic changes
+
+  - id: DEPLOY-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Live environment verification
+    purpose: >-
+      Check that the deployed environment matches what was assessed: access, separation, exposure,
+      storage, and relevant configuration.
+    applicability: { rule: when_environment, environments: [staging, production] }
+    acceptance:
+      - Production access, administrative access, and environment separation are verified
+      - Public database, storage, and function exposure is checked
+      - Relevant production configuration is confirmed against the assessed source
+      - Operator evidence is recorded for anything automation cannot observe
+    verification:
+      - method: live_http_check
+        recipe: deploy/environment
+        coverage: mixed
+      - method: manual_attestation
+        recipe: deploy/production-access
+        coverage: manual_only
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+    limitations:
+      - Requires an approved target inventory; arbitrary targets are rejected
+      - Provider-side settings are visible only to an operator with access
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A deployment target or hosting configuration changes
+      - A new environment is added
+
+  - id: OPS-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Security logging and alert routing
+    purpose: >-
+      Ensure useful security events are recorded without leaking sensitive data, and that a synthetic
+      alert actually reaches a responsible maintainer.
+    applicability: { rule: when_environment, environments: [staging, production] }
+    acceptance:
+      - Authentication, authorization, and configuration-change events are logged usefully
+      - Logs and reports redact secrets and personal data
+      - A synthetic alert is delivered to a responsible maintainer and the delivery is confirmed
+    verification:
+      - method: manual_attestation
+        recipe: ops/alert-delivery
+        coverage: manual_only
+      - method: policy_consistency
+        recipe: ops/redaction
+        coverage: mixed
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 30 }
+    limitations:
+      - Alert delivery cannot be automated safely without sending a real notification
+      - A configured alert route is not evidence that a message arrived
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A logging or alerting provider changes
+      - The on-call responsibility changes
+
+  - id: OPS-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Backup and restoration
+    purpose: >-
+      Demonstrate that data can actually be restored to a separate environment within the stated
+      recovery targets, with integrity intact.
+    applicability: { rule: when_feature_enabled, features: [persistent_storage] }
+    acceptance:
+      - An initial restore is performed into a separate environment and measured
+      - Databases, object storage, configuration, and decryption access are all covered
+      - Deletion and retention obligations are reconciled after recovery
+      - The exercise repeats on schedule and after material storage or migration changes
+    verification:
+      - method: manual_attestation
+        recipe: ops/restore-exercise
+        coverage: manual_only
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - A full restore drill is not required for every ordinary code change
+      - Local disposable restore recipes do not establish hosted backup coverage
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A storage or migration change occurs
+      - The recovery objective changes
+
+  - id: OPS-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Incident and disclosure response
+    purpose: >-
+      Establish a security contact, triage ownership, containment actions, and a communication
+      process, and exercise them.
+    applicability: { rule: when_any_feature_enabled, features: [accounts, hosting] }
+    acceptance:
+      - A security contact is published and reachable
+      - A named triage owner and containment actions are recorded
+      - Credential revocation, session invalidation, feature disablement, and patch deployment procedures exist
+      - The response process is exercised, not only documented
+    verification:
+      - method: manual_attestation
+        recipe: ops/response-exercise
+        coverage: manual_only
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - Until a contact is recorded, no report channel exists; this is a release blocker for a public repository
+    owner_role: repository-owner
+    reassessment_triggers:
+      - The security contact or triage owner changes
+      - An incident occurs
+
+  - id: PRIV-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Data purpose and retention
+    purpose: >-
+      Assess collection purpose, retention, deletion, subprocessors, and user rights, and verify them
+      rather than relying on a privacy page.
+    applicability: { rule: when_feature_enabled, features: [personal_data] }
+    acceptance:
+      - The purpose for each data category is recorded and justified
+      - Retention periods and the deletion mechanism are defined and tested
+      - Subprocessors and transfers are inventoried
+      - Applicable user rights and regulatory obligations are assessed and owned
+    verification:
+      - method: manual_attestation
+        recipe: privacy/retention-review
+        coverage: manual_only
+    evidence_requirements:
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - Applicability depends on the entity and the data; it is not determined by this repository
+      - A published privacy page does not establish these controls
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new data category or subprocessor is added
+      - A jurisdiction or regulatory obligation changes
+
+  - id: REL-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Release evidence
+    purpose: >-
+      Connect assessed source, pinned policy, actual check results, environment configuration, and the
+      deliverable in one record a reviewer can follow.
+    applicability: { rule: always }
+    acceptance:
+      - Source commit, policy commit, and deliverable identity are recorded and connected
+      - Every expected check has a matching result with scope and coverage
+      - Manual verification records operator, date, scope, and freshness
+      - Unresolved findings and approved exceptions are listed with their expiry
+      - Kit readiness and application production readiness are reported separately
+    verification:
+      - method: policy_consistency
+        recipe: release/evidence-assembly
+        coverage: automated
+      - method: manual_attestation
+        recipe: release/deliverable-identity
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: configuration_record }
+    limitations:
+      - A digest proves a file did not change, not who produced it
+      - Without a packaged artifact, source, build, and deployment identities are recorded separately
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The release process changes
+      - A new build or deployment model is adopted
+
+  - id: REL-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Safe rollback and changes
+    purpose: >-
+      Ensure a rollback or migration procedure is compatible with database state and with supported
+      client versions, and that it has been tried.
+    applicability: { rule: when_any_feature_enabled, features: [persistent_storage] }
+    acceptance:
+      - Rollback and migration steps are compatible with the current schema and supported clients
+      - A disposable rollback has actually been exercised
+      - The hosted rollback and recovery procedure is documented for the real environment
+    verification:
+      - method: functional_test
+        recipe: release/rollback-drill
+        coverage: automated
+      - method: manual_attestation
+        recipe: release/hosted-rollback
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - A local drill does not establish a hosted rollback path
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A schema migration is added
+      - The deployment platform changes
+
+  - id: EXC-01
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Scoped exceptions
+    purpose: >-
+      Ensure an accepted deviation is narrow, current, owned, and visible, and never hides the
+      underlying failure.
+    applicability: { rule: always }
+    acceptance:
+      - The exception names an exact finding, check, or control scope rather than a blanket waiver
+      - Reason, risk, compensating measures, owner, approver, expiry, and remediation are recorded
+      - An expired or out-of-scope exception is rejected and the underlying issue remains visible
+      - A failed check stays visible under a waiver and is never relabelled as implemented
+    verification:
+      - method: policy_consistency
+        recipe: exception/validate
+        coverage: automated
+      - method: functional_test
+        recipe: exception/expiry-drill
+        coverage: automated
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - A sole maintainer accepting risk is self-review, not independent review, and is recorded as such
+      - Exceptions for execution errors are rejected by default
+    owner_role: repository-owner
+    reassessment_triggers:
+      - An exception is created, expires, or is revoked
+      - A relevant control definition version changes

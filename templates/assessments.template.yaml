@@ -1,0 +1,57 @@
+# Template consumer assessment records.
+#
+# Copy to .hardening/assessments.yaml and fill in. Every record starts `pending`: an assessment you
+# write yourself is a claim, not proof. The evaluator derives the current outcome from required
+# check results and valid manual evidence, so a `pass` written here does not make the gate pass.
+#
+# `not_applicable` requires an `applicability_reason` tied to the manifest. It is not a way to
+# silence a control you have not implemented: enabling the feature while declaring the control
+# not_applicable produces a visible coverage gap, not a pass.
+schema_version: assessments/v1
+assessments:
+  - control: CTX-01
+    definition_version: 1
+    applicability: applicable
+    applicability_reason: ""
+    implementation_refs: ["docs/threat-model.md"]
+    owner: {{MAINTAINER_NAME}}
+    status: pending
+    status_reason: ""
+    evidence_refs: []
+    exception_refs: []
+    assessed_at: "{{ASSESSED_AT}}"
+    reassessment_triggers:
+      - A new external interface is added
+
+  - control: AUTHZ-01
+    definition_version: 1
+    applicability: applicable
+    applicability_reason: ""
+    implementation_refs: ["tests/authorization/ownership.test.ts"]
+    owner: {{MAINTAINER_NAME}}
+    status: pending
+    evidence_refs: []
+    exception_refs: []
+    assessed_at: "{{ASSESSED_AT}}"
+    reassessment_triggers:
+      - A new data access path is added
+
+  - control: SEC-01
+    definition_version: 1
+    applicability: applicable
+    implementation_refs: []
+    owner: {{MAINTAINER_NAME}}
+    status: pending
+    evidence_refs: []
+    exception_refs: []
+    assessed_at: "{{ASSESSED_AT}}"
+
+  # Example of a legitimately absent feature. Only valid while the manifest also disables it.
+  - control: BIZ-01
+    definition_version: 1
+    applicability: not_applicable
+    applicability_reason: "No payments or webhooks; the manifest declares both disabled"
+    implementation_refs: []
+    owner: {{MAINTAINER_NAME}}
+    status: not_applicable
+    assessed_at: "{{ASSESSED_AT}}"

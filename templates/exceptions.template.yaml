@@ -1,0 +1,28 @@
+# Template for scoped exception records.
+#
+# An exception produces a visible waiver. It never converts a failure into a pass, and the failed
+# evidence stays visible underneath it. A blanket scope (control only, or empty) is rejected.
+#
+# Execution errors are not exceptable by default. Risk acceptance is not a substitute for fixing a
+# confirmed cross-tenant or cross-user access failure.
+#
+# A sole maintainer may record and accept risk within the stated governance model. That is
+# self-review, not independent review, and must be recorded as `self_review: true`.
+schema_version: exceptions/v1
+exceptions:
+  - id: EXC-0001
+    status: pending_approval
+    scope:
+      control: WEB-01
+      check_id: web/negative-inputs
+      environment: staging
+    reason: "{{WHY_ACCEPTED}}"
+    risk: "{{RESIDUAL_RISK}}"
+    compensating_measures:
+      - "{{MEASURE}}"
+    owner: {{MAINTAINER_NAME}}
+    approver: {{APPROVER_NAME}}
+    self_review: true
+    expires_at: "{{EXPIRES_AT}}"
+    remediation_ref: "{{REMEDIATION_TRACKER}}"
+    created_at: "{{CREATED_AT}}"

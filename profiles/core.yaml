@@ -1,0 +1,53 @@
+schema_version: profile/v1
+id: core
+definition_version: 1
+review_status: draft
+title: Core profile
+description: >-
+  The minimum control set that applies to any application using this repository: governance,
+  policy integrity, dependency and secret hygiene, complete gate execution, and release evidence.
+  Stack-specific authorization and data controls come from a stack profile.
+controls:
+  - { control: CTX-01 }
+  - { control: GOV-01 }
+  - { control: GOV-02 }
+  - { control: SEC-01 }
+  - { control: CI-02 }
+  - { control: CI-03 }
+  - { control: DEP-01 }
+  - { control: DEP-02 }
+  - { control: DEP-03 }
+  - { control: REL-01 }
+  - { control: EXC-01 }
+excluded_features:
+  - runtime_ai
+stage_requirements:
+  pr:
+    required_methods: [schema_validation, policy_consistency, secret_scan, dependency_scan]
+    require_clean_source: false
+    require_actual_tool_origin: true
+  release:
+    required_methods: [schema_validation, policy_consistency, secret_scan, dependency_scan]
+    require_clean_source: true
+    require_actual_tool_origin: true
+  operations:
+    required_methods: [policy_consistency, dependency_scan]
+    require_clean_source: false
+    require_actual_tool_origin: true
+support_constraints:
+  platforms: [linux-ci]
+  notes: >-
+    Linux CI is the supported execution environment. macOS may be used for local feedback on the
+    documented subset, but release evidence is produced on the supported environment.
+permitted_exceptions:
+  - { control: CTX-01, policy: permitted, max_duration_days: 90 }
+  - { control: GOV-01, policy: permitted, max_duration_days: 30, note: "Platform settings age quickly" }
+  - { control: GOV-02, policy: never }
+  - { control: SEC-01, policy: permitted, max_duration_days: 14, note: "A confirmed exposure needs remediation, not a waiver" }
+  - { control: CI-02, policy: permitted, max_duration_days: 30 }
+  - { control: CI-03, policy: never }
+  - { control: DEP-01, policy: permitted, max_duration_days: 14 }
+  - { control: DEP-02, policy: permitted, max_duration_days: 90 }
+  - { control: DEP-03, policy: permitted, max_duration_days: 30 }
+  - { control: REL-01, policy: never }
+  - { control: EXC-01, policy: never }

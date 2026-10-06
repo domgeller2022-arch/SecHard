@@ -1,0 +1,46 @@
+# Template for explicit operator attestations.
+#
+# This file records what a person says they observed. Validation checks structure, freshness, and
+# correspondence to the declared requirement. It does NOT automatically attest that a restore, a
+# review, or an alert delivery actually happened. Operator confirmations stay `pending` until the
+# work is performed.
+#
+# Reuse across unrelated source changes is permitted only while `scope_fingerprint` and the relevant
+# external configuration remain valid. Do not require a full restore after every comment change, and
+# do not reuse one indefinitely after a storage migration.
+schema_version: manual-evidence/v1
+records:
+  - id: ME-OPS-02-RESTORE
+    control: OPS-02
+    recipe: ops/restore-exercise
+    operator:
+      identity: {{OPERATOR_IDENTITY}}
+      role: {{OPERATOR_ROLE}}
+      independent_of_owner: false
+    observed_at: "{{OBSERVED_AT}}"
+    target:
+      environment: production
+      identifier: "{{TARGET_IDENTIFIER}}"
+      configuration_fingerprint: "{{CONFIGURATION_FINGERPRINT}}"
+    scope_fingerprint: "{{SCOPE_FINGERPRINT}}"
+    observed_configuration: ""
+    supporting_refs: []
+    supporting_digests: []
+    outcome: pending
+    notes: ""
+    expires_at: "{{EXPIRES_AT}}"
+    reassessment_trigger: A storage or migration change occurs
+
+  - id: ME-DEPLOY-01-ACCESS
+    control: DEPLOY-01
+    recipe: deploy/production-access
+    operator:
+      identity: {{OPERATOR_IDENTITY}}
+      independent_of_owner: false
+    observed_at: "{{OBSERVED_AT}}"
+    target:
+      environment: production
+    scope_fingerprint: "{{SCOPE_FINGERPRINT}}"
+    outcome: pending
+    expires_at: "{{EXPIRES_AT}}"
+    reassessment_trigger: A deployment target or hosting configuration changes

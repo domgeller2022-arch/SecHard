@@ -1,0 +1,109 @@
+schema: hardening/mappings/v1
+mappings_version: 1
+
+# Standards relationships for the v1 catalogue.
+#
+# Read this before citing any mapping:
+#
+#   verified_coverage  The requirement was actually assessed against the pinned edition. A reviewer
+#                      and date are required. None of these exist yet.
+#   related_risk       A taxonomy link. The category describes a risk area this control addresses.
+#                      This is NOT a claim of conformance and NOT verified coverage.
+#   unverified_reference  A reference recorded for later review. Deliberately not precise, because a
+#                      precise-looking ID that nobody checked is worse than an honest gap.
+#
+# The plan requires exact standards IDs to be reviewed against pinned source editions before
+# publication. That review has not happened, so nothing is marked verified_coverage and no exact
+# requirement IDs are asserted. Framework editions are recorded so a reviewer can do the lookup.
+
+reviewed: false
+review_note: >-
+  No mapping in this file has been reviewed against a pinned source edition. Every entry is
+  related_risk or unverified_reference. Do not present these as conformance.
+
+editions:
+  OWASP-ASVS: { edition: "5.0.0", status: stable, source: "https://github.com/OWASP/ASVS" }
+  OWASP-Top-10: { edition: "2025", status: published, source: "https://top10.owasp.org/2025/" }
+  OWASP-API-Security: { edition: "2023", status: published, source: "https://api-security.owasp.org/editions/2023/en/0x11-t10/" }
+  NIST-SSDF: { edition: "1.1", status: final, source: "https://csrc.nist.gov/pubs/sp/800/218/final" }
+  OpenSSF-OSPS: { edition: "v2026.08.28", status: published, source: "https://baseline.openssf.org/versions/2026-08-28" }
+  MVSP: { edition: "1.0", status: published, source: "https://www.mvsp.dev/mvsp.en/" }
+
+controls:
+  CTX-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "architecture and design verification chapter" }
+    - { framework: MVSP, relationship: related_risk }
+  GOV-01:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "branch protection and access control" }
+  GOV-02:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "versioned policy and maintained mappings" }
+  AGT-01:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "least-privilege access" }
+  AGT-02:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "supply-chain integrity" }
+  AGT-03:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "security-focused verification" }
+  DEP-01:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "dependency integrity" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "software supply chain failures" }
+  DEP-02:
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "software supply chain failures" }
+  DEP-03:
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "vulnerable and outdated components" }
+  SEC-01:
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "secrets management" }
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "secret scanning" }
+  SEC-02:
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "secrets management" }
+  SEC-03:
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "secrets management" }
+    - { framework: MVSP, relationship: related_risk, requirement: "credential handling" }
+  CI-01:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "CI/CD isolation and least privilege" }
+  CI-02:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "immutable build and execution inputs" }
+  CI-03:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "verified release gate" }
+  CODE-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "static analysis verification chapter" }
+  QUAL-01:
+    - { framework: NIST-SSDF, relationship: related_risk, requirement: "secure software development practices" }
+  AUTH-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "authentication verification chapter" }
+  AUTH-02:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "account management and recovery" }
+  AUTHZ-01:
+    - { framework: OWASP-API-Security, relationship: related_risk, requirement: "object and property level authorization" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "broken access control" }
+  AUTHZ-02:
+    - { framework: OWASP-API-Security, relationship: related_risk, requirement: "function level authorization" }
+  AUTHZ-03:
+    - { framework: OWASP-API-Security, relationship: related_risk, requirement: "property level authorization" }
+  DATA-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "data access control verification" }
+  WEB-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "injection and input validation verification" }
+    - { framework: OWASP-API-Security, relationship: related_risk, requirement: "injection" }
+  WEB-02:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "communication and cryptography verification" }
+  ABUSE-01:
+    - { framework: OWASP-API-Security, relationship: related_risk, requirement: "unrestricted resource consumption" }
+  BIZ-01:
+    - { framework: OWASP-API-Security, relationship: related_risk, requirement: "business flow abuse" }
+  DEPLOY-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "deployment and configuration verification" }
+  OPS-01:
+    - { framework: OWASP-ASVS, relationship: related_risk, requirement: "logging and error handling verification" }
+    - { framework: MVSP, relationship: related_risk, requirement: "incident handling" }
+  OPS-02:
+    - { framework: MVSP, relationship: related_risk, requirement: "recovery and backup" }
+  OPS-03:
+    - { framework: MVSP, relationship: related_risk, requirement: "incident response and contact" }
+  PRIV-01:
+    - { framework: MVSP, relationship: related_risk, requirement: "privacy and data handling" }
+  REL-01:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "release verification and evidence" }
+  REL-02:
+    - { framework: MVSP, relationship: related_risk, requirement: "rollback and recovery" }
+  EXC-01:
+    - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "documented risk acceptance" }

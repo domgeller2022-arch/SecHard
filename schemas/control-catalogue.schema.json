@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/control-catalogue.schema.json",
+  "title": "Control catalogue",
+  "description": "The repository-owned catalogue of control definitions. Exactly the 35 v1 IDs, each carrying its definition version, review status, applicability, acceptance criteria, verification methods, evidence requirements, and limitations.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "catalogue_version", "controls"],
+  "properties": {
+    "schema_version": { "const": "control-catalogue/v1" },
+    "catalogue_version": { "type": "integer", "minimum": 1 },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "allOf": [
+          { "$ref": "https://schemas.hardening.invalid/schemas/control.schema.json" }
+        ]
+      }
+    }
+  }
+}

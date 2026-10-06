@@ -16,7 +16,8 @@ export type SchemaName =
   | 'profile'
   | 'release-evidence'
   | 'source'
-  | 'control';
+  | 'control'
+  | 'control-catalogue';
 
 const SCHEMA_FILES: Record<SchemaName, string> = {
   app: 'app.schema.json',
@@ -29,6 +30,7 @@ const SCHEMA_FILES: Record<SchemaName, string> = {
   'release-evidence': 'release-evidence.schema.json',
   source: 'source.schema.json',
   control: 'control.schema.json',
+  'control-catalogue': 'control-catalogue.schema.json',
 };
 
 const cache = new Map<SchemaName, ValidateFunction>();
@@ -49,16 +51,25 @@ function ajv(): InstanceType<typeof Ajv2020> {
   return instance;
 }
 
+function schemaPath(name: SchemaName): string {
+  const dir = name === 'control' ? join(packageRoot(), 'controls') : join(packageRoot(), 'schemas');
+  return join(dir, SCHEMA_FILES[name]);
+}
+
 function validateFor(name: SchemaName): ValidateFunction {
   const cached = cache.get(name);
   if (cached) return cached;
 
-  const isControl = name === 'control';
-  const dir = isControl ? join(packageRoot(), 'controls') : join(packageRoot(), 'schemas');
-  const file = join(dir, SCHEMA_FILES[name]);
-  const schema: unknown = JSON.parse(readFileSync(file, 'utf8'));
-
   const instance = ajv();
+
+  // The catalogue schema references the control schema by absolute $id, so the referenced schema must
+  // be registered before compiling it.
+  if (name === 'control-catalogue') {
+    const controlSchema: unknown = JSON.parse(readFileSync(schemaPath('control'), 'utf8'));
+    instance.addSchema(controlSchema as object);
+  }
+
+  const schema: unknown = JSON.parse(readFileSync(schemaPath(name), 'utf8'));
   const compiled = instance.compile(schema as object);
   cache.set(name, compiled);
   return compiled;

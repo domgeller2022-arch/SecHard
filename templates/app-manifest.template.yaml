@@ -1,0 +1,65 @@
+schema_version: app/v1
+id: {{APP_ID}}
+name: {{APP_NAME}}
+description: {{APP_DESCRIPTION}}
+
+stack:
+  kind: nextjs-supabase
+  runtime_versions:
+    node: { version: "24.21.0", support: supported }
+    nextjs: { version: "{{NEXTJS_VERSION}}", support: planned, notes: "Pinned and verified in Step 07" }
+    supabase: { version: "{{SUPABASE_VERSION}}", support: planned, notes: "Pinned and verified in Step 07" }
+  package_manager: { version: "12.9.1", support: supported }
+
+# Declare every feature. A missing key is treated as `unknown`, never as false. Omitting a
+# declaration does not remove an obligation: it makes the relevant control's applicability
+# `unknown`, which is visible and blocking rather than silently absent.
+features:
+  accounts: { state: enabled }
+  private_resources: { state: enabled }
+  roles: { state: disabled, notes: "No custom role model" }
+  tenancy: { state: disabled, notes: "Single-tenant by design" }
+  recovery: { state: enabled }
+  payments: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  webhooks: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  uploads: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  outbound_requests: { state: unknown, notes: "DECIDE: does the app call third-party APIs?" }
+  personal_data: { state: unknown, notes: "DECIDE: does the app store personal data?" }
+  runtime_ai: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  hosting: { state: enabled }
+  interfaces: { state: enabled }
+  environments: { state: enabled }
+  persistent_storage: { state: enabled }
+
+data:
+  classification: unknown
+  categories: []
+  jurisdictions: []
+
+# Every externally reachable entry point. An empty list on an internet-facing app is a coverage gap,
+# not evidence that no interfaces exist. Server Actions and Route Handlers are API operations.
+exposed_interfaces:
+  - { kind: page, path: "/", auth_required: false, environment: production }
+  - { kind: page, path: "/notes", auth_required: true, environment: production }
+
+environments:
+  - { name: local, kind: local, internet_facing: false, separated: true }
+  - { name: production, kind: production, internet_facing: true, separated: true }
+
+profiles:
+  - nextjs-supabase
+
+policy_lock:
+  repository: {{POLICY_REPOSITORY}}
+  commit: "{{POLICY_COMMIT}}"
+  policy_digest: "{{POLICY_DIGEST}}"
+  locked_at: "{{LOCKED_AT}}"
+
+maintainer:
+  name: {{MAINTAINER_NAME}}
+  contact: {{MAINTAINER_CONTACT}}
+
+threat_model_ref: docs/threat-model.md
+supported_versions: []
+
+updated_at: "{{UPDATED_AT}}"
