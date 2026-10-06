@@ -102,7 +102,7 @@ describe('schema validation', () => {
       coverage: 'partial',
       started_at: '2026-10-06T00:00:00Z',
       finished_at: '2026-10-06T00:00:10Z',
-      identity: { source_commit: 'a'.repeat(40), policy_commit: 'b'.repeat(40) },
+      identity: { source_commit: 'a'.repeat(40), policy_commit: 'b'.repeat(40), run_id: 'run-1', attempt: 1 },
       evidence_origin: 'actual_tool',
     };
     expect(validateAgainstSchema('check-result', base).valid).toBe(false);
@@ -122,7 +122,7 @@ describe('schema validation', () => {
       coverage: 'complete',
       started_at: '2026-10-06T00:00:00Z',
       finished_at: '2026-10-06T00:00:10Z',
-      identity: { source_commit: 'a'.repeat(40), policy_commit: 'b'.repeat(40) },
+      identity: { source_commit: 'a'.repeat(40), policy_commit: 'b'.repeat(40), run_id: 'run-1', attempt: 1 },
       evidence_origin: 'fixture',
     };
     const result = validateAgainstSchema('check-result', base);

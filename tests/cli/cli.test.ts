@@ -287,6 +287,7 @@ describe('a satisfied decision is reachable and exits 0', () => {
       sourceDirty: false,
       now: NOW,
       planId: 'plan-demo',
+      runId: 'run-demo',
     });
 
     expect(plan.expected_checks.length).toBeGreaterThan(0);
@@ -301,7 +302,7 @@ describe('a satisfied decision is reachable and exits 0', () => {
       environment: check.environment,
       outcome: 'pass' as const,
       coverage: 'complete' as const,
-      identity: { source_commit: COMMIT, policy_commit: COMMIT },
+      identity: { source_commit: COMMIT, policy_commit: COMMIT, run_id: 'run-demo', attempt: 1 },
       started_at: '2026-10-06T11:00:00Z',
       finished_at: '2026-10-06T11:00:10Z',
       scope: { expected: 1, observed: 10, files: ['a'], routes: ['/'] },
@@ -370,6 +371,8 @@ describe('redaction and Markdown escaping', () => {
       plan: {
         schema_version: 'execution-plan/v1',
         plan_id: 'p',
+        run_id: 'r',
+        attempt: 1,
         stage: 'pr',
         environment: 'local',
         created_at: '2026-10-06T00:00:00Z',

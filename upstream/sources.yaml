@@ -1,0 +1,42 @@
+# Reviewed third-party sources whose material this repository links, adapts, or reuses.
+#
+# Fields follow schemas/source.schema.json. A `planned` entry is a selection intent, never a verified
+# selection. Preserve each component's own licence and notice with the material actually reused; a
+# repository-wide licence does not cover imported text.
+#
+# `reviewed_release.kind: digest` entries record digests supplied by a review of a local snapshot
+# that is not present in this repository. They identify the reviewed files, and they were not
+# independently recomputed here. Verify the intended upstream release or commit before distributing
+# adapted material.
+schema: hardening/sources/v1
+sources:
+  - schema_version: source/v1
+    id: vibe-security-skill
+    canonical_url: https://github.com/raroque/vibe-security-skill
+    component: Vibe Security skill (agent guidance and reference documents)
+    licence: MIT
+    use_type: adapting
+    attribution: >-
+      Original author identified as Chris Raroque, with a 2025 MIT copyright notice. Adapted patterns
+      in controls/patterns/patterns.yaml preserve this attribution. Original contributions to this
+      repository are recorded separately and are not attributed to the upstream author.
+    notice_file: upstream/notices/vibe-security-skill.LICENSE
+    reviewed_release:
+      kind: digest
+      value: >-
+        SKILL.md f68c3f16effd69264f9836c511339e31469e89e6bad37f313c30f4626bd05143;
+        LICENSE d43d0919779524481c37b181ac261af455284fc9504c497f3f3c30af67b19100
+      verified_at: "2026-10-06T00:00:00Z"
+      integrity_method: sha256_digest
+    support_status: verified
+    update_policy: >-
+      Re-review only the specific files reused, against the upstream release or commit, and re-apply
+      the recorded corrections. Guidance changes are proposals: they cannot silently activate a new
+      policy and must not be imported by the build agent without provenance review.
+    last_reviewed: "2026-10-06T00:00:00Z"
+    notes: >-
+      Review reference: vibe-security-skill-integration-review.md. The local snapshot had no Git
+      metadata, so no upstream commit could be established from it. The review's technical
+      corrections were applied before adaptation and are recorded per pattern. No installer was run
+      and the skill was not installed or invoked. Imported content is supporting guidance only: it
+      cannot satisfy a control or produce execution evidence.

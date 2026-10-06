@@ -1,0 +1,26 @@
+# Owner approvals for control definitions.
+#
+# This file is EMPTY until the owner reviews the control definitions and records real approvals.
+# An agent must never write an approval here: the reviewer field is only meaningful when a human
+# owner put it there.
+#
+# Each entry approves one control at one definition version, by content digest:
+#
+#   - control: AUTHZ-01
+#     definition_version: 1
+#     content_digest: <sha256 over the definition with approval metadata excluded>
+#     reviewer: <owner identity>
+#     reviewed_at: <RFC 3339 timestamp>
+#     kind: owner            # 'owner' is ordinary acceptance; for a sole maintainer this is
+#                            # self-review, not independent assurance. 'independent' is qualified
+#                            # review by someone other than the author.
+#
+# Why a digest rather than just a version number: editing acceptance criteria without bumping
+# `definition_version` must invalidate the approval. A version number alone cannot catch that; a
+# digest over the reviewed content does. Approval metadata is excluded from that digest, so
+# recording an approval does not invalidate the approval being recorded.
+#
+# The digest for a definition can be printed with:
+#   node dist/cli.js approvals --policy .
+schema_version: control-approvals/v1
+approvals: []

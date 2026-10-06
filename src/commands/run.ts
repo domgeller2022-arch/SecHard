@@ -1,4 +1,5 @@
 import { basename, join } from 'node:path';
+import { definitionContentDigest, resolveApprovals } from '../domain/approval.js';
 import { buildPlan, planIdentity } from '../domain/planner.js';
 import { makeResult, runConsistencyCheck } from './check.js';
 import { loadDocument } from '../validation/loader.js';
@@ -144,6 +145,7 @@ export function planCommand(
     sourceDirty: source.dirty,
     now,
     planId: options.runId,
+    runId: options.runId,
     ...(consumer.value?.manifestDigest === undefined ? {} : { appManifestDigest: consumer.value.manifestDigest }),
   });
 
@@ -288,6 +290,7 @@ export function gateCommand(
       sourceDirty: plan.inputs.source_dirty ?? false,
       now: options.now,
       planId: plan.plan_id,
+      runId: plan.run_id,
       ...(manifest === undefined || consumer.value?.manifestDigest === undefined ? {} : { appManifestDigest: consumer.value.manifestDigest }),
     }),
   );
@@ -305,6 +308,8 @@ export function gateCommand(
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
     exceptions: consumer.value?.exceptions ?? [],
+    approvals: policy.approvals,
+    controlDefinitions: policy.controls,
     policy: policy.policy,
     now: options.now,
     planIdentity: identity,
@@ -374,6 +379,42 @@ function crossCheck(policy: LoadedPolicy, manifest: ManifestRecord): ValidationI
   }
 
   return issues;
+}
+
+/**
+ * Prints the reviewed-content digest for every control so the owner can record an approval against
+ * exact content. The digest is the thing an approval names, so a tool that computes it is the
+ * difference between an approval that resolves and one that silently does not.
+ */
+export function approvalsCommand(paths: Paths, options: { now: Date }): CommandOutcome {
+  const policyOutcome = loadPolicy(paths);
+  if (policyOutcome.value === undefined || policyOutcome.issues.length > 0) {
+    return { exitCode: 2, stdout: [], stderr: ['approvals: policy inputs are invalid', ...formatIssues(policyOutcome.issues)] };
+  }
+  const policy = policyOutcome.value;
+  const states = resolveApprovals(policy.controls, policy.approvals, options.now);
+
+  const lines = [
+    'Control definition content digests',
+    '',
+    'Record an approval against the exact digest below. A changed definition produces a different',
+    'digest and the previous approval stops applying.',
+    '',
+    '| Control | Version | Status | Content digest | Approved |',
+    '| --- | --- | --- | --- | --- |',
+    ...states.map((state) => {
+      const definition = policy.controls.find((control) => control.id === state.control);
+      const digest = definition === undefined ? '' : definitionContentDigest(definition);
+      const status = state.approved ? 'approved' : `not approved (${state.problem ?? 'unknown'})`;
+      return `| ${state.control} | ${state.definition_version} | ${definition?.review_status ?? 'draft'} | \`${digest}\` | ${status} |`;
+    }),
+    '',
+    `Approvals on record: ${policy.approvals.length}`,
+    'Owner acceptance is self-review unless a different reviewer signed it; it is not independent',
+    'assurance, and this repository reports it as such.',
+  ];
+
+  return { exitCode: 0, stdout: lines, stderr: [] };
 }
 
 export interface ReportResult extends CommandOutcome {

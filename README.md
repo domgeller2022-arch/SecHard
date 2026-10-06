@@ -35,6 +35,10 @@ performed. Nothing here claims a control is satisfied.
 - Zero scanner findings is meaningful only when expected scope was actually covered.
 - Fixture output never satisfies a real release requirement.
 - Required-check enforcement is a platform setting. Adding YAML does not create it.
+- A reviewed pattern or a generated agent rule is guidance, not verification. It cannot satisfy a
+  control or produce release evidence.
+- An approval recorded by an agent is not proof of human review. Only an owner action creates a
+  valid approval, and the `kind` field distinguishes self-review from independent review.
 
 ## Requirements
 
@@ -64,12 +68,18 @@ work and are not enforced yet.
 ## CLI
 
 ```text
-hardening validate --app APP_ROOT --policy POLICY_ROOT
-hardening plan    --app APP_ROOT --policy POLICY_ROOT --stage pr --environment local --out RUN_DIR
-hardening check   --app APP_ROOT --policy POLICY_ROOT --plan RUN_DIR/plan.json --out RUN_DIR
-hardening gate    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
-hardening report  --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
+hardening validate  --app APP_ROOT --policy POLICY_ROOT
+hardening plan      --app APP_ROOT --policy POLICY_ROOT --stage pr --environment local --out RUN_DIR
+hardening check     --app APP_ROOT --policy POLICY_ROOT --plan RUN_DIR/plan.json --out RUN_DIR
+hardening gate      --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
+hardening report    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
+hardening approvals --policy POLICY_ROOT
 ```
+
+`approvals` prints the reviewed-content digest of every control definition and whether a valid owner
+approval is on record. Approval names that digest, so an edited definition loses its approval even
+without a version bump. Release evaluation requires a valid approval for every applicable control;
+development and PR stages may exercise draft definitions and their reports say the policy is draft.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -89,6 +99,14 @@ and record consistency only — no scanner, no application test, and no deployme
 Not available yet. Adoption of an independent consumer repository is Step 15. Do not start from this
 repository as a workspace dependency: the plan requires proving that adoption works without hidden
 master-workspace dependencies.
+
+## Patterns and agent guidance
+
+`controls/patterns/patterns.yaml` holds reviewed security patterns adapted from external guidance.
+Each records its related controls, corrected rationale, limitations, a vulnerable and a permitted
+example, verification methods, and provenance with the corrections applied. They are supporting
+records: they cannot override applicability, approve an exception, or produce execution success, and
+their IDs cannot be mistaken for control IDs.
 
 ## Contributing
 

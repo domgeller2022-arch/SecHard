@@ -37,6 +37,8 @@ export interface PlanInput {
   readonly sourceDirty: boolean;
   readonly now: Date;
   readonly planId: string;
+  readonly runId: string;
+  readonly attempt?: number;
   readonly appManifestDigest?: string;
   readonly targets?: ExecutionPlan['inputs']['targets'];
 }
@@ -116,6 +118,8 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
         identity: {
           source_commit: input.sourceCommit,
           policy_commit: input.policyCommit,
+          run_id: input.runId,
+          attempt: input.attempt ?? 1,
           ...(input.appManifestDigest === undefined ? {} : { configuration_digest: input.appManifestDigest }),
         },
         expected_scope: scopeFor(method.method, input.environment),
@@ -140,6 +144,8 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
   const plan: ExecutionPlan = {
     schema_version: 'execution-plan/v1',
     plan_id: input.planId,
+    run_id: input.runId,
+    attempt: input.attempt ?? 1,
     stage: input.stage,
     environment: input.environment,
     created_at: input.now.toISOString(),
@@ -173,6 +179,8 @@ export function planIdentity(plan: ExecutionPlan): string {
     environment: plan.environment,
     policy_identity: plan.policy_identity,
     inputs: plan.inputs,
+    run_id: plan.run_id,
+    attempt: plan.attempt,
     expected_checks: plan.expected_checks.map((check) => ({
       check_id: check.check_id,
       control_ids: check.control_ids,

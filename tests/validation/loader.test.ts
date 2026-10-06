@@ -112,6 +112,38 @@ describe('bounded document loading', () => {
     expect(result.issues[0]?.code).toBe('input.collection_too_large');
   });
 
+  // A number that lost precision on parse would hash differently from what anyone wrote, so it is
+  // rejected at the input boundary instead of being silently rounded.
+  it('rejects an integer beyond exact representation', () => {
+    const result = loadDocument(fixture('id: 9007199254740993\n'));
+    expect(result.issues[0]?.code).toBe('input.unsafe_integer');
+  });
+
+  it('accepts a large identifier quoted as a string', () => {
+    const result = loadDocument(fixture('id: "9007199254740993"\n'));
+    expect(result.issues).toEqual([]);
+  });
+
+  it('rejects a non-finite number', () => {
+    const result = loadDocument(fixture('id: .inf\n'));
+    expect(result.issues[0]?.code).toBe('input.non_finite_number');
+  });
+
+  it('rejects a lone surrogate escape', () => {
+    const result = loadDocument(fixture('id: "\\uD800"\n'));
+    expect(result.issues[0]?.code).toBe('input.invalid_unicode');
+  });
+
+  it('preserves Unicode without normalizing it', () => {
+    const composed = '\u00e9';
+    const decomposed = 'e\u0301';
+    const first = loadDocument(fixture(`id: "${composed}"\n`));
+    const second = loadDocument(fixture(`id: "${decomposed}"\n`));
+    expect(first.issues).toEqual([]);
+    expect(second.issues).toEqual([]);
+    expect((first.data as { id: string }).id).not.toBe((second.data as { id: string }).id);
+  });
+
   it('keeps the exact 40-hex commit shape rather than trimming it', () => {
     const commit = 'a'.repeat(40);
     const result = loadDocument(fixture(`commit: "${commit}"\ncommit2: "${commit}b"\n`));

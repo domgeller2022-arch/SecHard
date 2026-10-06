@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { loadCatalogue, loadMappings, loadProfile, type ControlDefinition, type Profile } from './definitions.js';
+import { loadCatalogue, loadMappings, loadPatterns, loadProfile, loadSources, type ControlDefinition, type Profile } from './definitions.js';
 
 export interface MatrixOptions {
   readonly matrixPath: string;
@@ -55,6 +55,8 @@ function bullets(items: readonly string[]): string {
 export function generateMatrix(options: MatrixOptions): { readonly matrixPath: string; readonly reviewSheetPath: string } {
   const catalogue = loadCatalogue();
   const mappings = loadMappings();
+  const patterns = loadPatterns();
+  const sources = loadSources();
   const profiles = [loadProfile('core'), loadProfile('nextjs-supabase')];
 
   const matrix = [
@@ -69,14 +71,18 @@ export function generateMatrix(options: MatrixOptions): { readonly matrixPath: s
     `- Standards mappings reviewed: ${mappings.reviewed}`,
     `- Generated at catalogue version ${catalogue.catalogue_version}; a different catalogue version means regenerating.`,
     '',
-    '| Control | Title | Applicability | Verification | Coverage | Owner role | Review status | In profiles | Standards |',
-    '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+    '| Control | Title | Applicability | Verification | Coverage | Owner role | Review status | In profiles | Standards | Patterns |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
     ...catalogue.controls.map((control) => {
       const standards = (mappings.controls[control.id] ?? [])
         .map((mapping) => `${mapping.framework}${mapping.requirement ? ` (${escapeCell(mapping.requirement)})` : ''} [${mapping.relationship}]`)
         .join('<br>');
       const inProfiles = selectedBy(control.id, profiles).join(', ') || '—';
-      return `| **${control.id}** | ${escapeCell(control.title)} | ${escapeCell(applicabilityText(control))} | ${escapeCell(methods(control))} | ${coverage(control)} | ${escapeCell(control.owner_role)} | ${control.review_status} | ${inProfiles} | ${standards || '—'} |`;
+      const linkedPatterns = patterns.patterns
+        .filter((pattern) => pattern.related_control_ids.includes(control.id))
+        .map((pattern) => pattern.id)
+        .join(', ');
+      return `| **${control.id}** | ${escapeCell(control.title)} | ${escapeCell(applicabilityText(control))} | ${escapeCell(methods(control))} | ${coverage(control)} | ${escapeCell(control.owner_role)} | ${control.review_status} | ${inProfiles} | ${standards || '—'} | ${linkedPatterns || '—'} |`;
     }),
     '',
     '## Coverage classification',
@@ -104,6 +110,28 @@ export function generateMatrix(options: MatrixOptions): { readonly matrixPath: s
     '',
     ...Object.entries(mappings.editions).map(([framework, edition]) => `- ${framework} ${edition.edition} (${edition.status}) — ${edition.source}`),
     '',
+    '## Reviewed patterns',
+    '',
+    'Patterns are supporting guidance linked to existing controls. A pattern cannot override',
+    'applicability, approve an exception, or produce execution success. `Verification implemented`',
+    'is false until the fixture or recipe actually exists and has run.',
+    '',
+    `- Patterns: ${patterns.patterns.length} (reviewed: ${patterns.patterns.filter((pattern) => pattern.review_status === 'reviewed').length})`,
+    '',
+    '| Pattern | Title | Controls | Verification implemented | Source |',
+    '| --- | --- | --- | --- | --- |',
+    ...patterns.patterns.map((pattern) => {
+      const implemented = pattern.verification.filter((entry) => entry.implemented === true).length;
+      return `| ${pattern.id} | ${escapeCell(pattern.title)} | ${pattern.related_control_ids.join(', ')} | ${implemented}/${pattern.verification.length} | ${escapeCell(pattern.provenance.source_file ?? pattern.provenance.source_id)} |`;
+    }),
+    '',
+    '## Upstream sources',
+    '',
+    ...sources.sources.map(
+      (source) =>
+        `- \`${source.id}\` (${source.use_type}, ${source.licence}) — ${source.support_status}; notice: ${source.notice_file ?? 'none recorded'}`,
+    ),
+    '',
   ].join('\n');
 
   const sheet = [
@@ -130,6 +158,18 @@ export function generateMatrix(options: MatrixOptions): { readonly matrixPath: s
     '   must be `manual_only` until the recipe exists.',
     '4. Are the limitations honest about what the method does not cover?',
     '5. Is a control missing entirely from your threat model?',
+    '',
+    '## How to record approval',
+    '',
+    '1. Run `node dist/cli.js approvals --policy .` to print each definition\'s reviewed-content digest.',
+    '2. For each definition you accept, add a record to `controls/approvals.yaml` naming the control,',
+    '   its definition version, the exact digest, your identity, the date, and `kind: owner` (or',
+    '   `kind: independent` when someone other than the author reviewed it).',
+    '3. Re-run `approvals` to confirm the record resolves. An edited definition changes the digest and',
+    '   the approval stops applying; that is intended.',
+    '',
+    'A batch continuation message is not approval of these definitions. Only the owner records these',
+    'records, and a sole maintainer\'s acceptance is self-review, reported as such.',
     '',
     '## Deviations from the blueprint',
     '',

@@ -119,6 +119,8 @@ export interface ExpectedCheck {
     readonly policy_commit: string;
     readonly configuration_digest?: string;
     readonly target?: string;
+    readonly run_id: string;
+    readonly attempt: number;
   };
   readonly expected_scope: {
     readonly min_files?: number;
@@ -147,6 +149,8 @@ export interface ExpectedCheck {
 export interface ExecutionPlan {
   readonly schema_version: 'execution-plan/v1';
   readonly plan_id: string;
+  readonly run_id: string;
+  readonly attempt: number;
   readonly stage: Stage;
   readonly environment: Environment;
   readonly created_at: string;
@@ -212,6 +216,16 @@ export interface CheckResult {
     readonly rule_pack?: string;
     readonly advisory_snapshot_at?: string;
     readonly binary_digest?: string;
+    readonly advisory_mode?: 'online_query' | 'offline_database';
+    readonly advisory_provenance?: {
+      readonly queried_at?: string;
+      readonly endpoint?: string;
+      readonly database_id?: string;
+      readonly database_digest?: string;
+      readonly database_retrieved_at?: string;
+      readonly upstream_updated_at?: string;
+      readonly notes?: string;
+    };
   };
   readonly identity: {
     readonly source_commit: string;
@@ -219,6 +233,8 @@ export interface CheckResult {
     readonly source_dirty?: boolean;
     readonly target?: string;
     readonly configuration_digest?: string;
+    readonly run_id: string;
+    readonly attempt: number;
   };
   readonly started_at: string;
   readonly finished_at: string;
@@ -324,6 +340,7 @@ export interface GatePolicy {
     readonly require_actual_tool_origin?: boolean;
   }>>;
   readonly freshness: {
+    readonly allow_cross_run_reuse?: boolean;
     readonly manual_evidence_default_max_age_days: number;
     readonly manual_evidence_exercise_max_age_days: number;
     readonly max_clock_skew_minutes?: number;
@@ -368,6 +385,14 @@ export interface GateDecision {
   readonly control_outcomes: readonly ControlEvaluation[];
   readonly coverage_gaps: readonly string[];
   readonly unsupported_scope: readonly string[];
+  /** Present when the stage requires approval; absent for development stages. */
+  readonly approval_states?: readonly {
+    readonly control: string;
+    readonly definition_version: number;
+    readonly approved: boolean;
+    readonly self_review: boolean;
+    readonly problem?: string;
+  }[];
 }
 
 export interface EvaluationInput {

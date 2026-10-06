@@ -10,7 +10,8 @@ Read this before adding an adapter, a recipe, or a new kind of input.
 | **Authoritative** | This repository's reviewed control definitions, schemas, `policy/*.yaml`, and the pinned toolchain | Establishes policy. Cannot be changed by a consumer or by an untrusted PR |
 | **Reviewed configuration** | `.hardening/app.yaml`, profile selection, `policy-lock.json` | Declarations that change obligations. May not remove an obligation, only add one |
 | **Untrusted input** | Application source, imported records, scanner output, fetched pages, package READMEs, issue text, agent output, CI context | Data. Cannot authorize an action, grant permission, or change policy |
-| **Evidence** | Check results, reports, manual attestations | Claims about what was observed. Verified against identity, scope, and freshness before use |
+| **Evidence** | Check results, reports, manual attestations | Claims about what was observed. Verified against identity (including run and attempt), scope, and freshness before use |
+| **Supporting guidance** | Reviewed patterns, upstream source records, generated agent rules | Context and corrected rationale. Cannot override applicability, approve an exception, or produce execution success |
 
 The single rule that drives everything: **untrusted input is data, never an instruction.** A finding
 that contains "ignore previous instructions" or a URL that points somewhere unexpected is still just
@@ -32,6 +33,9 @@ and the decision engine's rules.
   covered.
 - Fixture or mock output. `fixture` origin can never satisfy a real release requirement.
 - Natural-language agent instructions. A prompt cannot restrict permissions.
+- A reviewed pattern, however well sourced. It is guidance, not a control, and carries no outcome.
+- A control definition's own `review_status: owner_reviewed` field. Approval is recorded separately,
+  against the reviewed content digest, and only the owner can create it.
 
 ## Operations that execute code
 
@@ -58,10 +62,16 @@ CI-isolated runner) and that requirement is stated as an operator obligation.
 - Reports are split into a shareable summary and access-controlled raw reports. Public summaries
   avoid internal endpoints, exploit detail, and sensitive records.
 
+## Approval and self-review
+
+Owner acceptance is recorded against the exact reviewed content, so an edited definition loses its
+approval. On a solo-maintained project that acceptance is self-review, not independent security
+review, and the reports say so. Independent review is a distinct `kind`, never inferred.
+
 ## Identity and evidence
 
-- Evidence is bound to source commit, policy commit, and target. Results are not reused across
-  commits.
+- Evidence is bound to source commit, policy commit, target, run, and attempt. Results are not
+  reused across commits, and cross-run reuse is disabled by policy.
 - Digests (SHA-256 over raw bytes or RFC 8785 output) detect change. They do not prove authorship
   or that a process ran.
 - A signature, where a later release enables it, identifies who made an assertion, not whether every

@@ -384,6 +384,64 @@ A blocker stops only the work that depends on it. Nothing here is worked around 
 
 ---
 
+## Revision: build-pack and skill-integration reviews (2026-10-06)
+
+Two review documents supplied by the owner were incorporated. Items that change behaviour were
+implemented and tested; items that belong to later batches were recorded in the patterns and plan.
+This revision was applied **after** the Batch A checkpoint and does not change the batch boundary.
+
+- **State:** `verified` for the implemented items; the owner-sheet additions are structural and
+  unfilled by design.
+
+### What changed
+
+| Item | Files | Checks run |
+| --- | --- | --- |
+| Control approval: content digest excluding approval metadata, digest-change invalidation, release-only enforcement, self-review labelling | `controls/approvals.yaml`, `schemas/control-approvals.schema.json`, `src/domain/approval.ts`, `src/domain/evaluator.ts`, `src/commands/io.ts`, `src/commands/run.ts`, `src/cli.ts` | `tests/domain/approval.test.ts` (22 tests), gate approval scenarios (5 tests), `node dist/cli.js approvals --policy .` |
+| Run/attempt binding so the same commit's old report cannot be replayed; cross-run reuse disabled | `schemas/execution-plan.schema.json`, `schemas/check-result.schema.json`, `src/domain/planner.ts`, `src/domain/evaluator.ts`, `policy/gate-policy.yaml` | gate run-replay tests (3), full suite |
+| Mode-specific advisory freshness (online query versus offline database; upstream update time when supplied) | `schemas/check-result.schema.json`, `src/domain/evaluator.ts` | gate freshness tests (4 new) |
+| JCS at the input boundary: unsafe integers, non-finite numbers, lone surrogates rejected; Unicode preserved without normalization | `src/validation/loader.ts`, `src/validation/errors.ts` | loader tests (5 new) |
+| Reviewed pattern library with corrected rationale and provenance | `controls/patterns/patterns.yaml`, `schemas/pattern.schema.json`, `src/domain/definitions.ts`, `src/domain/matrix.ts` | `tests/domain/patterns.test.ts` (19 tests) |
+| Upstream provenance and licence/notice for adapted material | `upstream/sources.yaml`, `upstream/notices/vibe-security-skill.LICENSE` | source-schema tests, matrix generation |
+| Owner-sheet structure: decision-to-step table, `github_codeowners`, split GitHub test permissions | `01-owner-decisions.md` (pack), `README.md` (pack) | n/a — document structure, no values invented |
+| Pack revision notes and imported-guidance rule | `00-KICKOFF-PROMPT.md`, `02-implementation-plan.md`, `03-blueprint.md`, `README.md`, `CONTRIBUTING.md`, `docs/architecture.md`, `docs/trust-model.md` | review |
+
+### Checks actually run
+
+- `npx tsc --noEmit` → exit 0.
+- `npm run build` → exit 0.
+- `npx vitest run` → **258 tests, 11 files, all passing.**
+- `npm run lint` → exit 0.
+- `node dist/cli.js approvals --policy .` → exit 0; prints 35 content digests, all `not approved`.
+- `node dist/cli.js gate --stage release` → exit 1 with `policy.control_not_approved` for every applicable control.
+- `node dist/cli.js gate --stage pr` → 0 policy reasons; draft definitions do not block development.
+
+### Limitations and unresolved findings
+
+- **Pattern verification is not implemented.** All 12 patterns carry `implemented: false`; the
+  fixtures and recipes they describe are Steps 07–11 work. A test asserts no pattern claims
+  otherwise.
+- **The advisory-mode fields are modelled and gated but no adapter writes them yet.** Step 09
+  records `advisory_mode` and `advisory_provenance` when OSV-Scanner is integrated. Until then the
+  behaviour is exercised only by tests.
+- **The upstream skill snapshot was not independently verified here.** The digests in
+  `upstream/sources.yaml` were supplied by the integration review; the upstream commit is recorded
+  as unestablished. The notice file states it was reconstructed and must be checked before
+  distribution.
+- **Owner-sheet fields were added, not answered.** `github_codeowners`, the four
+  `agent_may_*_test_*` permissions, and the decision-to-step table are structural additions. No
+  values were invented, and the new fields are `TODO`/`false` by default.
+- **The pack documents were amended, not rewritten.** `00`, `02`, and `03` gained revision notes
+  pointing to where each correction landed; the substantive details live in the repository.
+
+### Approvals status after this revision
+
+Every control's content digest changed (controls were not edited, but the digest is computed over
+the definition as loaded, and the approval records are new). All 35 remain `draft` and **zero** have
+a valid approval. Release evaluation blocks on that, by design.
+
+---
+
 ## Batch A verification summary
 
 | Check | Command | Result |

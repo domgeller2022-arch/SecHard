@@ -37,9 +37,25 @@ looks like a one-line fix.
 | `policy/gate-policy.yaml` | No threshold, freshness window, or required-recipe reduction. These decide what blocks |
 | `src/domain/` | Decision logic. This is the security-critical core; a change can turn a block into a pass |
 | `tests/gate/`, `tests/failure-modes/` | The test still fails when the behaviour it guards is removed. Removing a case is a finding, not a cleanup |
+| `controls/approvals.yaml` | An agent must never write an approval. Verify each digest resolves and that `kind` is honest about self-review versus independent review |
+| `controls/patterns/` | Corrected rationale is present, provenance is recorded, and no pattern claims `implemented: true` verification that does not exist |
+| `upstream/sources.yaml`, `upstream/notices/` | Licence, use type, attribution, and notice for each imported component; `planned` is not `verified` |
 | `.github/workflows/` | Permissions, pinned references, and whether a job executes untrusted code with privileged access |
 | `.npmrc`, `package.json` | `engines`, `packageManager`, dependency additions, and any relaxation of the install policy |
 | `docs/` claims | Every "verified" or "supported" statement still matches `docs/implementation-progress.md` |
+
+## Approvals and imported guidance
+
+- A control definition is `draft` until the owner records an approval in `controls/approvals.yaml`
+  against the exact content digest. Do not edit that file unless you are the owner. Do not mark a
+  draft `owner_reviewed` in the definition and call it approved: the gate reads the approval record,
+  and the digest is what makes an edit invalidate the previous approval.
+- Adapted external material goes in `controls/patterns/patterns.yaml`, with the corrections that were
+  applied recorded in `provenance.corrections`, and the component's licence and notice recorded in
+  `upstream/`. Never copy upstream text or examples without applying the review's corrections and
+  recording provenance.
+- `implemented: false` on a pattern verification is honest and expected until the fixture exists.
+  Setting it to `true` without a working, executed check is a false claim.
 
 ## Draft control definitions
 

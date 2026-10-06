@@ -6,6 +6,9 @@ review_status: draft
 # can add obligations and request waivers; it cannot delete a check, relax a threshold, or widen a
 # freshness window.
 
+# The freshness windows below are project policy defaults chosen for this repository. They are not
+# universal security-standard requirements. They may be changed only through a reviewed change to
+# this file; consumer configuration cannot widen them.
 stages:
   pr:
     description: Pull-request evaluation.
@@ -24,6 +27,12 @@ stages:
     require_actual_tool_origin: false
 
 freshness:
+  # Reuse of a result across runs or attempts is not permitted in v1. Matching source, policy, and
+  # target is necessary but does not stop an old report for the *same* commit being replayed, so a
+  # result is evidence only for the run and attempt it records. Narrow, aged reuse with unchanged
+  # tool/rule/configuration identity is a future change to this file, and turning it on is a policy
+  # change that requires review.
+  allow_cross_run_reuse: false
   manual_evidence_default_max_age_days: 30
   manual_evidence_exercise_max_age_days: 90
   max_clock_skew_minutes: 5

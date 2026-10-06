@@ -6,6 +6,7 @@ import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createRunDirectory, environmentIdentity, writeAtomic, writeJson, type RunRecord } from './evidence/store.js';
 import {
+  approvalsCommand,
   checkCommand,
   gateCommand,
   planCommand,
@@ -22,11 +23,12 @@ const ENVIRONMENTS = ['local', 'preview', 'staging', 'production'] as const;
 const USAGE = `hardening - versioned control catalogue, verification checks, and release evidence
 
 Usage:
-  hardening validate --app APP_ROOT --policy POLICY_ROOT
-  hardening plan    --app APP_ROOT --policy POLICY_ROOT --stage STAGE --environment ENV --out RUN_DIR
-  hardening check   --app APP_ROOT --policy POLICY_ROOT --plan RUN_DIR/plan.json --out RUN_DIR
-  hardening gate    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
-  hardening report  --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
+  hardening validate  --app APP_ROOT --policy POLICY_ROOT
+  hardening plan      --app APP_ROOT --policy POLICY_ROOT --stage STAGE --environment ENV --out RUN_DIR
+  hardening check     --app APP_ROOT --policy POLICY_ROOT --plan RUN_DIR/plan.json --out RUN_DIR
+  hardening gate      --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
+  hardening report    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
+  hardening approvals --policy POLICY_ROOT
   hardening help
   hardening version
 
@@ -109,8 +111,15 @@ if (command === 'version') {
   process.exit(0);
 }
 
-if (!['validate', 'plan', 'check', 'gate', 'report'].includes(command)) {
+if (!['validate', 'plan', 'check', 'gate', 'report', 'approvals'].includes(command)) {
   fail(`unknown command '${command}'. Run \`hardening help\`.`);
+}
+
+if (command === 'approvals') {
+  const policyRoot = resolve(required(options, 'policy'));
+  const outcome = approvalsCommand({ appRoot: policyRoot, policyRoot }, { now: new Date() });
+  emit(outcome);
+  process.exit(outcome.exitCode);
 }
 
 const appRoot = resolve(required(options, 'app'));

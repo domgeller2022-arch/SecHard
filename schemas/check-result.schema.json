@@ -43,7 +43,25 @@
         "expected_version": { "type": "string", "maxLength": 100 },
         "rule_pack": { "type": "string", "maxLength": 200 },
         "advisory_snapshot_at": { "$ref": "#/$defs/timestamp" },
-        "binary_digest": { "$ref": "#/$defs/sha256" }
+        "binary_digest": { "$ref": "#/$defs/sha256" },
+        "advisory_mode": {
+          "enum": ["online_query", "offline_database"],
+          "description": "An online advisory query and an offline database scan are different evidence. They are not interchangeable."
+        },
+        "advisory_provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Mode-specific evidence for how fresh the advisory data actually is. For online mode, the query time. For offline mode, the snapshot's own identity and retrieval time: a newly executed scan over an old cached database is not fresh data.",
+          "properties": {
+            "queried_at": { "$ref": "#/$defs/timestamp" },
+            "endpoint": { "type": "string", "maxLength": 512 },
+            "database_id": { "type": "string", "maxLength": 200 },
+            "database_digest": { "$ref": "#/$defs/sha256" },
+            "database_retrieved_at": { "$ref": "#/$defs/timestamp" },
+            "upstream_updated_at": { "$ref": "#/$defs/timestamp" },
+            "notes": { "type": "string", "maxLength": 2000 }
+          }
+        }
       }
     },
     "identity": {
@@ -51,12 +69,15 @@
       "additionalProperties": false,
       "required": ["source_commit", "policy_commit"],
       "description": "Results are valid only for the exact source, policy, and target they record.",
+      "required": ["source_commit", "policy_commit", "run_id", "attempt"],
       "properties": {
         "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "policy_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "source_dirty": { "type": "boolean" },
         "target": { "type": "string", "maxLength": 2048 },
-        "configuration_digest": { "$ref": "#/$defs/sha256" }
+        "configuration_digest": { "$ref": "#/$defs/sha256" },
+        "run_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "attempt": { "type": "integer", "minimum": 1 }
       }
     },
     "started_at": { "$ref": "#/$defs/timestamp" },

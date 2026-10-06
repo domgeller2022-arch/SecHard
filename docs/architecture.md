@@ -102,6 +102,44 @@ policy it claims to implement.
    outcomes from required check results and valid manual evidence.
 5. A valid exception produces a visible waiver. It never converts a failure into a pass.
 
+## Control approval
+
+A control definition is `draft` until the owner approves it. Approval is recorded in
+`controls/approvals.yaml`, not in the definition itself, and it names three things:
+
+- the control ID and definition version
+- a SHA-256 digest of the definition's **reviewed content** (RFC 8785 canonical form, with
+  `review_status`, `reviewed_by`, and `reviewed_at` excluded so recording an approval does not
+  invalidate itself)
+- the reviewer, review time, and whether the review was `owner` acceptance or `independent`
+
+The digest is what makes an edit invalidate an approval. Editing acceptance criteria without bumping
+`definition_version` produces a different digest, so the old approval no longer resolves — a version
+number alone cannot catch that.
+
+Enforcement is stage-scoped: development, PR, and operations stages may exercise draft definitions;
+**release evaluation requires a valid approval for every applicable control**. A recorded
+`review_status: owner_reviewed` in the definition is an assertion the evaluator cannot verify, and
+it is not accepted as proof — the approval record is what the gate reads. For a sole maintainer,
+`kind: owner` is self-review and is reported as such, never as independent assurance.
+
+`hardening approvals --policy .` prints the exact digest the owner must approve and the current
+state of every definition.
+
+## Reviewed pattern library
+
+`controls/patterns/patterns.yaml` holds reviewed security patterns imported and corrected from
+external guidance. A pattern records its related control IDs, applicability, corrected rationale,
+limitations, a vulnerable example, a permitted example, verification methods (with
+`implemented: false` until a fixture or recipe actually exists), and provenance including every
+factual correction applied before reuse.
+
+A pattern is a **supporting record, not a control**. It cannot override applicability, approve an
+exception, produce execution success, or add a top-level control ID — and its ID shape
+(`PAT-...`) deliberately cannot be mistaken for one. Patterns feed agent guidance (Step 12) and
+fixtures (Steps 07–11). Pattern verification that is `implemented: false` is not evidence of
+anything, and the gate never reads a pattern as a result.
+
 ## Evidence and hashing
 
 - SHA-256 over raw bytes for original files and reports.
@@ -115,8 +153,8 @@ policy it claims to implement.
 
 | Evidence | Valid for |
 | --- | --- |
-| Scanner / test result | The exact source commit, policy commit, and target it records |
-| Advisory snapshot | ≤ 7 days for `pr`, ≤ 24 hours for `release` |
+| Scanner / test result | The exact source commit, policy commit, target, **run, and attempt** it records. Matching commits alone is not enough: a result is evidence only for the run it belongs to, so an old report for the same commit cannot be replayed. Cross-run reuse is disabled in `policy/gate-policy.yaml` (`allow_cross_run_reuse: false`) |
+| Advisory snapshot | ≤ 7 days for `pr`, ≤ 24 hours for `release`. Measured by mode: an online query by its query time; an offline database by its retrieval time and, when the interface supplies one, its upstream update time — a freshly executed scan over an old cached database is stale |
 | Manual evidence | Per-control interval in policy (Step 14; defaults 30 days external access/configuration, 90 days restore/response) |
 
 Evidence outside its window is `stale` and cannot pass. Implausible future evidence is rejected

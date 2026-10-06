@@ -8,6 +8,7 @@ import { validateAgainstSchema } from '../validation/schema.js';
 import { checkDuplicateIds, checkReference } from '../validation/semantic.js';
 import { loadCatalogue, type ControlDefinition, type Profile } from '../domain/definitions.js';
 import { sha256Hex } from '../evidence/digest.js';
+import type { ApprovalRecord } from '../domain/approval.js';
 import type { ExceptionRecord, GatePolicy, ManualEvidence } from '../domain/types.js';
 import type { ManifestRecord } from '../domain/types.js';
 
@@ -25,6 +26,8 @@ export interface LoadedPolicy {
   readonly profiles: readonly Profile[];
   readonly profileDigests: Readonly<Record<string, string>>;
   readonly controls: readonly ControlDefinition[];
+  /** Owner approvals. Empty until the owner records real ones. */
+  readonly approvals: readonly ApprovalRecord[];
   readonly policyCommit: string;
 }
 
@@ -86,6 +89,21 @@ export function loadPolicy(paths: Paths): LoadOutcome<LoadedPolicy> {
     profileDigests[id] = loaded.rawDigest;
   }
 
+  const approvals: ApprovalRecord[] = [];
+  const approvalsFile = join(policyRoot, 'controls', 'approvals.yaml');
+  const loadedApprovals = loadDocument<{ approvals?: ApprovalRecord[] }>(approvalsFile);
+  if (loadedApprovals.issues.length === 0 && loadedApprovals.data?.approvals !== undefined) {
+    for (const record of loadedApprovals.data.approvals) {
+      const result = validateAgainstSchema('control-approvals', { schema_version: 'control-approvals/v1', approvals: [record] }, approvalsFile);
+      issues.push(...result.issues);
+      if (result.valid) approvals.push(record);
+    }
+  } else {
+    // A missing approvals file is not an error: it means nothing has been approved, which is the
+    // honest state for an unreviewed catalogue. A malformed one is an error.
+    issues.push(...loadedApprovals.issues.filter((item) => item.code !== 'input.not_found'));
+  }
+
   const controlCatalogueDigest = sha256Hex(
     controls.map((control) => `${control.id}@${control.definition_version}:${control.review_status}`).join('\n'),
   );
@@ -115,6 +133,7 @@ export function loadPolicy(paths: Paths): LoadOutcome<LoadedPolicy> {
       profiles,
       profileDigests,
       controls,
+      approvals,
       policyCommit: resolvePolicyCommit(policyRoot),
     },
     issues,

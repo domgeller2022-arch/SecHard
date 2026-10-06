@@ -114,6 +114,58 @@ export function loadProfile(id: string): Profile {
   return loadOwn<Profile>(`profiles/${id}.yaml`);
 }
 
+export interface Pattern {
+  readonly id: string;
+  readonly schema_version: string;
+  readonly review_status: 'draft' | 'reviewed';
+  readonly reviewed_by?: string;
+  readonly reviewed_at?: string;
+  readonly title: string;
+  readonly related_control_ids: readonly string[];
+  readonly applicability: ApplicabilityShape;
+  readonly rationale: string;
+  readonly limitations: readonly string[];
+  readonly vulnerable_example: { readonly language: string; readonly code: string; readonly explanation: string };
+  readonly permitted_example: { readonly language: string; readonly code: string; readonly explanation: string };
+  readonly verification: readonly {
+    readonly method: string;
+    readonly description: string;
+    readonly recipe?: string;
+    readonly implemented?: boolean;
+  }[];
+  readonly provenance: {
+    readonly source_id: string;
+    readonly source_file?: string;
+    readonly source_digest?: string;
+    readonly reviewed_at: string;
+    readonly corrections?: readonly string[];
+  };
+}
+
+export interface SourceRecord {
+  readonly schema_version: string;
+  readonly id: string;
+  readonly canonical_url: string;
+  readonly component: string;
+  readonly licence: string;
+  readonly use_type: 'linking' | 'invoking' | 'copying' | 'adapting' | 'redistributing';
+  readonly attribution?: string;
+  readonly notice_file?: string;
+  readonly reviewed_release: { readonly kind: string; readonly value?: string; readonly verified_at?: string; readonly integrity_method?: string };
+  readonly support_status: 'planned' | 'verified' | 'deprecated' | 'unsupported' | 'blocked';
+  readonly update_policy?: string;
+  readonly last_reviewed: string;
+  readonly notes?: string;
+}
+
+export function loadPatterns(): { readonly catalogue_version: number; readonly patterns: readonly Pattern[] } {
+  return loadOwn<{ catalogue_version: number; patterns: Pattern[] }>('controls/patterns/patterns.yaml');
+}
+
+export function loadSources(): { readonly sources: readonly SourceRecord[] } {
+  return loadOwn<{ sources: SourceRecord[] }>('upstream/sources.yaml');
+}
+
 export function loadMappings(): Mappings {
   return loadOwn<Mappings>('controls/mappings/standards.yaml');
 }

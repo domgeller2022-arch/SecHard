@@ -17,7 +17,10 @@ export type SchemaName =
   | 'release-evidence'
   | 'source'
   | 'control'
-  | 'control-catalogue';
+  | 'control-catalogue'
+  | 'control-approvals'
+  | 'pattern'
+  | 'source';
 
 const SCHEMA_FILES: Record<SchemaName, string> = {
   app: 'app.schema.json',
@@ -31,6 +34,8 @@ const SCHEMA_FILES: Record<SchemaName, string> = {
   source: 'source.schema.json',
   control: 'control.schema.json',
   'control-catalogue': 'control-catalogue.schema.json',
+  'control-approvals': 'control-approvals.schema.json',
+  pattern: 'pattern.schema.json',
 };
 
 const cache = new Map<SchemaName, ValidateFunction>();

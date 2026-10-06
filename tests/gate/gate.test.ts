@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   NOW,
   POLICY_COMMIT,
+  RUN_ID,
   SOURCE_COMMIT,
   allPassing,
+  approvalFor,
+  catalogue,
+  policy,
   coreProfile,
   evaluateWith,
   exceptionFor,
@@ -14,6 +18,7 @@ import {
   referenceProfile,
 } from '../helpers/fixtures.js';
 import { planIdentity } from '../../src/domain/planner.js';
+import { evaluate } from '../../src/domain/evaluator.js';
 import type { CheckResult, Finding } from '../../src/domain/types.js';
 
 describe('planning derives the expected work before execution', () => {
@@ -115,7 +120,15 @@ describe('missing required work blocks', () => {
 
   it('blocks when a result exists for no planned check', () => {
     const plan = planFor('pr');
-    const results = [...allPassing(plan), passingResult({ check_id: 'GHOST-01:secret_scan:x:pr', control_ids: ['SEC-01'], recipe: 'r', identity: { source_commit: SOURCE_COMMIT, policy_commit: POLICY_COMMIT } })];
+    const results = [
+      ...allPassing(plan),
+      passingResult({
+        check_id: 'GHOST-01:secret_scan:x:pr',
+        control_ids: ['SEC-01'],
+        recipe: 'r',
+        identity: { source_commit: SOURCE_COMMIT, policy_commit: POLICY_COMMIT, run_id: RUN_ID, attempt: 1 },
+      }),
+    ];
     const decision = evaluateWith({ plan, results });
     expect(decision.reasons.some((item) => item.code === 'result.unplanned')).toBe(true);
   });
@@ -155,7 +168,19 @@ describe('missing required work blocks', () => {
       ...plan,
       expected_checks: [
         ...plan.expected_checks,
-        { check_id: 'FAKE-99:secret_scan:x:pr', control_ids: ['FAKE-99'], method: 'secret_scan', recipe: 'r', stage: 'pr', environment: 'local', required: true, identity: { source_commit: SOURCE_COMMIT, policy_commit: POLICY_COMMIT }, expected_scope: { min_files: 1 }, required_coverage: 'complete' },
+        {
+          check_id: 'FAKE-99:secret_scan:x:pr',
+          control_ids: ['FAKE-99'],
+          method: 'secret_scan',
+          recipe: 'r',
+          recipe_version: '1',
+          stage: 'pr',
+          environment: 'local',
+          required: true,
+          identity: { source_commit: SOURCE_COMMIT, policy_commit: POLICY_COMMIT, run_id: RUN_ID, attempt: 1 },
+          expected_scope: { min_files: 1 },
+          required_coverage: 'complete',
+        },
       ],
     };
     const decision = evaluateWith({ plan: forged, results: allPassing(plan) });
@@ -205,7 +230,7 @@ describe('evidence must belong to the exact source, policy, and target', () => {
     const plan = planFor('pr');
     const results = allPassing(plan).map((result) => ({
       ...result,
-      identity: { source_commit: '9'.repeat(40), policy_commit: POLICY_COMMIT },
+      identity: { ...result.identity, source_commit: '9'.repeat(40) },
     }));
     const decision = evaluateWith({ plan, results });
     expect(decision.satisfied).toBe(false);
@@ -216,7 +241,7 @@ describe('evidence must belong to the exact source, policy, and target', () => {
     const plan = planFor('pr');
     const results = allPassing(plan).map((result) => ({
       ...result,
-      identity: { source_commit: SOURCE_COMMIT, policy_commit: '8'.repeat(40) },
+      identity: { ...result.identity, policy_commit: '8'.repeat(40) },
     }));
     expect(evaluateWith({ plan, results }).reasons.some((item) => item.code === 'identity.policy_mismatch')).toBe(true);
   });
@@ -235,6 +260,37 @@ describe('evidence must belong to the exact source, policy, and target', () => {
     const decision = evaluateWith({ plan, results: allPassing(plan), stage: 'release', environment: 'production' });
     expect(decision.satisfied).toBe(false);
     expect(decision.reasons.some((item) => item.code === 'source.dirty')).toBe(true);
+  });
+});
+
+describe('a result is evidence only for the run it belongs to', () => {
+  it('blocks a well-formed report replayed from a different run for the same commit', () => {
+    const plan = planFor('pr');
+    const results = allPassing(plan).map((result) => ({
+      ...result,
+      identity: { ...result.identity, run_id: 'run-previous', attempt: 1 },
+    }));
+    const decision = evaluateWith({ plan, results });
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'identity.run_mismatch')).toBe(true);
+    // The commit still matches; that is exactly why commit matching alone is not enough.
+    expect(decision.reasons.some((item) => item.code === 'identity.source_mismatch')).toBe(false);
+  });
+
+  it('blocks a result carried over from an earlier attempt in the same run', () => {
+    const plan = planFor('pr');
+    const results = allPassing(plan).map((result) => ({
+      ...result,
+      identity: { ...result.identity, attempt: 2 },
+    }));
+    const decision = evaluateWith({ plan, results });
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'identity.attempt_mismatch')).toBe(true);
+  });
+
+  it('accepts a result from the expected run and attempt', () => {
+    const plan = planFor('pr');
+    expect(evaluateWith({ plan, results: allPassing(plan) }).satisfied).toBe(true);
   });
 });
 
@@ -294,6 +350,94 @@ describe('freshness', () => {
     const plan = planFor('pr');
     const results = allPassing(plan).map((result) => ({ ...result, started_at: 'yesterday' }));
     expect(evaluateWith({ plan, results }).reasons.some((item) => item.code === 'freshness.unparsable')).toBe(true);
+  });
+
+  // The scanner ran today, but it scanned a database fetched weeks ago. The scan is fresh; the data
+  // is not, and a newly recorded scan time must not launder an old database.
+  it('treats an old offline advisory database as stale even when the scan just ran', () => {
+    const plan = planFor('pr');
+    const index = advisoryScanIndex(plan);
+    const results = allPassing(plan).map((result, i) =>
+      i === index
+        ? {
+            ...result,
+            finished_at: '2026-10-06T11:59:00Z',
+            tool: {
+              ...result.tool,
+              advisory_mode: 'offline_database' as const,
+              advisory_provenance: {
+                queried_at: '2026-10-06T11:59:00Z',
+                database_id: 'osv-db-2026-09-01',
+                database_retrieved_at: '2026-09-01T00:00:00Z',
+              },
+            },
+          }
+        : result,
+    );
+    const decision = evaluateWith({ plan, results });
+    expect(decision.satisfied).toBe(false);
+    const stale = decision.reasons.find((item) => item.code === 'freshness.advisory_stale');
+    expect(stale?.message).toMatch(/database is/);
+    expect(stale?.message).toMatch(/scan itself ran/);
+  });
+
+  it('accepts an offline database retrieved within the limit', () => {
+    const plan = planFor('pr');
+    const index = advisoryScanIndex(plan);
+    const results = allPassing(plan).map((result, i) =>
+      i === index
+        ? {
+            ...result,
+            tool: {
+              ...result.tool,
+              advisory_mode: 'offline_database' as const,
+              advisory_provenance: { queried_at: '2026-10-06T11:00:00Z', database_retrieved_at: '2026-10-04T00:00:00Z' },
+            },
+          }
+        : result,
+    );
+    expect(evaluateWith({ plan, results }).reasons.some((item) => item.code === 'freshness.advisory_stale')).toBe(false);
+  });
+
+  it('uses the upstream update time for an offline database when the interface supplies one', () => {
+    const plan = planFor('pr');
+    const index = advisoryScanIndex(plan);
+    const results = allPassing(plan).map((result, i) =>
+      i === index
+        ? {
+            ...result,
+            tool: {
+              ...result.tool,
+              advisory_mode: 'offline_database' as const,
+              advisory_provenance: {
+                queried_at: '2026-10-06T11:00:00Z',
+                database_retrieved_at: '2026-10-05T00:00:00Z',
+                upstream_updated_at: '2026-09-01T00:00:00Z',
+              },
+            },
+          }
+        : result,
+    );
+    // The database was fetched yesterday but its content is a month old: the older indicator governs.
+    expect(evaluateWith({ plan, results }).reasons.some((item) => item.code === 'freshness.advisory_stale')).toBe(true);
+  });
+
+  it('measures an online advisory query by the query time', () => {
+    const plan = planFor('pr');
+    const index = advisoryScanIndex(plan);
+    const results = allPassing(plan).map((result, i) =>
+      i === index
+        ? {
+            ...result,
+            tool: {
+              ...result.tool,
+              advisory_mode: 'online_query' as const,
+              advisory_provenance: { queried_at: '2026-10-06T11:00:00Z', endpoint: 'https://api.osv.dev' },
+            },
+          }
+        : result,
+    );
+    expect(evaluateWith({ plan, results }).reasons.some((item) => item.code === 'freshness.advisory_stale')).toBe(false);
   });
 });
 
@@ -493,5 +637,136 @@ describe('the evaluator is a pure function', () => {
     const later = evaluateWith({ plan, results, now: muchLater });
     expect(later.satisfied).toBe(false);
     expect(later.reasons.some((item) => item.code === 'freshness.advisory_stale')).toBe(true);
+  });
+});
+
+describe('control approval is a release obligation, not a development one', () => {
+  // Scenario 1: a draft definition. Development stages may use it; a release may not.
+  it('allows draft definitions at pr but blocks the same definitions at release', () => {
+    const prPlan = planFor('pr');
+    expect(evaluateWith({ plan: prPlan, results: allPassing(prPlan) }).satisfied).toBe(true);
+
+    const releasePlan = planFor('release');
+    const releaseResults = allPassing(releasePlan).map((result) => ({
+      ...result,
+      stage: 'release' as const,
+      environment: 'production' as const,
+    }));
+    const decision = evaluateWith({ plan: releasePlan, results: releaseResults, stage: 'release', environment: 'production' });
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'policy.control_not_approved')).toBe(true);
+  });
+
+  // Scenario 2: a changed definition carrying an old approval.
+  it('blocks a release when an approved definition changed after approval', () => {
+    const plan = planFor('release');
+    const results = allPassing(plan).map((result) => ({
+      ...result,
+      stage: 'release' as const,
+      environment: 'production' as const,
+    }));
+
+    // Approvals for every applicable control, but one is issued against different content.
+    const applicable = [...new Set(plan.expected_checks.flatMap((check) => [...check.control_ids]))];
+    const stale = { ...approvalFor('AUTHZ-01'), content_digest: 'f'.repeat(64) };
+    const approvals = applicable.map((id) => (id === 'AUTHZ-01' ? stale : approvalFor(id)));
+
+    const decision = evaluateWith({
+      plan,
+      results,
+      stage: 'release',
+      environment: 'production',
+      approvals,
+    });
+    expect(decision.satisfied).toBe(false);
+    const reasonForChanged = decision.reasons.find((item) => item.code === 'policy.approval_invalid');
+    expect(reasonForChanged?.message).toMatch(/content digest changed/);
+  });
+
+  // Scenario 3: a correctly approved, unchanged definition.
+  it('allows a release when every applicable definition is correctly approved and unchanged', () => {
+    const plan = planFor('release');
+    const results = allPassing(plan).map((result) => ({
+      ...result,
+      stage: 'release' as const,
+      environment: 'production' as const,
+    }));
+
+    const applicable = [...new Set(plan.expected_checks.flatMap((check) => [...check.control_ids]))];
+    const approvals = applicable.map((id) => approvalFor(id));
+
+    const decision = evaluateWith({
+      plan,
+      results,
+      stage: 'release',
+      environment: 'production',
+      approvals,
+    });
+    expect(decision.reasons.some((item) => item.code.startsWith('policy.'))).toBe(false);
+    expect(decision.satisfied).toBe(true);
+    // Only applicable controls need approval. BIZ-01 has no plan entries here because payments are
+    // disabled, and an inapplicable control must not be required to carry an approval.
+    const applied = new Set(applicable);
+    expect(decision.approval_states?.filter((state) => applied.has(state.control)).every((state) => state.approved)).toBe(true);
+  });
+
+  it('reports owner acceptance as self-review and independent review as not', () => {
+    const plan = planFor('release');
+    const results = allPassing(plan).map((result) => ({
+      ...result,
+      stage: 'release' as const,
+      environment: 'production' as const,
+    }));
+    const applicable = [...new Set(plan.expected_checks.flatMap((check) => [...check.control_ids]))];
+
+    const byOwner = evaluateWith({
+      plan,
+      results,
+      stage: 'release',
+      environment: 'production',
+      approvals: applicable.map((id) => approvalFor(id, { kind: 'owner' })),
+    });
+    const independent = evaluateWith({
+      plan,
+      results,
+      stage: 'release',
+      environment: 'production',
+      approvals: applicable.map((id) => approvalFor(id, { kind: 'independent', reviewer: 'external-reviewer' })),
+    });
+
+    const applied = new Set(applicable);
+    expect(byOwner.approval_states?.filter((state) => applied.has(state.control)).every((state) => state.self_review)).toBe(true);
+    expect(independent.approval_states?.filter((state) => applied.has(state.control)).every((state) => state.self_review)).toBe(false);
+  });
+
+  it('cannot verify approval without the definitions themselves', () => {
+    const plan = planFor('release');
+    const results = allPassing(plan).map((result) => ({
+      ...result,
+      stage: 'release' as const,
+      environment: 'production' as const,
+    }));
+
+    const decision = evaluate({
+      stage: 'release',
+      environment: 'production',
+      manifest: manifest(),
+      controls: catalogue.map((control) => ({
+        id: control.id,
+        definition_version: control.definition_version,
+        applicability: control.applicability as never,
+      })),
+      plan,
+      results,
+      manualEvidence: [],
+      exceptions: [],
+      policy,
+      now: NOW,
+      planIdentity: planIdentity(plan),
+      // controlDefinitions deliberately omitted.
+    });
+
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'policy.approval_unverifiable')).toBe(true);
   });
 });

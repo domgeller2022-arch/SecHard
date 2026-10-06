@@ -111,6 +111,8 @@ export function makeResult(
     identity: {
       source_commit: sourceCommit,
       policy_commit: plan.policy_identity.commit,
+      run_id: check.identity.run_id,
+      attempt: check.identity.attempt,
       ...(check.identity.configuration_digest === undefined ? {} : { configuration_digest: check.identity.configuration_digest }),
     },
     started_at: startedAt.toISOString(),

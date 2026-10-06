@@ -1,0 +1,553 @@
+schema_version: pattern-catalogue/v1
+catalogue_version: 1
+
+# Reviewed security patterns.
+#
+# A pattern is a supporting record, not a control. It links reviewed, corrected guidance to existing
+# control IDs so that agent guidance and vulnerable/permitted fixtures have something concrete to
+# work from. A pattern CANNOT:
+#
+#   - override a control's applicability
+#   - approve an exception
+#   - produce execution success or release evidence
+#   - add a top-level control ID
+#
+# Every pattern below records the factual corrections applied before reuse. Patterns whose
+# verification has not been implemented say so; `implemented: false` is not evidence of anything.
+#
+# `review_status` is `draft` until the owner reviews the corrected rationale, as with controls.
+
+patterns:
+  - id: PAT-RLS-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: UPDATE policy without an explicit WITH CHECK is not automatically a bypass
+    related_control_ids: [AUTHZ-01, AUTHZ-03, DATA-01]
+    applicability: { rule: when_feature_enabled, features: [private_resources] }
+    rationale: >-
+      PostgreSQL uses the USING expression as the proposed-row check for UPDATE and ALL policies when
+      WITH CHECK is omitted. An owner-scoped UPDATE policy with only USING is therefore not, by
+      itself, an ownership-reassignment vulnerability. An explicit WITH CHECK can improve clarity,
+      but its absence is not proof of bypass. Judge effective authorization behaviour instead:
+      exercise an ownership-change attempt against the real database and inspect the stored row.
+      Where several permissive policies apply, they combine with OR, so one additional broad policy
+      can widen access well beyond the owner-scoped one.
+    limitations:
+      - Policy text alone cannot establish effective access; only an executed cross-user test can.
+      - Interactions among all applicable policies, grants, and any privileged path must be reviewed together.
+    vulnerable_example:
+      language: sql
+      code: >-
+        -- A second permissive policy on the same private table widens access, because permissive
+        -- policies combine with OR. Owner scoping on the first policy no longer constrains reads.
+        create policy notes_read_owned on public.notes for select using (owner_id = auth.uid());
+        create policy notes_read_all on public.notes for select using (true);
+      explanation: >-
+        The second policy is the defect, not the absence of WITH CHECK on the first. Any authenticated
+        or anonymous role that can reach the table now reads every row the grants allow.
+    permitted_example:
+      language: sql
+      code: >-
+        -- One owner-scoped policy for all operations. PostgreSQL applies USING to the proposed row
+        -- for UPDATE when WITH CHECK is omitted; stating it explicitly documents the intent.
+        create policy notes_owner_all on public.notes for all
+          using (owner_id = auth.uid())
+          with check (owner_id = auth.uid());
+      explanation: >-
+        This is a valid positive fixture. Owner operations must still succeed, so a deny-everything
+        result fails the suite rather than passing it.
+    verification:
+      - method: authorization_test
+        description: >-
+          Cross-user access attempt against the real database with stored-row inspection after the
+          denied mutation, plus a positive owner case.
+        recipe: authorization/ownership
+        implemented: false
+      - method: authorization_test
+        description: Detect a deliberately added broad permissive policy through actual cross-user access.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: database-security.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - The upstream claim that a missing WITH CHECK permits ownership reassignment is incorrect for PostgreSQL.
+
+  - id: PAT-RLS-02
+    schema_version: pattern/v1
+    review_status: draft
+    title: Blanket RLS enablement is illustrative, not an approved migration
+    related_control_ids: [DATA-01, AUTHZ-02]
+    applicability: { rule: when_feature_enabled, features: [private_resources] }
+    rationale: >-
+      Exposure without row-level security depends on schema exposure and grants, not on RLS alone,
+      and an unrestricted policy on a private resource is a different case from an intentionally
+      public read. Supabase access is determined by grants and policies together. A loop that enables
+      RLS on every table in a public schema is an illustration; real migrations should enable RLS
+      per table from an explicit inventory, apply reviewed operation-specific policies, and run the
+      functional tests afterwards to confirm the application still works.
+    limitations:
+      - A public read policy can be correct for a genuinely public dataset; it is not automatically a finding.
+      - The inventory must name every exposed table, view, and function; a schema-wide loop hides which ones exist.
+    vulnerable_example:
+      language: sql
+      code: >-
+        -- Applied to every table including private ones, then never reviewed per table:
+        do $$ declare t record;
+        begin
+          for t in select tablename from pg_tables where schemaname = 'public' loop
+            execute format('alter table public.%I enable row level security', t.tablename);
+          end loop;
+        end $$;
+      explanation: >-
+        Enabling RLS is necessary but not sufficient. Without per-table policies, private tables may
+        end up either fully blocked or, if a broad policy is added to make the app work, fully open.
+    permitted_example:
+      language: sql
+      code: >-
+        -- Explicit, reviewed, per-table migration from an inventory:
+        alter table public.notes enable row level security;
+        create policy notes_owner_all on public.notes for all
+          using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+      explanation: The migration names the table and the policy it applies, so review can check both.
+    verification:
+      - method: policy_consistency
+        description: Inventory every enabled table, view, and function and confirm each has a reviewed policy decision.
+        implemented: false
+      - method: functional_test
+        description: Confirm the application still functions after the policies are applied.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: database-security.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Upstream overstated exposure without RLS and the danger of every permissive policy.
+        - The schema-wide enablement loop was reclassified from an approved migration to an illustration.
+
+  - id: PAT-RLS-03
+    schema_version: pattern/v1
+    review_status: draft
+    title: Storage is denied without policies; public-bucket reads are separate semantics
+    related_control_ids: [DATA-01, AUTHZ-01]
+    applicability: { rule: when_feature_enabled, features: [uploads] }
+    rationale: >-
+      Supabase denies storage operations without suitable policies; a missing storage policy is not
+      open access. Public-bucket retrieval has separate semantics and must be inventoried
+      deliberately. Describe the required access per operation (upload, read, delete, list) for each
+      bucket, then test each one, rather than assuming either open or closed.
+    limitations:
+      - Uploads and storage are excluded from the current reference product; this pattern does not add that feature.
+      - Public-bucket retrieval bypasses per-object policies by design and must be a recorded decision.
+    vulnerable_example:
+      language: sql
+      code: >-
+        -- A policy that permits any authenticated user to delete any object:
+        create policy objects_delete_any on storage.objects for delete
+          using (auth.role() = 'authenticated');
+      explanation: A blanket delete policy on a private bucket lets one user remove another user's files.
+    permitted_example:
+      language: sql
+      code: >-
+        -- Operation-specific: a user may read and write only their own objects.
+        create policy objects_owner_rw on storage.objects for all
+          using (bucket_id = 'notes' and owner_id = auth.uid()::text)
+          with check (bucket_id = 'notes' and owner_id = auth.uid()::text);
+      explanation: The policy names the bucket and the owner, and is tested per operation.
+    verification:
+      - method: authorization_test
+        description: Per-operation storage access tests for owner, non-owner, and anonymous actors.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: database-security.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Upstream claimed missing storage policies let authenticated users read, write, and delete at will; Supabase denies by default.
+
+  - id: PAT-FUNC-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: SECURITY DEFINER functions are inventoried, not assumed safe or unsafe
+    related_control_ids: [DATA-01, AUTHZ-01, AUTHZ-03]
+    applicability: { rule: when_feature_enabled, features: [private_resources] }
+    rationale: >-
+      A SECURITY DEFINER function executes with the defining role's privileges. Whether that bypasses
+      row-level security depends on that role and on table ownership, so moving sensitive fields
+      behind such a function does not by itself make them safe, and calling all such functions a
+      bypass is inaccurate. Prefer invoker behaviour where it suffices. Where a definer function is
+      necessary, inventory its owner, execute grants, who can call it, the fixed search path, the
+      relation names it touches, and the authorization it performs internally. Test the exposed call
+      path with unprivileged users.
+    limitations:
+      - Schema placement and a fixed search path do not establish caller or resource authorization.
+      - Inherited and direct grants must both be reviewed; one can widen access the other does not show.
+    vulnerable_example:
+      language: sql
+      code: >-
+        -- Definitive but unauthorised: any caller can read any tenant's rows.
+        create function public.get_note(note_id uuid) returns setof public.notes
+        language sql security definer set search_path = public as $$
+          select * from public.notes where id = note_id;
+        $$;
+      explanation: The function bypasses RLS using the definer's privileges and performs no caller authorization.
+    permitted_example:
+      language: sql
+      code: >-
+        -- Authorization inside the function, and only the caller's own rows.
+        create function public.get_own_note(note_id uuid) returns setof public.notes
+        language sql security definer set search_path = public as $$
+          select * from public.notes where id = note_id and owner_id = auth.uid();
+        $$;
+      explanation: The fixed search path and internal owner check together keep the function inside the caller's boundary.
+    verification:
+      - method: authorization_test
+        description: Call the exposed function as a non-owner and as an anonymous actor; assert the response and the stored state.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: database-security.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Upstream described all definer functions as bypassing RLS, and private-schema placement as sufficient protection.
+
+  - id: PAT-AUTH-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: HttpOnly cannot be a universal rule for the SSR refresh-token flow
+    related_control_ids: [AUTH-01, WEB-02]
+    applicability: { rule: when_feature_enabled, features: [accounts] }
+    rationale: >-
+      HttpOnly is valuable for server-managed sessions. Supabase's browser-assisted SSR flow requires
+      browser access to refresh tokens, so applying a universal HttpOnly rule to that architecture
+      breaks it rather than securing it. Follow the selected provider's supported architecture,
+      document the residual XSS risk that browser-readable tokens carry, and keep identity
+      verification and authorization close to the protected data operation. Handlers and Server
+      Actions are reachable endpoints, and public signup, login, health, and webhook routes need
+      their own declared access model rather than a blanket existing-session requirement.
+    limitations:
+      - Browser-readable session material carries residual XSS risk that no server check removes.
+      - Public endpoints are not a bypass; a public health route or intentionally public dataset must not be classified as one.
+    vulnerable_example:
+      language: typescript
+      code: >-
+        // Authorization decided in the UI. The endpoint itself is reachable without it.
+        export default function NotesPage() {
+          const { user } = useSession();
+          if (!user) return null;          // hidden, not protected
+          return <NoteList />;
+        }
+      explanation: Hiding a surface in the client leaves the endpoint and the data path open to a direct call.
+    permitted_example:
+      language: typescript
+      code: >-
+        // Authorization at the data boundary, using the provider's supported server client.
+        export async function getNotes() {
+          const supabase = await createServerClient();
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('unauthenticated');
+          const { data, error } = await supabase.from('notes').select().eq('owner_id', user.id);
+          if (error) throw error;
+          return data;
+        }
+      explanation: The check and the query are in the same server-side boundary the caller cannot skip.
+    verification:
+      - method: authorization_test
+        description: Reach a protected endpoint directly as an anonymous and as a non-owner actor.
+        implemented: false
+      - method: functional_test
+        description: Confirm the intentionally public routes still work and are not reported as bypasses.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: authentication.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Removed the universal HttpOnly requirement, which conflicts with the supported Supabase SSR flow.
+        - Replaced the custom token example with the supported provider architecture.
+
+  - id: PAT-RATE-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: A rate-limit identity must not trust an unvalidated forwarded header
+    related_control_ids: [ABUSE-01, OPS-01]
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    rationale: >-
+      Using an entire x-forwarded-for value as the rate-limit key lets a client vary or spoof it and
+      obtain a new budget per request, and a shared fallback bucket can group unrelated users
+      together. Require a trusted client identity derived from a verified proxy boundary, add
+      authenticated-user limits where applicable, and parse the header with bounded length and a
+      fixed position convention. Keep the IP as one signal, never as proof of user identity. Counter
+      integrity depends on real grants and write access: placing a counter table in a public schema
+      does not by itself let users reset it. For multi-instance deployments, test concurrent
+      requests, reset-window boundaries, and documented limiter-outage behaviour.
+    limitations:
+      - Trusted-header handling is platform specific and must be configured for the actual proxy.
+      - An external managed limiter is a reference design, not a reason to add a paid dependency to v1.
+    vulnerable_example:
+      language: typescript
+      code: >-
+        // The client controls the key, so the client controls its own quota.
+        const key = req.headers['x-forwarded-for'] as string;
+        await limiter.consume(key);
+      explanation: Varying the header yields a fresh budget on every request.
+    permitted_example:
+      language: typescript
+      code: >-
+        // One trusted hop is configured for the platform; the identity is taken from the right-hand end.
+        // The limit is the authenticated user where there is one, and the trusted hop otherwise.
+        const forwarded = parseForwarded(req.headers['x-forwarded-for'], { trustedHops: 1, maxLength: 256 });
+        const key = session?.userId ?? `ip:${forwarded.clientAddress}`;
+        await limiter.consume(key, { maxWorkBytes: 64 * 1024 });
+      explanation: The platform decides which hop is trusted, and the budget is per authenticated user.
+    verification:
+      - method: live_http_check
+        description: Send repeated requests with varied forwarding headers and confirm the budget does not reset.
+        implemented: false
+      - method: authorization_test
+        description: Confirm the counter store cannot be written or reset by an unprivileged client.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: rate-limiting.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Replaced the unvalidated x-forwarded-for key with a trusted-proxy and authenticated-user identity model.
+
+  - id: PAT-SPEND-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: A budget alert is not an enforced spending cap
+    related_control_ids: [ABUSE-01, BIZ-01]
+    applicability: { rule: when_any_feature_enabled, features: [runtime_ai, payments] }
+    rationale: >-
+      Provider budget alerts notify; they do not necessarily stop usage or spending, and only
+      service-supported spend-cap budgets enforce. Record the actual provider, account, limit type,
+      scope, and observed enforcement. Keep application-side quotas, concurrency limits, per-request
+      and per-output token limits, and a stop mechanism, because a dashboard screenshot cannot show
+      that application spend is bounded.
+    limitations:
+      - Enforcement is provider and plan specific; the record must name what was actually observed.
+      - Runtime AI is a later supported profile and is excluded from the reference stack.
+    vulnerable_example:
+      language: text
+      code: "Alert configured at $100/month. No service-side cap, no application-side quota."
+      explanation: The alert fires after the money is spent and does not stop the spend.
+    permitted_example:
+      language: text
+      code: >-
+        Service-enforced monthly spend cap: $100 (observed enforced).
+        Application-side per-user daily token quota: enforced before provider call.
+        Concurrency limit: 2 per user; request timeout: 30s; output capped at 1024 tokens.
+      explanation: Each bound names where it is enforced and how enforcement was observed.
+    verification:
+      - method: functional_test
+        description: Confirm the application quota stops requests at the configured bound.
+        implemented: false
+      - method: manual_attestation
+        description: Record the provider, limit type, scope, and observed enforcement of the spend cap.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: ai-integration.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Upstream grouped budget alerts with hard spending caps; Google documents that alerts-only budgets do not cap usage.
+
+  - id: PAT-AI-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: Prompt separation and sanitization are partial defences, not injection prevention
+    related_control_ids: [WEB-01, ABUSE-01, PRIV-01]
+    applicability: { rule: when_feature_enabled, features: [runtime_ai] }
+    rationale: >-
+      Separating system and user messages reduces some injection paths and is worth doing, but it is
+      not prevention, and sanitizing input must not be described as prevention. Tool authorization,
+      resource ownership, parameter validation, secret access, and permitted destinations are
+      enforced outside the model. Tool-invocation logging preserves OPS-01's redaction and
+      minimisation: record security-relevant decisions without indiscriminately storing credentials,
+      full prompts, or personal content.
+    limitations:
+      - Runtime AI is excluded from the reference stack; this pattern does not enable it.
+      - No prompt-level technique removes the need for authorization outside the model.
+    vulnerable_example:
+      language: typescript
+      code: >-
+        // The model decides which user's data to return.
+        const answer = await model.generate(`Answer ${userQuestion} using any tools you need`);
+      explanation: The model holds authority over resource access, so injected text can redirect it.
+    permitted_example:
+      language: typescript
+      code: >-
+        // The model may only choose from tools already bound to the authenticated user's data.
+        const tools = allowedToolsFor(user.id);
+        const answer = await model.generate({ system: POLICY_TEXT, messages: [{ role: 'user', content: userQuestion }], tools });
+      explanation: The permission boundary is outside the model; the model selects, it does not authorize.
+    verification:
+      - method: manual_attestation
+        description: Review tool bindings, secret reachability, and permitted destinations outside the model.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: ai-integration.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Kept the upstream residual-attack caveat; the sanitization recommendation is not described as prevention.
+
+  - id: PAT-DEPLOY-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: Source maps are classified, not universally disabled
+    related_control_ids: [SEC-02, DEPLOY-01]
+    applicability: { rule: when_environment, environments: [staging, production] }
+    rationale: >-
+      Publicly served source maps and private diagnostic artifacts are different things. Next.js
+      disables production browser source maps by default and serves them when the relevant option is
+      enabled, so the check is what the build actually shipped, not a universal rule to disable all
+      maps. Apply CSP, framing, permissions, and transport settings to the application's supported
+      behaviour. HSTS subdomain coverage requires deliberate HTTPS readiness for every subdomain, and
+      a wildcard CORS origin can be correct for an intentionally public non-credentialed resource
+      while credentialed browser requests need explicit origins. CORS does not replace endpoint
+      authorization.
+    limitations:
+      - A probe must distinguish a real exposed file from a site's fallback HTML returning status 200.
+      - Header requirements differ per route class; one global assertion is not enough.
+    vulnerable_example:
+      language: javascript
+      code: >-
+        // Browser source maps enabled in production for a private application:
+        module.exports = { productionBrowserSourceMaps: true };
+      explanation: The shipped bundle exposes readable original source, including any embedded internal strings.
+    permitted_example:
+      language: javascript
+      code: >-
+        // Production browser maps off; server-side maps kept as private build artifacts.
+        module.exports = { productionBrowserSourceMaps: false };
+        // Build output recorded and retained privately, with digests, for diagnostics.
+      explanation: The browser gets no maps; the team keeps its own artifacts under access control.
+    verification:
+      - method: client_asset_inspection
+        description: Inspect the actual build output for shipped maps and privileged markers.
+        implemented: false
+      - method: live_http_check
+        description: Assert route-appropriate headers, cookie attributes, and CSP/CORS behaviour, distinguishing a real file from fallback HTML.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: deployment.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Replaced the blanket source-map and single-header-set mandates with verified, route-specific requirements.
+
+  - id: PAT-SQL-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: Parameterized raw SQL is different from concatenated SQL and dynamic identifiers
+    related_control_ids: [WEB-01, CODE-01]
+    applicability: { rule: when_any_feature_enabled, features: [persistent_storage, interfaces] }
+    rationale: >-
+      Prisma and similar ORMs support parameterized forms of their raw-query methods. The
+      vulnerability is constructing SQL from untrusted text, not using a raw method at all. A review
+      distinguishes three cases: parameterized data, concatenated untrusted text, and dynamic
+      identifiers such as table or column names, which cannot be parameterized and need an allowlist
+      mapping.
+    limitations:
+      - Static pattern matches are review candidates, not supported findings, unless the configured rule establishes one.
+      - Database behaviour still needs real tests, not only static matches.
+    vulnerable_example:
+      language: typescript
+      code: >-
+        // Untrusted text concatenated into SQL:
+        await prisma.$queryRawUnsafe(`select * from notes where title = '${title}'`);
+      explanation: The title can terminate the string and change the statement.
+    permitted_example:
+      language: typescript
+      code: >-
+        // Parameterized: the value is never parsed as SQL.
+        await prisma.$queryRaw`select * from notes where title = ${title}`;
+      explanation: Parameter binding keeps the value data. Dynamic identifiers still need an allowlist, not interpolation.
+    verification:
+      - method: static_analysis
+        description: Rule set flags concatenated SQL and dynamic identifiers; each match is triaged as a review candidate.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: data-access.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Upstream stated raw methods entirely bypass parameterization; the actual distinction is unsafe construction versus parameterized use.
+
+  - id: PAT-SECRET-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: Publishable keys are classified, privileged keys are contained
+    related_control_ids: [SEC-02, SEC-03]
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    rationale: >-
+      Provider key types carry different authority. A publishable or legacy anon key is intended for
+      client use and identifies no user on its own; a secret or service-role key bypasses row-level
+      security. A client bundle containing an intended publishable key is correct and must not be
+      reported as a leak, while a privileged key in browser output is a containment incident, not a
+      documentation note. Creating a new key does not revoke a legacy key; migration and explicit
+      revocation are separate actions. Remediation guidance must be redacted, and an exposed value
+      must never be reproduced to illustrate a fix.
+    limitations:
+      - Classification of a publishable key is a reviewed decision recorded in the manifest, not an automatic result.
+      - The provider is deprecating legacy keys; the adapter must be version aware.
+    vulnerable_example:
+      language: typescript
+      code: >-
+        // Privileged key referenced from a client component:
+        const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+      explanation: Anything bundled for the browser with a NEXT_PUBLIC prefix, or imported into a client component, ships to the user.
+    permitted_example:
+      language: typescript
+      code: >-
+        // Public key in the browser client; privileged key only in server-side code that performs
+        // its own authorization checks.
+        const browser = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
+      explanation: The publishable key is classified as intended-public; the privileged key never reaches a client bundle.
+    verification:
+      - method: client_asset_inspection
+        description: Scan built output for privileged markers and confirm the intended publishable key is classified, not flagged.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: secrets-and-environment.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Added provider key-type classification and the legacy-key revocation caveat.
+
+  - id: PAT-CLI-01
+    schema_version: pattern/v1
+    review_status: draft
+    title: Use the pinned scanner's actual command surface
+    related_control_ids: [SEC-01]
+    applicability: { rule: always }
+    rationale: >-
+      Upstream Gitleaks deprecated the `detect` subcommand and documents `git`, `dir`, and `stdin`
+      modes. Guidance and recipes must name the commands of the pinned version and the declared scan
+      scope, rather than copying an older command from an example. The same rule applies to every
+      adapter: select actual commands for the pinned version, record the observed version, and record
+      the scope the scan actually covered.
+    limitations:
+      - A command that runs successfully does not establish that the scope was complete.
+      - Shallow history limits what a history scan can see, and the limitation must be recorded.
+    vulnerable_example:
+      language: text
+      code: "gitleaks detect --source .   # deprecated in current releases"
+      explanation: An unpinned, deprecated command may behave differently from the documented interface or disappear.
+    permitted_example:
+      language: text
+      code: "gitleaks git . --redact --report-format json --report-path report.json   # pinned version, declared scope"
+      explanation: The command matches the pinned version's documented interface, and the report is captured with a digest.
+    verification:
+      - method: policy_consistency
+        description: Confirm every recipe names commands present in the pinned tool version and records observed version and scope.
+        implemented: false
+    provenance:
+      source_id: vibe-security-skill
+      source_file: secrets-and-environment.md
+      reviewed_at: "2026-10-06T00:00:00Z"
+      corrections:
+        - Replaced the deprecated `gitleaks detect` usage with the current documented modes, pending pinned-version verification in Step 09.

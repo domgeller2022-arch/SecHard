@@ -187,6 +187,12 @@ function checkStructure(doc: Document, file: string, limits: LoadLimits): Valida
   return issues;
 }
 
+/**
+ * A lone surrogate has no UTF-8 encoding, so a record containing one cannot be canonicalized or
+ * hashed consistently. It is rejected as input rather than surfacing as a hashing error later.
+ */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
 function checkLimits(value: unknown, file: string, limits: LoadLimits): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   let keyCount = 0;
@@ -196,11 +202,38 @@ function checkLimits(value: unknown, file: string, limits: LoadLimits): Validati
       issues.push(issue('input.depth_exceeded', `nesting deeper than ${limits.maxDepth}`, file, path));
       return;
     }
+
+    // Values that cannot round-trip through canonical JSON are rejected here, at the input boundary,
+    // rather than being coerced. A number that lost precision on parse would silently produce a
+    // digest over a value nobody wrote.
+    if (typeof node === 'number' && !Number.isFinite(node)) {
+      issues.push(issue('input.non_finite_number', 'value is not a finite number and cannot be represented in canonical JSON', file, path));
+      return;
+    }
+    if (typeof node === 'number' && Number.isInteger(node) && !Number.isSafeInteger(node)) {
+      issues.push(
+        issue(
+          'input.unsafe_integer',
+          'integer exceeds the exactly representable range; quote it as a string if it is an identifier',
+          file,
+          path,
+        ),
+      );
+      return;
+    }
+    if (typeof node === 'bigint') {
+      issues.push(issue('input.unsafe_integer', 'bigint values are not part of the supported record model; use a string', file, path));
+      return;
+    }
+
     if (typeof node === 'string') {
       if (node.length > limits.maxStringLength) {
         issues.push(
           issue('input.string_too_long', `string longer than ${limits.maxStringLength} characters`, file, path),
         );
+      }
+      if (LONE_SURROGATE.test(node)) {
+        issues.push(issue('input.invalid_unicode', 'string contains a lone surrogate, which has no UTF-8 encoding', file, path));
       }
       return;
     }

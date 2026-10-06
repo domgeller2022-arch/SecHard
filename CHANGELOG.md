@@ -13,6 +13,72 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Added — review incorporation (6 October 2026)
+
+Applied after the Batch A checkpoint, from the owner-supplied build-pack review and
+skill-integration review. Behavioural items were implemented and tested, not only documented.
+
+**Control approval is now a real release gate**
+
+- `controls/approvals.yaml` (empty until the owner acts) and `schemas/control-approvals.schema.json`.
+- An approval names the control ID, definition version, and a SHA-256 digest of the definition's
+  reviewed content, with approval metadata excluded so recording an approval does not invalidate it.
+  Editing a definition invalidates its approval **even without a version bump**.
+- Release evaluation requires a valid approval for every applicable control. PR, local, and
+  operations stages may exercise draft definitions. An agent-written reviewer is not proof of
+  review: the gate reads the approval record, not the definition's own `review_status`.
+- `self_review` is recorded: `kind: owner` on a solo project is self-review, not independent
+  assurance, and reports say so.
+- New CLI command `hardening approvals --policy .` prints the exact digest the owner must approve
+  and the current state of all 35 definitions.
+
+**Evidence is bound to the run, not just the commit**
+
+- Plans and results now carry `run_id` and `attempt`. Matching source, policy, and target is not
+  enough: an old report for the same commit cannot be replayed into a new run.
+- `policy/gate-policy.yaml` sets `allow_cross_run_reuse: false`. Narrow aged reuse with unchanged
+  tool/rule/configuration identity is a future reviewed policy change, not a default.
+
+**Advisory freshness is mode-specific**
+
+- Results record `advisory_mode` (`online_query` or `offline_database`) and mode-specific
+  provenance. An online query is measured by its query time; an offline database by its retrieval
+  time and, when the interface supplies one, its upstream update time. A freshly executed scan over
+  an old cached database is `stale`, not fresh.
+
+**JCS restrictions applied at the input boundary**
+
+- The loader now rejects integers outside exact representation, non-finite numbers, and lone
+  surrogates, and preserves Unicode without normalization. A value that would lose precision on
+  parse is refused rather than silently rounded into a digest.
+
+**Reviewed pattern library and provenance**
+
+- `controls/patterns/patterns.yaml` and `schemas/pattern.schema.json`: 12 patterns adapted from the
+  reviewed security skill, each carrying the factual corrections applied before reuse, a vulnerable
+  and a permitted example, related control IDs, limitations, verification methods, and provenance.
+- Corrections include: a PostgreSQL UPDATE policy without an explicit `WITH CHECK` is not
+  automatically a bypass; storage is denied without policies rather than open; `SECURITY DEFINER`
+  functions are inventoried rather than assumed to bypass RLS; HttpOnly cannot be a universal rule
+  for the SSR refresh-token flow; a forwarded header is not a trusted rate-limit identity; a budget
+  alert is not an enforced spending cap; source maps are classified rather than universally
+  disabled; parameterized raw SQL differs from concatenated SQL.
+- A pattern is a supporting record. Tests assert it produces no plan checks, has no path into the
+  evaluator, and cannot produce execution success. Pattern IDs cannot be mistaken for control IDs.
+- `upstream/sources.yaml` and `upstream/notices/vibe-security-skill.LICENSE` record the imported
+  component, its MIT licence, attribution to the original author, the supplied file digests, and the
+  fact that the upstream commit could not be established from the local snapshot.
+
+**Owner decision sheet restructured (structural additions only, no values invented)**
+
+- A table maps every decision to the first step it blocks, so a later-batch field can stay `TODO`.
+- `github_codeowners` is separate from the display-name handle, because a display name is not a valid
+  code owner.
+- GitHub test permissions are split into create / push / change settings / delete, each defaulting
+  to `false`, each limited to the named test repositories and never the master repository. The
+  merge-queue capability limit and the single-resource-owner limit of fine-grained tokens are
+  recorded alongside.
+
 ### Added — Batch A (Steps 00–05)
 
 **Step 00 — build decisions and preflight**
@@ -93,6 +159,17 @@ still `TODO`.
   verified absence of process environment values from evidence.
 - JSON and Markdown reports from the same evaluation, reporting kit readiness and application
   production readiness **separately**.
+
+### Fixed — defects found and corrected during this revision
+
+- **The test suite ran a stale compiled CLI.** `tests/global-setup.ts` now rebuilds `dist/` before
+  the suite runs. Until this was fixed, the CLI and integration tests could report on code that was
+  not the code in the working tree — exactly the class of misleading result this repository exists
+  to prevent.
+- Three approval tests asserted over all 35 controls instead of the applicable ones; the engine was
+  correct and the tests were scoped properly.
+- An unused `reuse` policy block was declared in the type without being read by any code. It was
+  replaced with an explicit `allow_cross_run_reuse: false` that the behaviour matches.
 
 ### Fixed — defects found and corrected during the build
 

@@ -4,6 +4,7 @@ import { parse } from 'yaml';
 import { loadCatalogue, loadProfile } from '../../src/domain/definitions.js';
 import { buildPlan, planIdentity, type PlanInput } from '../../src/domain/planner.js';
 import { evaluate } from '../../src/domain/evaluator.js';
+import { definitionContentDigest, type ApprovalRecord } from '../../src/domain/approval.js';
 import type {
   CheckResult,
   ExceptionRecord,
@@ -18,6 +19,7 @@ import type { ApplicabilityRule } from '../../src/domain/applicability.js';
 
 export const NOW = new Date('2026-10-06T12:00:00Z');
 export const SOURCE_COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
+export const RUN_ID = 'run-1';
 export const POLICY_COMMIT = 'f0e1d2c3b4a5968778695a4b3c2d1e0f99887766';
 
 export const policy: GatePolicy = (() => {
@@ -88,6 +90,7 @@ export function planFor(
     sourceDirty: options.sourceDirty ?? false,
     now: NOW,
     planId: `plan-${stage}-demo`,
+    runId: RUN_ID,
     appManifestDigest: 'f'.repeat(64),
   });
 }
@@ -100,7 +103,13 @@ export function passingResult(
     recipe: string;
     stage?: CheckResult['stage'];
     environment?: CheckResult['environment'];
-    identity: { source_commit: string; policy_commit: string; configuration_digest?: string };
+    identity: {
+      source_commit: string;
+      policy_commit: string;
+      configuration_digest?: string;
+      run_id?: string;
+      attempt?: number;
+    };
   },
   overrides: Partial<CheckResult> = {},
 ): CheckResult {
@@ -119,6 +128,8 @@ export function passingResult(
     identity: {
       source_commit: SOURCE_COMMIT,
       policy_commit: POLICY_COMMIT,
+      run_id: check.identity.run_id ?? RUN_ID,
+      attempt: check.identity.attempt ?? 1,
       ...(check.identity.configuration_digest === undefined ? {} : { configuration_digest: check.identity.configuration_digest }),
     },
     started_at: '2026-10-06T11:55:00Z',
@@ -145,6 +156,7 @@ export function evaluateWith(input: {
   profiles?: readonly Profile[];
   now?: Date;
   expectedPlanIdentity?: string;
+  approvals?: readonly ApprovalRecord[];
 }) {
   const stage = input.stage ?? 'pr';
   const environment = input.environment ?? 'local';
@@ -163,6 +175,8 @@ export function evaluateWith(input: {
     results: input.results,
     manualEvidence: input.manualEvidence ?? [],
     exceptions: input.exceptions ?? [],
+    approvals: input.approvals ?? [],
+    controlDefinitions: catalogue,
     policy,
     now: input.now ?? NOW,
     planIdentity: planIdentity(input.plan),
@@ -184,6 +198,21 @@ export const manualEvidence = (overrides: Partial<ManualEvidence> = {}): ManualE
   expires_at: '2026-11-01T00:00:00Z',
   ...overrides,
 });
+
+/** An approval for a control as it currently exists, at its current content digest. */
+export function approvalFor(id: string, overrides: Partial<ApprovalRecord> = {}): ApprovalRecord {
+  const definition = catalogue.find((control) => control.id === id);
+  if (definition === undefined) throw new Error(`no such control ${id}`);
+  return {
+    control: id,
+    definition_version: definition.definition_version,
+    content_digest: definitionContentDigest(definition),
+    reviewer: 'owner',
+    reviewed_at: '2026-10-05T00:00:00Z',
+    kind: 'owner',
+    ...overrides,
+  };
+}
 
 export const exceptionFor = (overrides: Partial<ExceptionRecord> = {}): ExceptionRecord => ({
   schema_version: 'exception/v1',

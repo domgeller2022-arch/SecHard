@@ -8,6 +8,8 @@
   "required": [
     "schema_version",
     "plan_id",
+    "run_id",
+    "attempt",
     "stage",
     "environment",
     "created_at",
@@ -18,6 +20,17 @@
   "properties": {
     "schema_version": { "const": "execution-plan/v1" },
     "plan_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "The evaluation run this plan belongs to. A result from a different run is not evidence for this plan."
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Re-execution attempt within the same run. Reuse of an earlier attempt's result requires the reuse policy to permit it."
+    },
     "stage": { "enum": ["adoption", "local", "pr", "build", "release", "staging", "deployment", "operations"] },
     "environment": { "enum": ["local", "preview", "staging", "production"] },
     "created_at": { "$ref": "#/$defs/timestamp" },
@@ -106,12 +119,19 @@
           "identity": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["source_commit", "policy_commit"],
+            "required": ["source_commit", "policy_commit", "run_id", "attempt"],
             "properties": {
               "source_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
               "policy_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
               "configuration_digest": { "$ref": "#/$defs/sha256" },
-              "target": { "type": "string", "maxLength": 2048 }
+              "target": { "type": "string", "maxLength": 2048 },
+              "run_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100,
+                "description": "Results must belong to the trusted evaluation run. Exact commit matching alone does not stop an old report for the same commit being replayed."
+              },
+              "attempt": { "type": "integer", "minimum": 1 }
             }
           },
           "expected_scope": {

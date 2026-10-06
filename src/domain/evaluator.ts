@@ -1,4 +1,5 @@
 import { evaluateApplicability, type ApplicabilityRule, type ManifestLike } from './applicability.js';
+import { approvalsRequiredForRelease, resolveApprovals, type ApprovalRecord, type ApprovalState, type DefinitionLike } from './approval.js';
 import type {
   CheckResult,
   ControlEvaluation,
@@ -33,6 +34,11 @@ export interface EvaluationInput {
   readonly manualEvidence: readonly ManualEvidence[];
   readonly exceptions: readonly ExceptionRecord[];
   /**
+   * Owner approvals for the control definitions in use. Only release evaluation requires them.
+   * Approval metadata is not present in reports written during development.
+   */
+  readonly approvals?: readonly ApprovalRecord[];
+  /**
    * The application's own assessment records. Read for justification and to surface contradictions,
    * never as proof: a recorded `pass` has no effect on a derived outcome, and a recorded
    * `not_applicable` cannot override applicability computed from the manifest.
@@ -49,6 +55,8 @@ export interface EvaluationInput {
   readonly policy: GatePolicy;
   readonly now: Date;
   readonly planIdentity: string;
+  /** Control definitions, needed to compute their reviewed-content digest. */
+  readonly controlDefinitions?: readonly DefinitionLike[];
   /** Identity of the plan recomputed from validated policy plus the manifest. */
   readonly expectedPlanIdentity?: string;
   /** Features the selected profiles exclude, used to surface coverage gaps. */
@@ -148,6 +156,11 @@ export function evaluate(input: EvaluationInput): GateDecision {
     reasons.push(reason('coverage.feature_gap', gap));
   }
 
+  // Approval is a release obligation, not a development one. Draft policy may be exercised locally
+  // and in a pull request; it cannot carry a release.
+  const approvalReasons = evaluateApprovals(input);
+  reasons.push(...approvalReasons.reasons);
+
   return {
     satisfied: reasons.length === 0 && controlOutcomes.every(isAcceptable),
     stage: input.stage,
@@ -156,7 +169,57 @@ export function evaluate(input: EvaluationInput): GateDecision {
     control_outcomes: controlOutcomes,
     coverage_gaps: gaps,
     unsupported_scope: unsupportedScope,
+    ...(approvalReasons.states === undefined ? {} : { approval_states: approvalReasons.states }),
   };
+}
+
+/**
+ * Release evaluation requires a valid owner approval for every applicable control definition.
+ *
+ * An approval that names a different content digest, a different version, or no reviewer is invalid
+ * rather than absent: it must surface as a problem to fix, not as "reviewed".
+ */
+function evaluateApprovals(input: EvaluationInput): { reasons: Reason[]; states?: readonly ApprovalState[] } {
+  if (input.stage !== 'release') return { reasons: [] };
+  if (input.controlDefinitions === undefined) {
+    return {
+      reasons: [
+        reason('policy.approval_unverifiable', 'release evaluation requires control definitions so their reviewed content can be digested; none were supplied'),
+      ],
+    };
+  }
+
+  const states = resolveApprovals(input.controlDefinitions, input.approvals ?? [], input.now);
+  const applicable = new Set(
+    input.plan.expected_checks.flatMap((check) => [...check.control_ids]),
+  );
+  const missing = approvalsRequiredForRelease(states, applicable);
+
+  return {
+    states,
+    reasons: missing.map((state) =>
+      reason(
+        state.problem === 'not_approved' ? 'policy.control_not_approved' : 'policy.approval_invalid',
+        `${state.control} is ${describeApprovalProblem(state)}`,
+        { control_ids: [state.control] },
+      ),
+    ),
+  };
+}
+
+function describeApprovalProblem(state: ApprovalState): string {
+  switch (state.problem) {
+    case 'content_changed':
+      return 'owner_reviewed but the reviewed content digest changed since approval, so the approval no longer applies';
+    case 'version_changed':
+      return 'owner_reviewed but its definition version differs from the approval';
+    case 'different_control':
+      return 'approved under a different control id';
+    case 'missing_reviewer':
+      return 'recorded an approval with no reviewer';
+    default:
+      return 'still draft; only the owner may mark a definition owner_reviewed';
+  }
 }
 
 const isAcceptable = (outcome: ControlEvaluation): boolean =>
@@ -356,23 +419,63 @@ function identityReasons(check: ExpectedCheck, result: CheckResult): Reason[] {
   if (check.identity.configuration_digest !== undefined && result.identity.configuration_digest !== check.identity.configuration_digest) {
     reasons.push(reason('identity.configuration_mismatch', `${result.check_id} used a different configuration`, { control_ids: check.control_ids, check_id: check.check_id }));
   }
+
+  // Matching commits is not enough. The same commit can be scanned twice with different tools,
+  // rules, or results, so a result is only evidence for the run and attempt it belongs to unless
+  // reviewed policy explicitly permits reuse.
+  if (result.identity.run_id !== check.identity.run_id) {
+    reasons.push(
+      reason('identity.run_mismatch', `${result.check_id} belongs to run ${result.identity.run_id}, not ${check.identity.run_id}`, {
+        control_ids: check.control_ids,
+        check_id: check.check_id,
+      }),
+    );
+  } else if (result.identity.attempt !== check.identity.attempt) {
+    reasons.push(
+      reason('identity.attempt_mismatch', `${result.check_id} belongs to attempt ${result.identity.attempt}, not ${check.identity.attempt}`, {
+        control_ids: check.control_ids,
+        check_id: check.check_id,
+      }),
+    );
+  }
+
   return reasons;
 }
 
 function freshnessReasons(check: ExpectedCheck, result: CheckResult, context: CheckContext): Reason[] {
   const reasons: Reason[] = [];
   const limitHours = check.evidence_freshness?.advisory_max_age_hours ?? context.stagePolicy.advisory_snapshot_max_age_hours;
-  const snapshot = result.tool?.advisory_snapshot_at;
 
-  if (snapshot !== undefined && limitHours !== undefined) {
-    const at = Date.parse(snapshot);
+  /**
+   * An online advisory query and an offline database scan are different evidence, so their age is
+   * measured differently.
+   *
+   * For an offline scan the thing that ages is the *database*, not the scan. Re-running the scanner
+   * today over a database fetched last month produces a fresh-looking scan of stale data. The
+   * upstream database timestamp is used when the interface supplies one; when it does not, the
+   * retrieval time is used and the absence of upstream metadata is recorded rather than invented.
+   */
+  const mode = result.tool?.advisory_mode;
+  const provenance = result.tool?.advisory_provenance;
+  const onlineAt = provenance?.queried_at ?? (mode === undefined ? result.tool?.advisory_snapshot_at : undefined);
+  const offlineAt = provenance?.upstream_updated_at ?? provenance?.database_retrieved_at ?? result.tool?.advisory_snapshot_at;
+
+  const advice = mode === 'offline_database' ? offlineAt : onlineAt;
+  const label = mode === 'offline_database' ? 'advisory database' : 'advisory data';
+
+  if (advice !== undefined && limitHours !== undefined) {
+    const at = Date.parse(advice);
     if (Number.isNaN(at)) {
-      reasons.push(reason('freshness.unparsable', `${result.check_id} has an unparsable advisory snapshot time`, { control_ids: check.control_ids, check_id: check.check_id }));
+      reasons.push(reason('freshness.unparsable', `${result.check_id} has an unparsable ${label} time`, { control_ids: check.control_ids, check_id: check.check_id }));
     } else {
       const ageHours = (context.now.getTime() - at) / 3_600_000;
       if (ageHours > limitHours) {
+        const detail =
+          mode === 'offline_database' && provenance?.database_retrieved_at !== undefined
+            ? `; the scan itself ran at ${provenance.queried_at ?? result.finished_at} but the database is ${ageHours.toFixed(1)}h old`
+            : '';
         reasons.push(
-          reason('freshness.advisory_stale', `advisory snapshot for ${result.check_id} is ${ageHours.toFixed(1)}h old; the limit for this stage is ${limitHours}h`, {
+          reason('freshness.advisory_stale', `${label} for ${result.check_id} is ${ageHours.toFixed(1)}h old; the limit for this stage is ${limitHours}h${detail}`, {
             control_ids: check.control_ids,
             check_id: check.check_id,
           }),
