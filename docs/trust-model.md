@@ -45,13 +45,15 @@ and the decision engine's rules.
 | `plan` | No | Pure derivation from validated records |
 | `gate` / `report` | No | Pure evaluation |
 | `check` (built-in policy consistency) | No | Reads and compares validated records |
-| `check` (scanner recipes, Step 09) | Yes, external binaries | Reviewed executables, pinned, verified digest, narrow environment |
+| `check` (scanner recipes) | Yes, external binaries | Refused unless identity resolves: absolute path, recorded version, and a digest checked against the binary. Argument arrays, allowlisted environment, bounded output, enforced deadline |
+| Provisioning (explicit, separate from checking) | Runs the package manager | Plan validated before execution; exact versions, reviewed registry, age policy, reviewed hooks, digests for downloads. Never triggered by a missing tool during `check` |
 | Application tests / builds (Step 10) | Yes, application code | Requires an operator-approved disposable or isolated environment |
 
-**A separate directory is not isolation. An environment-variable allowlist is not isolation.**
-Neither is used as a security boundary anywhere in this repository. Where untrusted code must run,
-the isolation comes from the operator's approved ephemeral environment (a container, VM, or
-CI-isolated runner) and that requirement is stated as an operator obligation.
+**A separate directory is not isolation. An environment-variable allowlist is not isolation. A
+spawned process is not a sandbox.** None of these is used as a security boundary anywhere in this
+repository. Where untrusted code must run, the isolation comes from the operator's approved
+ephemeral environment (a container, VM, or CI-isolated runner) and that requirement is stated as an
+operator obligation in `docs/trust-model.md` and `policy/dependency-policy.yaml`.
 
 ## Secret boundaries
 

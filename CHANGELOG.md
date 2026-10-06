@@ -13,6 +13,55 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Added — Batch B: Step 06 tool execution (6 October 2026)
+
+Batch B was authorised on the owner's instruction. Step 06 was implemented and verified; Steps
+07–10 are blocked on a missing container runtime and were not started.
+
+**Policy**
+
+- `policy/dependency-policy.yaml`: the 10080-minute (7-day) release-age delay, reviewed registries,
+  install scripts disabled by default with an empty allowlist, exact-version expiring exceptions for
+  urgent fixes, the separation of provisioning from checking, and the operator-isolation requirement
+  for application execution.
+- `policy/toolchain.yaml`: an `execution` section recording how tools may be launched, and every
+  scanner marked `identity: unverified` so the runner refuses to run it. The refusal is the honest
+  state until a tool is downloaded, digested, and pinned in Step 09.
+
+**Execution layer** (`src/execution/`)
+
+- `process.ts` — the only place this repository starts a process. Argument arrays with no shell, an
+  absolute executable path (never resolved through `PATH`), an allowlisted environment, capped
+  output, and a deadline enforced with SIGTERM then SIGKILL against the whole process group.
+- `registry.ts` — a tool runs only with an absolute path, a recorded version matching the installed
+  one, and a digest verified against the binary on disk. Every scanner is refused as
+  `identity_unverified`.
+- `provision.ts` — provisioning separated from checking: `check` never installs a missing tool. A
+  plan is validated (exact version, reviewed registry, age confirmation, reviewed hooks, download
+  digests) before anything executes, and a refused plan runs nothing.
+- `download.ts` — digest-gated, HTTPS-only (loopback excepted for tests), registry-matched,
+  size-capped even against an understated `content-length`, and redirect-refusing, because a
+  redirect is an origin reviewed policy did not approve.
+- `policy.ts` — loads and validates the dependency policy, rejecting a wrong age delay, an HTTP
+  registry, a wildcard or expired exception, and an exception beyond its maximum duration.
+
+**Tests** — 65 new tests across 5 files, all with real processes, a real local HTTP server, and real
+digests. Suite now **345 tests, 17 files**.
+
+**Verified for this repository's own dependencies:** 53 installed packages scanned; 4 have hooks but
+none is an install-time hook, and the build and full suite pass with `ignore-scripts=true`. Guarded
+by a test that fails if a future dependency adds one.
+
+### Blocked — Batch B remainder
+
+- **Steps 07–10 are blocked.** Docker is **absent** from this machine — the CLI symlink points at a
+  removed application, there is no socket, and no alternative runtime (`podman`, `colima`,
+  `limactl`, `nerdctl`, `orbctl`) is installed. The reference application needs local Supabase, which
+  needs a container runtime. Nothing was scaffolded in its place.
+- **Step 06 sub-items blocked.** pnpm's `minimumReleaseAge` and install-script enforcement are
+  unverified because pnpm is not installed (`agent_may_install_runtimes` unfilled). Scanner identity
+  verification and the live download path are blocked on `network_access_to_registries`.
+
 ### Fixed — Batch A completion pass (6 October 2026)
 
 An audit of Steps 00–05 against their stated acceptance criteria found work the checkpoint had

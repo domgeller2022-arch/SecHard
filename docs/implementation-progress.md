@@ -156,7 +156,7 @@ A blocker stops only the work that depends on it. Nothing here is worked around 
 | --- | --- | --- | --- | --- |
 | E1 | pnpm 12.9.1 not installed and may not be installed (B14) | `command -v pnpm` → not found; corepack not bundled in Node 25 | Step 01 "clean install with the pinned package manager builds the CLI" cannot be executed | Dependency graph built and verified with npm in `--no-package-lock` mode; **no npm lockfile is committed**; pnpm acceptance left explicitly unverified |
 | E2 | Host runtime is Node 25.8.2, outside the supported Node 24 line, and excluded by `vitest@5` engines | `node --version`, `npm view vitest engines` | Checks run on an unsupported host runtime | All results recorded as "verified on Node 25.8.2; re-verification on Node 24.21.0 required". `engines` in `package.json` restricts to `>=24 <25` so the mismatch fails loudly rather than silently |
-| E3 | Docker daemon not running | `docker info` failure text | Steps 07 and 11 (later batches) | Not in Batch A; recorded for Batch B |
+| E3 | **Docker is absent** (earlier: CLI present, daemon stopped) | 2026-10-06 preflight: `/usr/local/bin/docker` 29.6.2, daemon unreachable (`no such file or directory` on `~/.docker/run/docker.sock`). Later observation the same day: the symlink points at a removed `/Applications/Docker.app`, and no `podman`, `colima`, `limactl`, `nerdctl`, or `orbctl` exists. | Steps 07 (local Supabase), 08–10 (they need the app), and 11 (ZAP) | **Batch B stopped at Step 07.** The owner must install a supported container runtime or authorise a different approach |
 
 ---
 
@@ -439,6 +439,97 @@ This revision was applied **after** the Batch A checkpoint and does not change t
 Every control's content digest changed (controls were not edited, but the digest is computed over
 the definition as loaded, and the approval records are new). All 35 remain `draft` and **zero** have
 a valid approval. Release evaluation blocks on that, by design.
+
+---
+
+## Batch B — Steps 06–10
+
+**Authorisation.** `authorised_batch` was changed from `A` to `B` by the build agent on the owner's
+explicit instruction ("continue") after the Batch A completion pass, with the change annotated in
+`01-owner-decisions.md`. No Batch A work was reopened.
+
+**Outcome.** Step 06 was implemented and verified as far as the machine permits. Steps 07–10 are
+**blocked** and were not started: the reference application needs a container runtime, and Docker is
+absent (E3). Producing a "reference app" without the stack it is supposed to demonstrate would be a
+fabricated deliverable, so the batch stops here.
+
+### Step 06 — Control dependency and tool execution
+
+- **State:** `verified` for everything the environment permits; three sub-items `blocked` (pnpm
+  behaviour, scanner identity verification, and the network provisioning path).
+- **Files changed:** `policy/dependency-policy.yaml`, `policy/toolchain.yaml`,
+  `src/execution/{process,registry,provision,download,policy,version}.ts`,
+  `tests/execution/{process,policy,download,registry,install-policy}.test.ts`,
+  `docs/architecture.md`, `docs/trust-model.md`.
+- **Actual checks run:**
+  - `npx vitest run tests/execution` → **65 tests, 5 files, pass.** These run real child processes,
+    a real local HTTP server, and real file digests; none of it is mocked.
+  - `npx tsc --noEmit` → exit 0. `npm run build` → exit 0. `npm run lint` → exit 0.
+  - Full suite `npx vitest run` → **345 tests, 17 files, pass.**
+  - Direct observation of the machine's dependency hooks: scanned 53 installed package directories;
+    4 have hooks (`ajv` prepublish, `fast-deep-equal` prepublish, `lightningcss` prepare, `tinyexec`
+    prepare). **None is an install-time hook** (`preinstall`/`install`/`postinstall`), and the build
+    and the full suite pass with `ignore-scripts=true`. Recorded as committed evidence, and guarded
+    by a test so a future dependency that adds an install hook fails and forces a policy decision.
+  - `docker` rechecked for Step 07: absent (E3).
+- **Observed outcomes and evidence references:**
+  - **A malicious argument stays data.** `; touch <file>`, `$(...)`, and backticks passed as
+    arguments appear literally in the child's argv and create nothing. A relative executable is
+    refused before spawn, so `PATH` cannot redirect execution.
+  - **The environment is an allowlist.** A parent variable not named in the list is absent in the
+    child; the parent environment is never inherited wholesale.
+  - **Missing tools produce an error.** A nonexistent binary and a nonexistent working directory both
+    return `spawn_error` rather than throwing or hanging.
+  - **A deadline terminates the child and its descendants.** A child scheduled to write a marker file
+    after 3s, with a 700ms deadline, is killed (SIGTERM, then SIGKILL after the grace period); the
+    marker never appears, checked after the write would have occurred.
+  - **Output is bounded.** A process flooding stdout is truncated at the cap, stopped, and reported
+    with `outputTruncated`.
+  - **A digest mismatch prevents execution.** The registry verifies a recorded SHA-256 against the
+    binary on disk; a substituted binary is refused with `digest_mismatch` and is not spawned. A
+    download whose content does not match is refused and nothing is written.
+  - **Every scanner is refused.** Gitleaks, Opengrep, OSV-Scanner, zizmor, ZAP, and testssl are all
+    recorded `identity: unverified`, so `resolveTool` returns `identity_unverified` for each. This is
+    the correct outcome and is asserted as such.
+  - **Provisioning is separate from checking and validated before it runs.** A missing tool during
+    `check` never installs anything. A plan is refused for a version range, an unreviewed registry,
+    a missing digest on a download, an unapproved install hook, or an expired exception — and when a
+    plan is refused, `executeProvisionPlan` returns with **zero** subprocess outcomes.
+  - **Downloads are constrained.** HTTPS only (loopback excepted for tests), exact registry match,
+    digest verified, size-capped even when the server understates `content-length`, and redirects
+    refused by default.
+- **Control coverage added:** DEP-01 (identity and pins), DEP-02 (install-script policy), CI-02
+  (immutable execution inputs), and the execution half of AGT-02. DEP-03's updater and advisory
+  freshness remain Step 09/16 work.
+- **Limitations and unresolved findings:**
+  - **The release-age delay is policy, not yet verified behaviour.** `policy/dependency-policy.yaml`
+    sets `minimum_release_age_minutes: 10080` and validation refuses a normal install while the
+    package manager's enforcement is unverified. **pnpm is not installed** (B14), so pnpm's
+    `minimumReleaseAge` behaviour has not been selected, configured, or tested. Recorded as blocked;
+    the code does not pretend otherwise.
+  - **The install-script control is verified for our own toolchain, not for pnpm.** Our dependency
+    set needs no install hook and builds with scripts disabled. That pnpm actually leaves an
+    unapproved hook disabled is unverified (B14).
+  - **Scanner identities are unverified and nothing has been downloaded** (B13). The digest-gated
+    download path is tested against a local HTTP server, not against a real registry.
+  - **Provisioning executes through an absolute manager path only.** There is no working end-to-end
+    provisioning run, because that needs the manager and network permission.
+  - `application_execution` records the operator-isolation requirement as policy; no recipe executes
+    application code yet (Step 07+).
+- **Owner decisions or external setup still needed:** B13 (registries), B14 (runtimes/pnpm).
+- **Next step:** Step 07, blocked on B12/E3.
+
+### Steps 07–10 — blocked
+
+- **Step 07 (reference application):** `blocked` — requires Docker; absent (E3).
+- **Step 08 (authorization and session verification):** `blocked` — depends on Step 07.
+- **Step 09 (scanner adapters):** `blocked` — depends on Step 06 (met), but needs Step 08's app for
+  the integrated profile and requires real positive detections with downloaded, pinned tools. Both
+  the container runtime and the network permission are missing.
+- **Step 10 (build and client-asset checks):** `blocked` — depends on Steps 08–09.
+
+No workaround was attempted. Scaffolding an application or a scanner adapter that cannot run would
+be exactly the "documentation standing in for behaviour" this project forbids.
 
 ---
 

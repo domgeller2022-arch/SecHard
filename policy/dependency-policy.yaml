@@ -1,0 +1,74 @@
+schema: hardening/dependency-policy/v1
+policy_version: 1
+review_status: draft
+
+# Dependency and provisioning policy.
+#
+# This file is authority for what may be installed and how. A consumer cannot relax it; the reviewed
+# copy in the pinned hardening commit applies. Changes here are policy changes and get reviewed.
+
+# Ordinary installs wait this long after publication before a version may be resolved. This slows
+# the window in which a compromised release is pulled into a build. It is a delay, not a safety
+# proof, and it does not replace reviewing what changed.
+minimum_release_age_minutes: 10080
+
+registries:
+  # Only reviewed registries. `default: false` means a dependency resolved from anywhere else is a
+  # policy violation, not a warning.
+  allow_additional_registries: false
+  allowed:
+    - id: npmjs
+      url: https://registry.npmjs.org/
+      reviewed_at: "2026-10-06T00:00:00Z"
+      notes: >-
+        The registry used by the pinned package manager. Reachability was observed in the Step 00
+        preflight; permission to reach it from provisioning code is `network_access_to_registries`
+        in the owner decisions and is still unfilled.
+
+# Install scripts are disabled by default. Each necessary native/build hook is named individually
+# with why it is needed. An install script that is not on this list must not run, and the
+# package-manager configuration that disables it is part of the toolchain record.
+install_scripts:
+  default: disabled
+  allowed_hooks: []
+
+# Exact-version, expiring exceptions for urgent reviewed security fixes. A package-wide or permanent
+# exemption is not acceptable: the exception names one version, gives a reason and a verification
+# reference, and expires.
+install_exceptions: []
+# Example shape (not active):
+#  - package: some-package
+#    version: 1.2.3
+#    reason: "fixes CVE-XXXX-YYYY; advisory reviewed 2026-10-06"
+#    approved_by: owner
+#    approved_at: "2026-10-06T00:00:00Z"
+#    expires_at: "2026-11-06T00:00:00Z"
+#    verification_ref: "https://github.com/owner/repo/releases/tag/v1.2.3"
+
+# Fixed critical versions sometimes land inside the age window. The only permitted shortcut is an
+# exact reviewed version with an expiry and a recorded approval, and it must still satisfy the rest
+# of this policy.
+urgent_fix_route:
+  permitted: true
+  requires_exact_version: true
+  requires_expiry: true
+  requires_approval: true
+  max_exception_days: 30
+
+# Provisioning is separate from checking. `hardening check` never installs anything as a side effect
+# of a missing tool; a missing tool is reported as unavailable.
+provisioning:
+  separate_from_checking: true
+  require_digest_for_execution: true
+  require_reviewed_registry: true
+  require_recorded_identity: true
+
+# Application execution is a different activity from tool execution. It needs an operator-approved
+# disposable or isolated environment. Subprocess spawning is not isolation, and this repository does
+# not describe it as such.
+application_execution:
+  requires_operator_approved_environment: true
+  isolation_is_operator_responsibility: true
+  notes: >-
+    A directory and an environment allowlist are not a sandbox. Recipes that execute application
+    code must state the required environment and refuse to run without it.

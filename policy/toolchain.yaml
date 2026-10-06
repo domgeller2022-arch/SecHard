@@ -75,17 +75,38 @@ integrity:
     install and the lockfile records it. Per-dependency digest pinning of the whole transitive
     graph is Step 06 work (policy/dependency-policy.yaml) and is not claimed here.
 
+# Execution identities.
+#
+# A tool may only run when its identity can be established: an absolute executable path, a recorded
+# version, and (where the tool is fetched rather than provided by the platform) a digest that was
+# verified. `status: planned` means the identity has not been selected or verified, so the registry
+# refuses to run it. Refusing is the correct outcome; inventing a digest would not be.
+execution:
+  policy: policy/dependency-policy.yaml
+  require_absolute_path: true
+  require_recorded_version: true
+  require_digest_when_fetched: true
+  default_timeout_ms: 600000
+  default_max_output_bytes: 8388608
+  environment: allowlist
+  notes: >-
+    Tools are launched with an argument array and no shell, from an explicit working directory, with
+    an environment built from an allowlist. Output is bounded and the process is terminated on
+    deadline.
+
 security_tools:
   status: planned
   note: >-
     Versions are intentionally absent. Each is selected, licensed, and pinned with an immutable
-    reference or verified digest in its own step, not pre-declared here.
-  gitleaks: { step: 9, purpose: "Repository and history secret detection" }
-  opengrep: { step: 9, purpose: "Static analysis for the reference stack" }
-  osv_scanner: { step: 9, purpose: "Dependency advisories" }
-  zizmor: { step: 9, purpose: "GitHub workflow analysis" }
-  zap_baseline: { step: 11, purpose: "Passive live scan", requires_docker: true }
-  testssl: { step: 11, purpose: "Separate TLS verification" }
+    reference or verified digest in its own step, not pre-declared here. `identity: unverified`
+    means the runner refuses to execute the tool: refusing is the correct outcome when identity
+    cannot be established, and inventing a digest would not be.
+  gitleaks: { step: 9, identity: unverified, purpose: "Repository and history secret detection" }
+  opengrep: { step: 9, identity: unverified, purpose: "Static analysis for the reference stack" }
+  osv_scanner: { step: 9, identity: unverified, purpose: "Dependency advisories" }
+  zizmor: { step: 9, identity: unverified, purpose: "GitHub workflow analysis" }
+  zap_baseline: { step: 11, identity: unverified, purpose: "Passive live scan", requires_docker: true }
+  testssl: { step: 11, identity: unverified, purpose: "Separate TLS verification" }
 
 reference_stack:
   status: planned

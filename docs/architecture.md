@@ -38,7 +38,7 @@ fixtures, and stated limitations before it is added.
 | CLI | `src/cli.ts`, `src/commands/` | Argument handling, exit codes, diagnostics |
 | Domain | `src/domain/` | Types, applicability, planning, evaluation. Pure functions |
 | Validation | `src/validation/` | Bounded parsing, JSON Schema, semantic checks |
-| Execution | `src/execution/` | Adapter registry, process launch, result capture (Step 06) |
+| Execution | `src/execution/` | Reviewed-executable registry, provisioning policy, verified downloads, bounded process launch |
 | Adapters | `src/adapters/` | Scanner and reference-stack implementations (Steps 06–11) |
 | Evidence | `src/evidence/` | Identities, canonical hashing, digests, freshness, reports |
 
@@ -139,6 +139,40 @@ exception, produce execution success, or add a top-level control ID — and its 
 (`PAT-...`) deliberately cannot be mistaken for one. Patterns feed agent guidance (Step 12) and
 fixtures (Steps 07–11). Pattern verification that is `implemented: false` is not evidence of
 anything, and the gate never reads a pattern as a result.
+
+## Tool execution and provisioning
+
+`src/execution/` is the only place this repository starts an external process, and it is built around
+refusals:
+
+- **An unidentified tool does not run.** A tool needs an absolute executable path, a recorded
+  version, and — when it is fetched rather than provided by the platform — a verified SHA-256. Every
+  scanner is currently recorded with `identity: unverified`, so the registry refuses all of them.
+  That refusal is the honest state, not a gap to work around.
+- **A recorded digest is checked against the binary on disk before it runs.** A pin nobody verifies
+  detects nothing.
+- **The installed version must match the record.** A tool that reports a different version is not the
+  reviewed tool.
+- **Arguments are an array and there is no shell.** `;`, backticks, and `$(...)` in an argument are
+  data. Only an absolute path is accepted, so `PATH` cannot redirect execution.
+- **The environment is an allowlist.** The parent environment is never inherited wholesale.
+- **Output is bounded and deadlines are enforced** with SIGTERM then SIGKILL, signalling the whole
+  process group so grandchildren do not survive.
+- **Provisioning is separate from checking.** `check` never installs a missing tool as a side effect;
+  a missing tool is reported as unavailable. A provisioning plan is validated — exact version,
+  reviewed registry, release-age policy, reviewed install hooks, digest for downloads — before
+  anything executes, and refuses entirely when any item fails.
+- **Downloads are digest-gated, size-capped, HTTPS-only** (loopback excepted for tests and local
+  mirrors), and redirects are refused by default, because a redirect is an origin that reviewed
+  policy did not approve.
+
+The release-age delay lives in `policy/dependency-policy.yaml` (`10080` minutes). Its enforcement by
+the package manager is a separate, testable behaviour; until that behaviour has been verified on a
+machine, provisioning plans are blocked rather than assumed to have applied.
+
+**Nothing here is a sandbox.** A spawned process is not isolated. Recipes that execute application
+code must state the environment the operator has to provide, and that requirement is recorded in
+`policy/dependency-policy.yaml`.
 
 ## Evidence and hashing
 
