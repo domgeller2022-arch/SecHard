@@ -4,6 +4,11 @@ dist/
 *.tsbuildinfo
 coverage/
 
+# Generated consumer fixtures. tools/build-fixtures.ts is the tracked source of truth; its output
+# embeds this repository's current commit as the fixture's policy lock, so any commit would
+# immediately make a committed copy stale. tests/global-setup.ts regenerates it before each run.
+tests/fixtures/consumer/
+
 # Generated run directories and reports. A run directory holds raw tool output, which may contain
 # material that must not be committed. Evidence *references* and digests belong in version control.
 .hardening/runs/
