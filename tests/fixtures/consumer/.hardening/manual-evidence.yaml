@@ -1,0 +1,3 @@
+# FIXTURE: manual records are operator attestations, not proof. These are synthetic.
+schema_version: manual-evidence/v1
+records: []

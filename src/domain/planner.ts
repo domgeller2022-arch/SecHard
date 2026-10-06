@@ -107,7 +107,9 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
         control_ids: [controlId],
         method: method.method,
         recipe: method.recipe ?? `${method.method}/unimplemented`,
-        ...(method.recipe_version === undefined ? {} : { recipe_version: method.recipe_version }),
+        // A planned check always records a recipe version. "1" is this build's version for every
+        // recipe; an unimplemented recipe reports 0 when it runs.
+        recipe_version: method.recipe_version ?? '1',
         stage: input.stage,
         environment: input.environment,
         required: selection.required,

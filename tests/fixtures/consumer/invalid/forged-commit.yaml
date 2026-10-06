@@ -1,0 +1,21 @@
+# FIXTURE: pins a policy commit that is not the reviewed one. Used to prove version conflict fails.
+schema_version: app/v1
+id: broken-lock
+name: Fixture with a wrong policy lock
+stack:
+  kind: nextjs-supabase
+  runtime_versions:
+    node: { version: "24.21.0", support: supported }
+features:
+  accounts: { state: enabled }
+environments:
+  - { name: local, kind: local }
+profiles:
+  - core
+policy_lock:
+  repository: fixture/hardening
+  commit: "0000000000000000000000000000000000000000"
+  policy_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+maintainer:
+  name: fixture-maintainer
+updated_at: "2026-10-06T00:00:00Z"

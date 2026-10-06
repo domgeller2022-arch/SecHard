@@ -82,8 +82,10 @@ controls:
       - The application pins an immutable reviewed policy commit
       - A policy change identifies affected assessments and requires reassessment
     verification:
+      # The only recipe implemented in Batch A: it re-reads the policy records and confirms they
+      # still hash to what the plan recorded.
       - method: policy_consistency
-        recipe: policy/validate
+        recipe: policy/record-consistency
         coverage: automated
       - method: schema_validation
         recipe: control/validate

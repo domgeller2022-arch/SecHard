@@ -23,6 +23,87 @@ export type ControlOutcome =
   | 'unsupported'
   | 'unknown';
 
+export type ReleaseEvidence = {
+  readonly schema_version: 'release-evidence/v1';
+  readonly application: { readonly id: string; readonly name?: string; readonly profiles: readonly string[] };
+  readonly stage: Stage;
+  readonly environment: Environment;
+  readonly generated_at: string;
+  readonly source: {
+    readonly commit: string;
+    readonly clean: boolean;
+    readonly build_identity?: string;
+    readonly deliverable_digest?: string;
+    readonly deploy_identity?: string;
+  };
+  readonly policy: { readonly repository: string; readonly commit: string; readonly control_catalogue_digest?: string; readonly gate_policy_digest?: string };
+  readonly expected_checks: readonly {
+    readonly check_id: string;
+    readonly control_ids: readonly string[];
+    readonly required: boolean;
+    readonly method?: string;
+    readonly recipe?: string;
+  }[];
+  readonly results: readonly {
+    readonly check_id: string;
+    readonly outcome: Outcome;
+    readonly coverage: Coverage;
+    readonly evidence_origin: EvidenceOrigin;
+    readonly tool_version?: string;
+    readonly scope_observed?: number;
+    readonly scope_expected?: number;
+    readonly report_digest?: string;
+    readonly finished_at?: string;
+    readonly reasons?: readonly string[];
+  }[];
+  readonly control_outcomes?: readonly {
+    readonly control: string;
+    readonly definition_version: number;
+    readonly applicability: 'applicable' | 'not_applicable' | 'unknown';
+    readonly outcome: ControlOutcome;
+    readonly coverage: Coverage;
+    readonly required_checks?: readonly string[];
+    readonly satisfied_checks?: readonly string[];
+    readonly reasons?: readonly string[];
+    readonly waiver_refs?: readonly string[];
+  }[];
+  readonly manual_verification: readonly {
+    readonly id: string;
+    readonly control: string;
+    readonly operator: string;
+    readonly observed_at: string;
+    readonly expires_at: string;
+    readonly outcome: string;
+    readonly scope_fingerprint?: string;
+    readonly fresh?: boolean;
+  }[];
+  readonly exceptions?: readonly {
+    readonly id: string;
+    readonly control: string;
+    readonly scope?: string;
+    readonly status: string;
+    readonly approver?: string;
+    readonly self_review?: boolean;
+    readonly expires_at: string;
+  }[];
+  readonly outstanding: readonly {
+    readonly id: string;
+    readonly severity: Severity;
+    readonly summary: string;
+    readonly control_ids?: readonly string[];
+    readonly exception_ref?: string;
+    readonly first_seen?: string;
+  }[];
+  readonly unsupported_scope?: readonly { readonly area: string; readonly reason: string; readonly control_ids?: readonly string[] }[];
+  readonly decision: {
+    readonly outcome: 'satisfied' | 'blocked';
+    readonly reasons: readonly string[];
+    readonly blocking_reason_codes?: readonly string[];
+    readonly kit_readiness?: 'verified' | 'pending' | 'not_applicable';
+    readonly application_production_readiness?: 'verified' | 'pending' | 'not_applicable';
+  };
+};
+
 export interface ExpectedCheck {
   readonly check_id: string;
   readonly control_ids: readonly string[];

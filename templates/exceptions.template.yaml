@@ -8,9 +8,9 @@
 #
 # A sole maintainer may record and accept risk within the stated governance model. That is
 # self-review, not independent review, and must be recorded as `self_review: true`.
-schema_version: exceptions/v1
 exceptions:
   - id: EXC-0001
+    schema_version: exception/v1
     status: pending_approval
     scope:
       control: WEB-01

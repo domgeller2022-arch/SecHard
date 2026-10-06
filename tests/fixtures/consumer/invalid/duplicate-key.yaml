@@ -1,0 +1,5 @@
+# FIXTURE: a duplicate YAML key. Used to prove the loader refuses ambiguous input.
+schema_version: app/v1
+id: duplicated
+name: First value
+name: Second value

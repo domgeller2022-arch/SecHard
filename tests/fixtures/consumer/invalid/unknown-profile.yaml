@@ -1,0 +1,21 @@
+# FIXTURE: names a profile that does not exist. Used to prove reference validation fails.
+schema_version: app/v1
+id: broken-profile
+name: Fixture with an unknown profile
+stack:
+  kind: nextjs-supabase
+  runtime_versions:
+    node: { version: "24.21.0", support: supported }
+features:
+  accounts: { state: enabled }
+environments:
+  - { name: local, kind: local }
+profiles:
+  - does-not-exist
+policy_lock:
+  repository: fixture/hardening
+  commit: "3ced7623868040a7aa13b86273909097a3032cc8"
+  policy_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+maintainer:
+  name: fixture-maintainer
+updated_at: "2026-10-06T00:00:00Z"
