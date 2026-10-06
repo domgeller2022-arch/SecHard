@@ -42,7 +42,7 @@ profiles:
 
 policy_lock:
   repository: fixture/hardening
-  commit: "3ced7623868040a7aa13b86273909097a3032cc8"
+  commit: "5ac4a0b423ee0d752786e5264b25277ff56133ff"
   policy_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   locked_at: "2026-10-06T00:00:00Z"
 

@@ -24,7 +24,7 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "node tools/lint.mjs",
-    "test": "vitest run --exclude 'tests/integration/**'",
+    "test": "vitest run --exclude \"tests/integration/**\"",
     "test:integration": "vitest run tests/integration",
     "hardening": "node dist/cli.js",
     "generate:matrix": "npm run build --silent && node tools/generate-matrix.ts",

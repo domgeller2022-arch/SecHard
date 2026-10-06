@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     reporters: ['default'],
+    globalSetup: ['tests/global-setup.ts'],
     // CLI and integration tests spawn real processes and run real git, so the default 5s is too low.
     testTimeout: 120_000,
     hookTimeout: 120_000,
