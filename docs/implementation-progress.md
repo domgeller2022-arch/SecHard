@@ -711,6 +711,28 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
 - **Next step:** Step 11 remains blocked on the container runtime (ZAP needs Docker); Steps 13 and 14
   depend on it and on the GitHub test environment.
 
+### Environment blocker E3 resolved — container runtime installed (2026-10-07)
+
+- **State:** resolved and verified.
+- **What was installed:** colima 0.10.3 (MIT) with lima 2.2.1 (Apache-2.0) and the docker CLI 29.8.2
+  (Apache-2.0), via Homebrew, which verifies bottle checksums. **Docker Desktop was deliberately not
+  used**: it is proprietary and carries a licence decision (paid subscription above a size threshold)
+  that belongs to the owner. colima is a Docker-compatible runtime, so Supabase's Docker assumptions
+  still hold.
+- **Verification:** `colima start --cpu 2 --memory 4 --disk 20` completed; `docker info` reported
+  server 29.5.2 with overlayfs and cgroup v2; `docker run --rm hello-world` ran a real container
+  successfully.
+- **Repair applied:** `~/.docker/config.json` contained `credsStore: "desktop"` left over from a
+  removed Docker Desktop installation, which made every image pull fail with "executable not found".
+  The key was removed after backing the file up beside it (`config.json.bak-20261008021956`);
+  `auths` was empty, so no credential was affected. This repair is recorded because it is a change to
+  a file outside this repository.
+- **Recorded in:** `01-owner-decisions.md` (`docker_available: true`), `policy/toolchain.yaml`
+  (`container_runtime`), `docs/supported-versions.md`.
+- **Note for the operator:** colima was started manually for this session. `brew services start
+  colima` makes it survive a reboot, at the owner's discretion.
+- **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
+
 ### Step 13 — GitHub workflows and the trusted final gate (local half)
 
 - **State:** `awaiting_external_verification`. The workflows, trust tests, and documentation are

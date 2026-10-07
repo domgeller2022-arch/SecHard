@@ -89,6 +89,22 @@ graph is Step 06 (`policy/dependency-policy.yaml`).
 This build's host is macOS 26.3.1 (`x86_64`), so local results come from a platform that is not the
 supported execution environment. They are useful feedback, not release evidence for Linux CI.
 
+## Container runtime (verified)
+
+| Component | Version | Licence |
+| --- | --- | --- |
+| colima | 0.10.3 | MIT |
+| lima | 2.2.1 | Apache-2.0 |
+| docker CLI | 29.8.2 | Apache-2.0 |
+| Docker daemon (inside the colima VM) | 29.5.2 | Apache-2.0 |
+
+Installed with Homebrew on 2026-10-07 and verified by running a container (`docker run --rm
+hello-world`). Docker Desktop was not used: it is proprietary, and choosing it would impose a licence
+decision that belongs to the owner.
+
+**Repair recorded:** `~/.docker/config.json` carried a stale `credsStore: "desktop"` from a removed
+Docker Desktop install, which broke image pulls. Removed after a backup; no credential was affected.
+
 ## Reference stack (planned)
 
 Not selected yet. Selection and verification belong to Step 07.
@@ -96,7 +112,7 @@ Not selected yet. Selection and verification belong to Step 07.
 | Component | Status |
 | --- | --- |
 | Next.js (App Router) | Planned — Step 07 |
-| Supabase CLI, local development | Planned — Step 07, requires Docker |
+| Supabase CLI, local development | Planned — Step 07; the container runtime is now verified |
 | Playwright | Planned — Step 07 |
 | Gitleaks | Planned — Step 09 |
 | Opengrep | Planned — Step 09 |

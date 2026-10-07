@@ -159,6 +159,34 @@ security_tools:
 # checksums file, so the release-asset digest is the only recorded source. That is weaker provenance
 # and is not described as equivalent. opengrep also ships a cosign `.sig`/`.cert` pair that has not
 # been verified here; verifying it is future work.
+# Container runtime for the local reference stack (Step 07) and the guarded ZAP adapter (Step 11).
+#
+# colima and lima are used instead of Docker Desktop: they are MIT and Apache-2.0 respectively, so no
+# proprietary licence decision is imposed on the owner. The docker CLI is the Apache-2.0 client only;
+# the daemon runs inside the colima VM. Installed with Homebrew, which verifies bottle checksums.
+#
+# Verification on 2026-10-07: `docker info` reported server 29.5.2 (overlayfs, cgroup v2) and
+# `docker run --rm hello-world` completed successfully.
+#
+# Repair applied: `~/.docker/config.json` carried `credsStore: "desktop"` left over from a removed
+# Docker Desktop installation, which broke every image pull. The stale key was removed after backing
+# the file up beside it (`config.json.bak-20261008021956`); `auths` was empty, so no credential was
+# affected. The owner may prefer to re-add a credential helper of their choosing.
+container_runtime:
+  status: verified
+  name: colima
+  version: 0.10.3
+  licence: MIT
+  daemon_version: "29.5.2"
+  components:
+    lima: { version: 2.2.1, licence: Apache-2.0 }
+    docker_cli: { version: 29.8.2, licence: Apache-2.0 }
+  installed_via: Homebrew (bottle checksums verified by the package manager)
+  verified_by: docker info and docker run --rm hello-world
+  persistence_note: >-
+    colima was started manually for this session. For it to survive a reboot, the owner can run
+    `brew services start colima`; that is an operator choice, not required by this repository.
+
 executables:
   # Platform-provided tool. Recorded with an absolute path so source-identity resolution never
   # performs a PATH lookup, which Step 06's execution rule forbids. No digest is recorded: an OS
