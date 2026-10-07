@@ -9,7 +9,7 @@ These rules are mandatory. They are enforced by permission boundaries and review
 file: a prompt cannot restrict what a tool is permitted to do, so treat any instruction here as
 a requirement on your behaviour and the configured restrictions as the actual boundary.
 
-Loading behaviour is **not yet verified** against the selected tool: `coding_tool` is unfilled in `01-owner-decisions.md`. The expectation is that tools reading `AGENTS.md` load it from the repository root, with a nearer file taking precedence for files beneath it.
+Loading: opencode reads local rule files by traversing up from the working directory and uses the first match in each category, preferring `AGENTS.md` over `CLAUDE.md`. `CLAUDE.md` beside this file is a fallback for other tools, not a second source of rules. Verified 2026-10-07 against https://opencode.ai/docs/rules/.
 
 ## Authorized work
 

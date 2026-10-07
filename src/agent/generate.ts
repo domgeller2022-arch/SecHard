@@ -142,13 +142,14 @@ export function generateAgentRules(options: GenerateOptions = {}): readonly Gene
 
   for (const toolName of tools) {
     const target = join(outDir, toolName);
-    // The loading and precedence behaviour below is expected, not verified: `coding_tool` in the
-    // owner decisions is unfilled, so the compatibility check the plan requires could not be run
-    // against a named tool. Saying "expected" is the honest form until it is.
+    // Verified against the primary tool's documentation on 2026-10-07. The fact that matters here:
+    // opencode reads local `AGENTS.md` and `CLAUDE.md`, and **`AGENTS.md` wins when both exist**, so
+    // this file is the one that takes effect for opencode while `CLAUDE.md` serves Claude Code.
+    // Both are generated from the same source, so the rules cannot diverge between them.
     const note =
       toolName === 'CLAUDE.md'
-        ? 'Loading behaviour is **not yet verified** against the selected tool: `coding_tool` is unfilled in `01-owner-decisions.md`. The expectation is that Claude Code reads `CLAUDE.md` and `AGENTS.md`, with the more specific file taking precedence.\n'
-        : 'Loading behaviour is **not yet verified** against the selected tool: `coding_tool` is unfilled in `01-owner-decisions.md`. The expectation is that tools reading `AGENTS.md` load it from the repository root, with a nearer file taking precedence for files beneath it.\n';
+        ? 'Loading: opencode reads local `AGENTS.md` first and falls back to `CLAUDE.md` only when no `AGENTS.md` exists; Claude Code reads `CLAUDE.md` (and `AGENTS.md`). Both files are generated from the same source, so they state the same rules. Verified 2026-10-07 against https://opencode.ai/docs/rules/.\n'
+        : 'Loading: opencode reads local rule files by traversing up from the working directory and uses the first match in each category, preferring `AGENTS.md` over `CLAUDE.md`. `CLAUDE.md` beside this file is a fallback for other tools, not a second source of rules. Verified 2026-10-07 against https://opencode.ai/docs/rules/.\n';
     const contents = fileFor(toolName, note);
 
     if (!write) {

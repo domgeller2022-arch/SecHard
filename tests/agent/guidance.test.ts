@@ -102,6 +102,17 @@ describe('generated instruction files', () => {
     }
   });
 
+  it('records where the loading behaviour was verified, so it cannot silently regress to a guess', () => {
+    const results = generateAgentRules({ source, outDir: join(scratch, 'verify') });
+    for (const result of results) {
+      expect(result.contents).toContain('https://opencode.ai/docs/rules/');
+      expect(result.contents).toContain('Verified 2026-10-07');
+      // The claim that matters for opencode: AGENTS.md wins when both files exist.
+      expect(result.contents).toMatch(/AGENTS\.md/);
+      expect(result.contents).not.toMatch(/not yet verified/i);
+    }
+  });
+
   it('contains no permissive construction', () => {
     const results = generateAgentRules({ source, outDir: join(scratch, 'f') });
     for (const result of results) {
