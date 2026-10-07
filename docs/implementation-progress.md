@@ -733,6 +733,40 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Owner decisions actioned (2026-10-07)
+
+- **`coding_tool`: opencode (primary), Claude Code and Codex available.** Step 12's compatibility
+  check is now **verified for the primary tool**. Fetched `https://opencode.ai/docs/rules/` on
+  2026-10-07. The documented behaviour that matters: opencode reads local rule files by traversing up
+  from the working directory and **uses the first match in each category, preferring `AGENTS.md` over
+  `CLAUDE.md`**. The generated notes now state this as verified fact with the source and date, and a
+  test prevents the claim from regressing. Implication recorded: for opencode, `AGENTS.md` is the file
+  that takes effect; `CLAUDE.md` exists for Claude Code, and both are generated from the same source
+  so they cannot diverge.
+- **All 35 control definitions approved by the owner.** `controls/approvals.yaml` now holds 35
+  records naming each definition's reviewed-content digest; `review_status` in the definitions is
+  `owner_reviewed` with `reviewed_by: "owner"` and the date. `kind: owner` records **self-review**
+  (sole maintainer); `owner_legal_name` is still unfilled, so the reviewer field names the role
+  rather than a person, and that is stated in each record's notes.
+  - Verified: `hardening approvals --policy .` shows 35 approved; a release gate now produces **0**
+    `policy.control_not_approved` reasons (it previously produced one per applicable control) and
+    still blocks on the real remaining gaps.
+  - The generated matrix and review sheet were updated; the review sheet now reports
+    "0 draft, 35 owner-reviewed" from the live catalogue rather than asserting a fixed state.
+- **Git history rewritten to purge synthetic credential-shaped literals.** The owner chose a rewrite.
+  `git filter-branch` replaced both committed literals (the GitHub-token placeholder and a synthetic
+  JWT) with explicit `REMOVED_FROM_HISTORY` markers across every commit, then the original refs and
+  unreachable objects were expired and pruned. **Verification: `gitleaks git .` over the full history
+  reports 0 findings**, down from 1. A full `.git` backup was taken outside the repository before the
+  rewrite (`.../T/opencode/git-backup-prehistory-20261008024854`, 1.8 MB); the owner may delete it.
+  - Consequence recorded: **commit SHAs referenced in earlier checkpoint and progress entries refer
+    to pre-rewrite commits** and no longer resolve. The records are historical and were not rewritten;
+    this note is the pointer.
+  - All 414 unit + 8 integration tests pass after the rewrite.
+- **`docker_available: true`** — colima runtime installed and verified (see the E3 entry above).
+- **`github_codeowners` remains unfilled**, at the owner's request for an explanation; CODEOWNERS
+  stays absent and the template is in place. Explained in the checkpoint.
+
 ### Step 13 — GitHub workflows and the trusted final gate (local half)
 
 - **State:** `awaiting_external_verification`. The workflows, trust tests, and documentation are

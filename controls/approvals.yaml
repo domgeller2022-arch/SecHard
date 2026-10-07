@@ -1,26 +1,258 @@
 # Owner approvals for control definitions.
 #
-# This file is EMPTY until the owner reviews the control definitions and records real approvals.
-# An agent must never write an approval here: the reviewer field is only meaningful when a human
-# owner put it there.
+# Recorded 2026-10-07 on the owner's explicit instruction to approve all 35 definitions.
+# Each approval names the reviewed-content digest, so editing a definition invalidates its
+# approval even without a version bump. Excluded from the digest: review_status, reviewed_by,
+# reviewed_at — recording an approval must not invalidate the approval being recorded.
 #
-# Each entry approves one control at one definition version, by content digest:
-#
-#   - control: AUTHZ-01
-#     definition_version: 1
-#     content_digest: <sha256 over the definition with approval metadata excluded>
-#     reviewer: <owner identity>
-#     reviewed_at: <RFC 3339 timestamp>
-#     kind: owner            # 'owner' is ordinary acceptance; for a sole maintainer this is
-#                            # self-review, not independent assurance. 'independent' is qualified
-#                            # review by someone other than the author.
-#
-# Why a digest rather than just a version number: editing acceptance criteria without bumping
-# `definition_version` must invalidate the approval. A version number alone cannot catch that; a
-# digest over the reviewed content does. Approval metadata is excluded from that digest, so
-# recording an approval does not invalidate the approval being recorded.
-#
-# The digest for a definition can be printed with:
-#   node dist/cli.js approvals --policy .
+# reviewer is the role, not a person: owner_legal_name and owner_handle are still TODO in
+# 01-owner-decisions.md. kind: owner is self-review (sole maintainer), which is not independent
+# assurance, and the readiness reports say so.
 schema_version: control-approvals/v1
-approvals: []
+approvals:
+  - control: CTX-01
+    definition_version: 1
+    content_digest: "e70a5a2c847caa8ace459ac625b91ae249198914f0bc904700ce15862cbc0e64"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: GOV-01
+    definition_version: 1
+    content_digest: "647aadf613cec2d9236bccc9a0bf1ef2b5f178822c1c84e7d2678ae0ec245cd2"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: GOV-02
+    definition_version: 1
+    content_digest: "5fa9147207f4c6520d7c6dbca355dedf1e4b7666e0ff879c6e17d0d84696aa84"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AGT-01
+    definition_version: 1
+    content_digest: "df9344a7a3601ba3738f52b6f86c4b644b5a869f29367e9fdfd5cfc85eb015c3"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AGT-02
+    definition_version: 1
+    content_digest: "ef43c36829f62c14a373519860d76fdda4a22a857861354c7332689af44aa884"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AGT-03
+    definition_version: 1
+    content_digest: "c1171673f771b17a7bf3730b2ba06040e056e18148ddae219e69c36eb7dcaed8"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: DEP-01
+    definition_version: 1
+    content_digest: "e97baa325b5c25a176b1d88d8ccf3d035d04ee9d9a21a33cca935b414715327a"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: DEP-02
+    definition_version: 1
+    content_digest: "1e47b606f163da29cd1eaf4b05d83c0eefe92dacfc5a9eee8ad83698cae1b3a8"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: DEP-03
+    definition_version: 1
+    content_digest: "8b61023dc91065bf9559c017813152a36becdd1356212cf0b48e94170d16f48b"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: SEC-01
+    definition_version: 1
+    content_digest: "8bbb645ce38479cfaa015ede3f7705996f757aa8d719e0877a1fefa0467d96aa"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: SEC-02
+    definition_version: 1
+    content_digest: "3133525166fd2d3d3ff99d2d3d35cfca142cfd40feab1dae486be1e6364ac907"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: SEC-03
+    definition_version: 1
+    content_digest: "2386066914af8d985f80cfc76da3904812891d1a5a22ca023c47c515475c7a1e"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: CI-01
+    definition_version: 1
+    content_digest: "f0245a455fd3ce77b9148c58254e2427189e190aa2afd183a18048bcaae8a6e1"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: CI-02
+    definition_version: 1
+    content_digest: "cacf38e6cd34c7779379b0441e316da844b6abcc5249e76d3d6de663f305da26"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: CI-03
+    definition_version: 1
+    content_digest: "ba22f0c94a245cdae416b7d9f27f3cf9235069a2b65e56f915184b9ba70ff507"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: CODE-01
+    definition_version: 1
+    content_digest: "ec6f92763113cd97a998d41661b2a8eeb607d6860f190f6091227bd436c653ba"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: QUAL-01
+    definition_version: 1
+    content_digest: "5e1100b38dc56f0dbf7b6e233a1316ff6f72b3fafa0d153d4974e4f6c3c0749a"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AUTH-01
+    definition_version: 1
+    content_digest: "6c49ddb4020b48030d4f60ec2ec2e4dd0cfc912d235428bb13309d2da2e799e7"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AUTH-02
+    definition_version: 1
+    content_digest: "42d7a0aaf0ad3d572e71a6881c96a8538bbe6439715ec69a515e7d781228da2c"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AUTHZ-01
+    definition_version: 1
+    content_digest: "2a819bf80bb59efcff5163e1c95f7126452f750d7be65c9ed69731810e9b9dc4"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AUTHZ-02
+    definition_version: 1
+    content_digest: "d24e5a90b91068b274f55e1727af810ca9df515a0996da9392c2950c93ada2cb"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: AUTHZ-03
+    definition_version: 1
+    content_digest: "fe44fd6f2b8d6a236087d87a7ffa8b0f1b69c7f268f8549699a27d0e2c8dbb77"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: DATA-01
+    definition_version: 1
+    content_digest: "f83fcd09ee18a0edb9f8b54fc225c77397f71858068b2eea6257004d205759ae"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: WEB-01
+    definition_version: 1
+    content_digest: "bccaa6517b094d84eb30f973e97b09516528ac2a419becdf2c5dd108964b4793"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: WEB-02
+    definition_version: 1
+    content_digest: "ad1782d361e74c092e14e58e6d8d78f1c225bed1038685756ba66e471756458e"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: ABUSE-01
+    definition_version: 1
+    content_digest: "5af0283d7618bb0cf922b2fc08d03f4f73962c17dd1cb3fbf1a03814f210626c"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: BIZ-01
+    definition_version: 1
+    content_digest: "a43d9c2b726ad5014cf63954fab40c608eb54fdc569a92f1179b867d62253a26"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: DEPLOY-01
+    definition_version: 1
+    content_digest: "a74eeeb13df3b6af3c7a7f58b77dceb6ea209fe796246ba5fea7a4ef28cbb0f5"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: OPS-01
+    definition_version: 1
+    content_digest: "63c1a96e3d05d954364c587770bd201e96f9e8c76468461d81238c6304f8e65c"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: OPS-02
+    definition_version: 1
+    content_digest: "cf39c7785a80dc9aa8ef45e26ab96af6eb8421bdd8a1c52f7d8c1069832b2e28"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: OPS-03
+    definition_version: 1
+    content_digest: "61001e78002825681a23bf231199e0fcbe319703150d39e208b2bedc9263a77f"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: PRIV-01
+    definition_version: 1
+    content_digest: "a0b1584be81f45f791e4c4f041a9b8edab935508a7f709676bfee0f0bcaf939c"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: REL-01
+    definition_version: 1
+    content_digest: "5dbca96489324752cf314ff04c84636ade42c7b64daeb4838db4605702547608"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: REL-02
+    definition_version: 1
+    content_digest: "bc656bfb217d9375ab8280323e1a2d7cfea0ac1410dcade1a77429e96bc95153"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+  - control: EXC-01
+    definition_version: 1
+    content_digest: "3af02219851fce56f3ebeb734cde49277386a7869c168c6a0db335675d7156cf"
+    reviewer: "owner"
+    reviewed_at: "2026-10-07T16:03:58.085Z"
+    kind: owner
+    notes: "Approved by the owner in session on 2026-10-07. self-review: sole maintainer, owner_legal_name still unfilled in 01-owner-decisions.md, so the record names the role rather than a person."
+

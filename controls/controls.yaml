@@ -4,7 +4,9 @@ controls:
   - id: CTX-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Inventory and threat model
     purpose: >-
       Record what the application is, what it exposes, and where the trust boundaries are, so that
@@ -37,7 +39,9 @@ controls:
   - id: GOV-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Repository protections
     purpose: >-
       Ensure that required checks and reviewed sensitive-file changes are actually enforced by the
@@ -70,7 +74,9 @@ controls:
   - id: GOV-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Versioned control policy
     purpose: >-
       Keep control definitions, mappings, supported versions, and the pinned policy identity valid
@@ -103,7 +109,9 @@ controls:
   - id: AGT-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Restricted agent permissions
     purpose: >-
       Limit what an AI coding agent can reach and do through enforcement outside the model, rather
@@ -134,7 +142,9 @@ controls:
   - id: AGT-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Untrusted context handling
     purpose: >-
       Treat fetched pages, dependency text, issue content, and tool output as data that cannot
@@ -164,7 +174,9 @@ controls:
   - id: AGT-03
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Real checks and protected tests
     purpose: >-
       Ensure a reported result corresponds to work that actually executed, and that security tests
@@ -194,7 +206,9 @@ controls:
   - id: DEP-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Controlled dependency resolution
     purpose: >-
       Ensure every dependency comes from a reviewed source at a reviewed version, and that
@@ -226,7 +240,9 @@ controls:
   - id: DEP-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Install-script policy
     purpose: >-
       Restrict dependency install scripts by default, because a script runs with the developer's
@@ -255,7 +271,9 @@ controls:
   - id: DEP-03
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Advisory checks and updates
     purpose: >-
       Detect known vulnerable dependencies with fresh advisory data and keep them updated, while
@@ -283,7 +301,9 @@ controls:
   - id: SEC-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Secret detection
     purpose: >-
       Find credentials committed to the repository, including in history, before they are used.
@@ -314,7 +334,9 @@ controls:
   - id: SEC-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Client and artifact secret boundary
     purpose: >-
       Ensure privileged credentials never reach a browser-shipped bundle, while distinguishing them
@@ -344,7 +366,9 @@ controls:
   - id: SEC-03
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Credential lifecycle
     purpose: >-
       Keep credentials least-privileged, stored deliberately, owned by a person, and revocable.
@@ -374,7 +398,9 @@ controls:
   - id: CI-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Isolated untrusted execution
     purpose: >-
       Ensure jobs that analyse untrusted code cannot reach deployment or publishing credentials or a
@@ -405,7 +431,9 @@ controls:
   - id: CI-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Immutable execution inputs
     purpose: >-
       Constrain the whole execution chain. Pinning only an action's outer reference still leaves the
@@ -435,7 +463,9 @@ controls:
   - id: CI-03
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Complete gate execution
     purpose: >-
       Ensure the required work actually ran. A green job, an existing artifact, or a skipped job is
@@ -463,7 +493,9 @@ controls:
   - id: CODE-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Supported static analysis
     purpose: >-
       Run static analysis over the expected source and rules, and prove the rule set actually detects
@@ -490,7 +522,9 @@ controls:
   - id: QUAL-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Functional and quality checks
     purpose: >-
       Run the functional, type, lint, and configured maintainability checks that would otherwise let a
@@ -520,7 +554,9 @@ controls:
   - id: AUTH-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Server authentication and sessions
     purpose: >-
       Ensure identity is verified server-side, and that tokens, cookies, expiry, and invalidation meet
@@ -548,7 +584,9 @@ controls:
   - id: AUTH-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Recovery and privileged access
     purpose: >-
       Ensure account recovery and linking resist takeover, and that privileged access and role removal
@@ -580,7 +618,9 @@ controls:
   - id: AUTHZ-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Resource ownership
     purpose: >-
       Ensure a private record belongs to its owner, and that a second account cannot read or modify
@@ -608,7 +648,9 @@ controls:
   - id: AUTHZ-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Roles and tenant boundaries
     purpose: >-
       Ensure unauthorized roles and other tenants cannot reach functions, records, collections, or
@@ -634,7 +676,9 @@ controls:
   - id: AUTHZ-03
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Trusted security fields
     purpose: >-
       Ensure owner, tenant, role, entitlement, and other security-sensitive properties cannot be
@@ -660,7 +704,9 @@ controls:
   - id: DATA-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Provider data policies
     purpose: >-
       Review and test the provider's grants, row-level security policies, storage access, and any
@@ -691,7 +737,9 @@ controls:
   - id: WEB-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Safe input and output boundaries
     purpose: >-
       Ensure injection, XSS, CSRF, SSRF, and upload paths have applicable negative tests or explicit
@@ -722,7 +770,9 @@ controls:
   - id: WEB-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Transport and browser protections
     purpose: >-
       Verify HTTPS and TLS, plus route-appropriate headers, cookie attributes, and CSP and CORS
@@ -752,7 +802,9 @@ controls:
   - id: ABUSE-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Bounded resource use
     purpose: >-
       Protect expensive requests and ensure failure paths stay safe when quotas, sizes, time, or
@@ -778,7 +830,9 @@ controls:
   - id: BIZ-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Transaction and webhook integrity
     purpose: >-
       Keep money and credit state server-authoritative, and make webhook handling resistant to
@@ -810,7 +864,9 @@ controls:
   - id: DEPLOY-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Live environment verification
     purpose: >-
       Check that the deployed environment matches what was assessed: access, separation, exposure,
@@ -842,7 +898,9 @@ controls:
   - id: OPS-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Security logging and alert routing
     purpose: >-
       Ensure useful security events are recorded without leaking sensitive data, and that a synthetic
@@ -872,7 +930,9 @@ controls:
   - id: OPS-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Backup and restoration
     purpose: >-
       Demonstrate that data can actually be restored to a separate environment within the stated
@@ -900,7 +960,9 @@ controls:
   - id: OPS-03
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Incident and disclosure response
     purpose: >-
       Establish a security contact, triage ownership, containment actions, and a communication
@@ -927,7 +989,9 @@ controls:
   - id: PRIV-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Data purpose and retention
     purpose: >-
       Assess collection purpose, retention, deletion, subprocessors, and user rights, and verify them
@@ -955,7 +1019,9 @@ controls:
   - id: REL-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Release evidence
     purpose: >-
       Connect assessed source, pinned policy, actual check results, environment configuration, and the
@@ -988,7 +1054,9 @@ controls:
   - id: REL-02
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Safe rollback and changes
     purpose: >-
       Ensure a rollback or migration procedure is compatible with database state and with supported
@@ -1018,7 +1086,9 @@ controls:
   - id: EXC-01
     schema_version: control/v1
     definition_version: 1
-    review_status: draft
+    review_status: owner_reviewed
+    reviewed_by: "owner"
+    reviewed_at: "2026-10-07T00:00:00Z"
     title: Scoped exceptions
     purpose: >-
       Ensure an accepted deviation is narrow, current, owned, and visible, and never hides the

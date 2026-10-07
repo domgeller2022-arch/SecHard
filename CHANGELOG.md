@@ -204,6 +204,26 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Changed — owner decisions actioned (7 October 2026)
+
+- **All 35 control definitions approved by the owner.** `controls/approvals.yaml` holds 35 records
+  naming each reviewed-content digest; the definitions are `owner_reviewed` with `reviewed_by: owner`.
+  `kind: owner` records self-review honestly — a sole maintainer is not independent assurance, and
+  `owner_legal_name` is unfilled so the reviewer field names a role, not a person. A release gate now
+  reports **0** approval reasons, where it previously reported one per applicable control.
+- **Container runtime installed and verified** (see the E3 entry): colima 0.10.3 + lima 2.2.1 +
+  docker CLI 29.8.2, chosen over Docker Desktop to avoid a proprietary licence decision.
+- **`coding_tool` recorded as opencode (primary), with Claude Code and Codex available.**
+  Step 12's compatibility check is verified against opencode's documented behaviour; the generated
+  notes state the verified rule — opencode prefers `AGENTS.md` over `CLAUDE.md` — with the source and
+  date, and a test stops it regressing.
+- **Git history rewritten** to purge two synthetic credential-shaped literals at the owner's
+  direction. `gitleaks git .` over the full history now reports **0** findings. A `.git` backup was
+  taken outside the repository first. **Earlier checkpoint and progress entries reference pre-rewrite
+  commit SHAs, which no longer resolve.**
+
+Suite: **414 unit + 8 integration tests, all passing.**
+
 ### Blocked — Batch B remainder
 
 - **Steps 07–10 are blocked.** Docker is **absent** from this machine — the CLI symlink points at a

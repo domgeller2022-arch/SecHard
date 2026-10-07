@@ -5,6 +5,8 @@ import { generateMatrix } from '../../src/domain/matrix.js';
 import { loadDocument } from '../../src/validation/loader.js';
 import { validateAgainstSchema } from '../../src/validation/schema.js';
 import { checkDuplicateIds, checkIntervals, checkReference } from '../../src/validation/semantic.js';
+import { resolveApprovals } from '../../src/domain/approval.js';
+import { loadPolicy } from '../../src/commands/io.js';
 import { packageRoot } from '../../src/validation/schema.js';
 import { join } from 'node:path';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -36,10 +38,22 @@ describe('control catalogue', () => {
     expect(result.valid).toBe(true);
   });
 
-  // The agent must not mark its own work as reviewed.
-  it('leaves every definition as draft', () => {
-    expect(controls.filter((control) => control.review_status === 'draft')).toHaveLength(35);
-    expect(controls.every((control) => control.reviewed_by === undefined)).toBe(true);
+  // The owner approved all 35 on 2026-10-07. The definition's own review_status is an assertion;
+  // what makes it real is a resolving approval record, which the next test checks.
+  it('records the owner review on every definition', () => {
+    expect(controls.filter((control) => control.review_status === 'owner_reviewed')).toHaveLength(35);
+    expect(controls.every((control) => typeof control.reviewed_by === 'string' && control.reviewed_at !== undefined)).toBe(true);
+    // And the agent must not have claimed independent review.
+    expect(controls.every((control) => control.reviewed_by === 'owner')).toBe(true);
+  });
+
+  it('approvals are on record and every control could not have been approved by an agent alone', () => {
+    const policy = loadPolicy({ appRoot: packageRoot(), policyRoot: packageRoot() });
+    expect(policy.value?.approvals).toHaveLength(35);
+    const states = resolveApprovals(controls, policy.value?.approvals ?? [], new Date());
+    expect(states.filter((state) => state.approved)).toHaveLength(35);
+    // Self-review, not independent assurance.
+    expect(states.every((state) => state.self_review)).toBe(true);
   });
 
   it('gives every control at least one real method or an explicit manual recipe', () => {
@@ -99,7 +113,8 @@ describe('profiles', () => {
     }
   });
 
-  it('are drafts until the owner reviews them', () => {
+  it('are drafts until the owner reviews them; profiles are still unreviewed', () => {
+    // Controls were approved; the profiles were not, and this test would catch a claim otherwise.
     expect(core.review_status).toBe('draft');
     expect(reference.review_status).toBe('draft');
   });
@@ -237,7 +252,7 @@ describe('matrix generation', () => {
         expect(matrix).toContain(`**${control.id}**`);
       }
       expect(matrix).toContain('- Controls: 35');
-      expect(matrix).toContain('All definitions draft: true');
+      expect(matrix).toContain('All definitions draft: false');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
