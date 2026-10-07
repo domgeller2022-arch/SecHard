@@ -1,0 +1,119 @@
+# Callable pull-request evaluation for a consuming application repository.
+#
+# Trust boundary. This workflow runs on a pull request, which is untrusted input. It therefore:
+#   - gives every job `contents: read` and nothing else;
+#   - never uses `pull_request_target`, so a fork pull request cannot reach a privileged context;
+#   - checks out the reviewed hardening tooling at an explicit commit rather than using the pull
+#     request's copy of anything, so a pull request cannot weaken the checks that assess it.
+#
+# `hardening_ref` must be the same reviewed commit the consumer's `.hardening/policy-lock.json`
+# names. The CLI compares the two and refuses to plan when they disagree, so a caller that pins a
+# different ref gets an error rather than a weaker evaluation.
+name: hardening-pr
+
+on:
+  workflow_call:
+    inputs:
+      hardening_ref:
+        description: Reviewed hardening commit SHA. Must match .hardening/policy-lock.json.
+        required: true
+        type: string
+      app_root:
+        description: Path to the application checkout within this repository.
+        required: false
+        type: string
+        default: '.'
+      environment:
+        description: Environment to evaluate for.
+        required: false
+        type: string
+        default: local
+
+permissions: {}
+
+jobs:
+  hardening-pr:
+    name: hardening-pr
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout application (untrusted)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: app
+          persist-credentials: false
+
+      - name: checkout reviewed hardening tooling (trusted)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: REPLACE_WITH_HARDENING_REPOSITORY
+          ref: ${{ inputs.hardening_ref }}
+          path: hardening
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+
+      - name: install hardening tooling
+        working-directory: hardening
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: validate, plan, check
+        working-directory: hardening
+        env:
+          APP_ROOT: ${{ github.workspace }}/app/${{ inputs.app_root }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -eu
+          pnpm exec hardening validate --app "$APP_ROOT" --policy .
+          pnpm exec hardening plan --app "$APP_ROOT" --policy . \
+            --stage pr --environment "$ENVIRONMENT" --out "$RUNNER_TEMP/hardening-run"
+          RUN_DIR="$(ls -d "$RUNNER_TEMP"/hardening-run/*/ | head -1)"
+          pnpm exec hardening check --app "$APP_ROOT" --policy . \
+            --plan "${RUN_DIR}plan.json" --out "$RUN_DIR"
+          echo "HARDENING_RUN_DIR=$RUN_DIR" >> "$GITHUB_ENV"
+
+      # Runs even when an earlier step failed, so the report still exists for a human to read. The
+      # gate job below is what decides.
+      - name: gate and report
+        if: always() && env.HARDENING_RUN_DIR != ''
+        working-directory: hardening
+        env:
+          APP_ROOT: ${{ github.workspace }}/app/${{ inputs.app_root }}
+        run: |
+          pnpm exec hardening gate --app "$APP_ROOT" --policy . --run "$HARDENING_RUN_DIR" || echo "gate blocked"
+          pnpm exec hardening report --app "$APP_ROOT" --policy . --run "$HARDENING_RUN_DIR" || echo "report blocked"
+
+      - name: upload report
+        if: always() && env.HARDENING_RUN_DIR != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hardening-pr-report
+          path: ${{ env.HARDENING_RUN_DIR }}report.json
+          retention-days: 14
+
+  hardening-gate:
+    name: hardening-gate
+    if: always()
+    needs: [hardening-pr]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: evaluate dependency outcomes
+        env:
+          RESULT: ${{ needs.hardening-pr.result }}
+        run: |
+          set -eu
+          if [ "$RESULT" != "success" ]; then
+            echo "hardening-gate: hardening-pr was '$RESULT', which is not success"
+            exit 1
+          fi
+          echo "hardening-gate: the evaluation ran and passed"

@@ -1,0 +1,37 @@
+# Consumer workflow template.
+#
+# Copy to `.github/workflows/hardening.yaml` in the application repository. Replace the two
+# placeholders, then platform-protect the workflow and the `.hardening/` directory.
+#
+# The caller pins the reviewed hardening commit. That commit is the same one
+# `.hardening/policy-lock.json` names: the CLI compares them and refuses to plan when they disagree,
+# so a caller cannot quietly evaluate against a different policy than the one that was reviewed.
+name: hardening
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  pull-request:
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    uses: REPLACE_WITH_HARDENING_OWNER/REPLACE_WITH_HARDENING_REPO/.github/workflows/hardening-pr.yaml@REPLACE_WITH_REVIEWED_COMMIT_SHA
+    with:
+      hardening_ref: REPLACE_WITH_REVIEWED_COMMIT_SHA
+      app_root: .
+      environment: local
+
+  release:
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: REPLACE_WITH_HARDENING_OWNER/REPLACE_WITH_HARDENING_REPO/.github/workflows/hardening-release.yaml@REPLACE_WITH_REVIEWED_COMMIT_SHA
+    with:
+      hardening_ref: REPLACE_WITH_REVIEWED_COMMIT_SHA
+      app_root: .
+      environment: production

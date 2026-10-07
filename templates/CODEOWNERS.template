@@ -1,0 +1,27 @@
+# CODEOWNERS template. Install at `.github/CODEOWNERS` once the real identities are known.
+#
+# `github_codeowners` in 01-owner-decisions.md is still TODO, so this repository has NO CODEOWNERS
+# file: a display name is not a valid code owner, GitHub skips invalid lines, and a line that names
+# nobody looks like protection while providing none. Fill in real usernames or teams with write
+# access, then install this file and protect it.
+#
+# Every path here is one whose change weakens the gate or the evidence it relies on.
+
+# Controls, policy, and the decision engine.
+/controls/            @REPLACE_WITH_REVIEWER
+/profiles/            @REPLACE_WITH_REVIEWER
+/policy/              @REPLACE_WITH_REVIEWER
+/src/domain/          @REPLACE_WITH_REVIEWER
+/src/validation/      @REPLACE_WITH_REVIEWER
+/src/execution/       @REPLACE_WITH_REVIEWER
+
+# The tests are the control.
+/tests/               @REPLACE_WITH_REVIEWER
+
+# Agent rules and the review manifest shape what an agent is told and what is reviewed.
+/agent-rules/         @REPLACE_WITH_REVIEWER
+
+# Workflows, scanner configuration, and the lockfile.
+/.github/             @REPLACE_WITH_REVIEWER
+/ci/configs/          @REPLACE_WITH_REVIEWER
+/pnpm-lock.yaml       @REPLACE_WITH_REVIEWER

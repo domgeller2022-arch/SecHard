@@ -1,0 +1,169 @@
+# Checks that run on this repository itself.
+#
+# Design notes, because this file is also the worked example consumers copy:
+#   - Every action is pinned to a commit SHA with the release it corresponds to named in a comment.
+#     A tag can be moved; a SHA cannot. Pinning the SHA is what makes the run reproducible.
+#   - Top-level permissions are empty and each job asks for what it needs. Nothing here needs write
+#     access to the repository, and nothing inherits deployment or publishing secrets.
+#   - The final job runs with `if: always()` and inspects the outcomes of its dependencies. A job that
+#     is skipped reports success to GitHub, so "the gate passed" must mean "every dependency actually
+#     succeeded", not "nothing reported a failure".
+name: repo-checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+concurrency:
+  group: repo-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build and test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm test
+      - run: pnpm run test:integration
+
+  scanner-self-scan:
+    name: scanner self-scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The tools are fetched and digest-verified at run time rather than committed. The digest is
+      # checked against the binary before it executes, so a substituted binary is refused.
+      - run: pnpm run fetch:tools
+      - run: pnpm run build
+      # `tests/scanners` runs each adapter against its vulnerable and fixed fixtures with the pinned
+      # tools, and fails if a detection or the fixed negative does not behave.
+      - run: pnpm exec vitest run tests/scanners
+
+  security-sensitive-change-report:
+    name: security-test and sensitive-path change report
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      # Reports; a human decides. This job failing means "a reviewer must look", and it is a required
+      # check in the platform configuration, not an automatic rejection.
+      #
+      # The base ref is passed through the environment rather than interpolated into the script. A
+      # value written directly into a `run:` line becomes shell text; through `env` it stays data.
+      - name: review report
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node tools/review-changes.mjs "origin/${BASE_REF}" HEAD
+
+  workflow-analysis:
+    name: workflow analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run fetch:tools
+      - name: zizmor
+        run: ./tools/bin/zizmor/v1.30.1/zizmor --format plain --no-progress .github/workflows
+
+  hardening-gate:
+    name: hardening-gate
+    # Always runs, even when a dependency failed or was skipped, because a skipped job reports success
+    # to the platform and that is exactly the failure this job exists to catch.
+    if: always()
+    needs:
+      - build-and-test
+      - scanner-self-scan
+      - security-sensitive-change-report
+      - workflow-analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # The signature of this repository's gate: each expected job ran and succeeded. `skipped` is not
+      # success here. `security-sensitive-change-report` is allowed to be skipped only because it is
+      # pull-request-only and is excluded on other events by the condition below.
+      - name: evaluate dependency outcomes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BUILD: ${{ needs.build-and-test.result }}
+          SCAN: ${{ needs.scanner-self-scan.result }}
+          REVIEW: ${{ needs.security-sensitive-change-report.result }}
+          WORKFLOWS: ${{ needs.workflow-analysis.result }}
+        run: |
+          set -eu
+          fail() { echo "hardening-gate: $1"; exit 1; }
+          expected_success() {
+            name="$1"; result="$2"
+            if [ "$result" != "success" ]; then
+              fail "$name was '$result', which is not a successful dependency"
+            fi
+          }
+          expected_success build-and-test "$BUILD"
+          expected_success scanner-self-scan "$SCAN"
+          expected_success workflow-analysis "$WORKFLOWS"
+
+          # The review report is pull-request-only. On a pull request it must have run, and its own
+          # non-zero exit already fails this gate through the dependency result.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            expected_success security-sensitive-change-report "$REVIEW"
+          elif [ "$REVIEW" = "success" ]; then
+            echo "hardening-gate: review job ran outside a pull request; unexpected but not blocking"
+          fi
+
+          echo "hardening-gate: every expected dependency succeeded"

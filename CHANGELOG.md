@@ -177,6 +177,33 @@ tool loading behaviour as fact, which is now labelled unverified because `coding
 
 Suite: **390 unit + 8 integration tests, all passing.**
 
+### Added — Step 13: workflows and the trusted final gate, local half (6 October 2026)
+
+- **`.github/workflows/repo-checks.yaml`** — build/test, scanner self-scan, a security-test change
+  report on pull requests, zizmor analysis, and a final `hardening-gate` job that depends on all of
+  them, runs `if: always()`, and fails unless every dependency result is exactly `success`.
+- **Callable workflows** `hardening-pr.yaml` and `hardening-release.yaml` for consumers, requiring a
+  pinned `hardening_ref`, checking out the reviewed tooling separately from the untrusted
+  application, with `contents: read` and no privileged trigger.
+- **`templates/consumer-workflow.template.yaml`** pinning the called workflow and the policy ref to
+  the same commit, and **`templates/CODEOWNERS.template`**.
+- **`tests/workflows/trust.test.ts`** — 23 tests asserting SHA pins, no write permissions, no
+  template interpolation into scripts, no `pull_request_target`, disabled credential persistence, the
+  always-running gate, pinned caller refs, and a real zizmor run.
+- **`docs/ci-trust.md`** — what the local tests establish, what they cannot, the inherent trust limit,
+  and the platform settings the owner must configure.
+
+**Defect found by running the analyser:** zizmor reported **3 high-severity `template-injection`
+findings in these workflows** — `${{ }}` interpolated directly into `run:` scripts. Fixed by passing
+values through `env:`; the re-scan is clean. A test now enforces the same property.
+
+**Platform verification is `awaiting_external_verification`**: no GitHub test environment or token
+exists, so required checks, CODEOWNERS resolution, fork behaviour, and merge queues are unverified.
+`.github/CODEOWNERS` is deliberately absent while the owner identity is unfilled — a fabricated file
+naming a display name would match nobody while looking like protection.
+
+Suite: **413 unit + 8 integration tests, all passing.**
+
 ### Blocked — Batch B remainder
 
 - **Steps 07–10 are blocked.** Docker is **absent** from this machine — the CLI symlink points at a

@@ -1,0 +1,99 @@
+# Callable release evaluation for a consuming application repository.
+#
+# The same trust boundary as the pull-request workflow applies, plus the release stage's stricter
+# requirements: a clean source identity, current manual evidence, and the production-scoped checks.
+# The CLI enforces those; this file only arranges the checkout and the invocation.
+name: hardening-release
+
+on:
+  workflow_call:
+    inputs:
+      hardening_ref:
+        description: Reviewed hardening commit SHA. Must match .hardening/policy-lock.json.
+        required: true
+        type: string
+      app_root:
+        description: Path to the application checkout within this repository.
+        required: false
+        type: string
+        default: '.'
+      environment:
+        description: Environment to evaluate for. Release evaluation is production-scoped.
+        required: false
+        type: string
+        default: production
+
+permissions: {}
+
+jobs:
+  hardening-release:
+    name: hardening-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: checkout application (untrusted)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: app
+          persist-credentials: false
+
+      - name: checkout reviewed hardening tooling (trusted)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: REPLACE_WITH_HARDENING_REPOSITORY
+          ref: ${{ inputs.hardening_ref }}
+          path: hardening
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.9.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.21.0
+
+      - name: install hardening tooling
+        working-directory: hardening
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: fetch pinned scanner tools
+        working-directory: hardening
+        run: pnpm run fetch:tools
+
+      - name: release evaluation
+        working-directory: hardening
+        env:
+          APP_ROOT: ${{ github.workspace }}/app/${{ inputs.app_root }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -eu
+          pnpm exec hardening validate --app "$APP_ROOT" --policy .
+          pnpm exec hardening plan --app "$APP_ROOT" --policy . \
+            --stage release --environment "$ENVIRONMENT" --out "$RUNNER_TEMP/hardening-run"
+          RUN_DIR="$(ls -d "$RUNNER_TEMP"/hardening-run/*/ | head -1)"
+          pnpm exec hardening check --app "$APP_ROOT" --policy . \
+            --plan "${RUN_DIR}plan.json" --out "$RUN_DIR"
+          pnpm exec hardening report --app "$APP_ROOT" --policy . --run "$RUN_DIR"
+          pnpm exec hardening gate --app "$APP_ROOT" --policy . --run "$RUN_DIR"
+
+  hardening-gate:
+    name: hardening-gate
+    if: always()
+    needs: [hardening-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: evaluate dependency outcomes
+        env:
+          RESULT: ${{ needs.hardening-release.result }}
+        run: |
+          set -eu
+          if [ "$RESULT" != "success" ]; then
+            echo "hardening-gate: hardening-release was '$RESULT', which is not success"
+            exit 1
+          fi
+          echo "hardening-gate: the release evaluation ran and passed"

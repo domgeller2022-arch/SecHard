@@ -711,6 +711,51 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
 - **Next step:** Step 11 remains blocked on the container runtime (ZAP needs Docker); Steps 13 and 14
   depend on it and on the GitHub test environment.
 
+### Step 13 — GitHub workflows and the trusted final gate (local half)
+
+- **State:** `awaiting_external_verification`. The workflows, trust tests, and documentation are
+  implemented and locally verified; **no platform behaviour has been observed**, because the GitHub
+  test environment is unfilled (`github_test_owner`, `github_test_repos` are `TODO`) and no token is
+  available.
+- **Files changed:** `.github/workflows/{repo-checks,hardening-pr,hardening-release}.yaml`,
+  `templates/{consumer-workflow.template.yaml,CODEOWNERS.template}`, `docs/ci-trust.md`,
+  `tests/workflows/trust.test.ts`.
+- **Actual checks run:**
+  - `npx vitest run tests/workflows` → **23 tests pass**, including a real zizmor run.
+  - **zizmor over `.github/workflows` initially reported 3 high-severity `template-injection`
+    findings in my own workflows** — `${{ }}` interpolated directly into `run:` scripts. All three
+    were fixed by passing values through `env:`; a re-scan reports **0 findings**.
+  - Action pins are real commit SHAs resolved from the GitHub API, with the release version named in
+    a comment next to each pin.
+  - Full suite: **413 unit + 8 integration tests, all passing**.
+- **Observed outcomes and evidence references:**
+  - Every action is pinned to a full SHA; no workflow grants a write permission; `pull_request_target`
+    is not used; every checkout disables credential persistence; every `run:` script is free of
+    template interpolation.
+  - Both callable workflows require a `hardening_ref` input, and the consumer template pins both the
+    called workflow and the policy ref to the same commit placeholder. The CLI refuses to plan when
+    the policy lock and the supplied policy root disagree, so a caller cannot evaluate against a
+    different policy than the one that was reviewed.
+  - The final `hardening-gate` job depends on every other job and runs `if: always()`, then fails when
+    any dependency result is not `success` — because GitHub reports a skipped job as successful.
+  - `.github/CODEOWNERS` is deliberately **absent** while `github_codeowners` is unfilled, with a
+    template instead. A file naming a display name matches nobody, and GitHub skips invalid lines, so
+    a fabricated file would look like protection while providing none. A test enforces both halves.
+- **Limitations and unresolved findings:**
+  - **No platform verification.** Required checks, review rules, CODEOWNERS resolution, bypass
+    identities, fork behaviour, and merge-queue behaviour are all unverified. `docs/ci-trust.md`
+    states this and lists the settings the owner must configure.
+  - **The trust limit is inherent**: a maintainer who can replace workflows or policy, or who can
+    bypass checks, can defeat the gate. It is documented rather than papered over.
+  - **Merge queues are outside the supported set** for a disposable personal-account test repository,
+    because GitHub does not offer queues there.
+  - The workflows assume a `linux` runner and the pinned Node 24.21.0; they have not been run on
+    GitHub's runners.
+- **Owner decisions or external setup still needed:** `github_test_owner`, `github_test_repos`,
+  `github_codeowners`, `github_owner`; the token from `github_test_token_env_var` when Batch C/D
+  platform testing is authorised.
+- **Next step:** Step 11 and Step 14 remain blocked on the container runtime and on the application.
+
 ### Steps 07–10 — blocked
 
 - **Step 07 (reference application):** `blocked` — requires Docker; absent (E3).
