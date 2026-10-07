@@ -160,6 +160,21 @@ security_tools:
 # and is not described as equivalent. opengrep also ships a cosign `.sig`/`.cert` pair that has not
 # been verified here; verifying it is future work.
 executables:
+  # Platform-provided tool. Recorded with an absolute path so source-identity resolution never
+  # performs a PATH lookup, which Step 06's execution rule forbids. No digest is recorded: an OS
+  # update replaces this binary and a stale digest would fail every run. `fetched: false` means the
+  # registry does not require one.
+  git:
+    name: git
+    executable: "/usr/local/bin/git"
+    fallbackExecutable: "/usr/bin/git"
+    versionArgs: ["--version"]
+    expectedVersion: "2.55.0"
+    fetched: false
+    identity: verified
+    source: "platform-provided"
+    licence: GPL-2.0-only
+    provenance: "platform tool, not fetched by this repository"
   gitleaks:
     name: gitleaks
     executable: "/Users/dd/Desktop/Security Hardening/hardening/tools/bin/gitleaks/v8.30.1/gitleaks"

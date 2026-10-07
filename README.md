@@ -76,6 +76,15 @@ hardening report    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
 hardening approvals --policy POLICY_ROOT
 ```
 
+Repository tooling (run from this repository):
+
+```bash
+pnpm run generate:matrix        # regenerate controls/matrix.md and the owner review sheet
+pnpm run generate:agent-rules   # regenerate agent-rules/generated/{AGENTS.md,CLAUDE.md}
+pnpm run review:changes <base> [head]   # report security-test and sensitive-path changes
+pnpm run fetch:tools            # fetch and digest-verify the pinned scanner binaries (provisioning)
+```
+
 `approvals` prints the reviewed-content digest of every control definition and whether a valid owner
 approval is on record. Approval names that digest, so an edited definition loses its approval even
 without a version bump. Release evaluation requires a valid approval for every applicable control;
@@ -99,6 +108,14 @@ and record consistency only — no scanner, no application test, and no deployme
 Not available yet. Adoption of an independent consumer repository is Step 15. Do not start from this
 repository as a workspace dependency: the plan requires proving that adoption works without hidden
 master-workspace dependencies.
+
+## Agent guidance
+
+`agent-rules/core/rules.yaml` is the single reviewed source; `agent-rules/generated/AGENTS.md` and
+`CLAUDE.md` are generated from it so the two formats cannot drift. The generator refuses to overwrite
+a file it did not generate. `agent-rules/review-manifest.yaml` lists the paths whose changes require
+human review, and `agent-rules/operator-requirements.md` states the runtime restrictions an operator
+must configure, because prompt text is not a permission boundary.
 
 ## Patterns and agent guidance
 

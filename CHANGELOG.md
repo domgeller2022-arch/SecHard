@@ -143,6 +143,40 @@ performed: it changes commit identities and was not authorised.
 4. A host-comparison inconsistency in the download path (`host` vs `hostname`) and the newly observed
    GitHub asset CDN host (`release-assets.githubusercontent.com`) were corrected and recorded.
 
+### Added — Step 12: generated agent guidance and protected configuration (6 October 2026)
+
+Batch C was authorised on the owner's instruction. Batch B is complete as far as this machine allows
+(Steps 06 and 09 verified; 07, 08, and 10 blocked on the absent container runtime). Step 12's stated
+dependency is Steps 03–06, all complete, so it was the one executable step.
+
+- **`agent-rules/core/rules.yaml`** — 15 rules covering authorized work, untrusted context,
+  dependencies, secret boundaries, actual execution, preserved tests, and unresolved findings. Every
+  rule is `must` or `must_not`; there is no `should`, because an optional rule is an option the agent
+  will take. `review_status: draft` pending owner review.
+- **Generator** (`src/agent/generate.ts`) producing `AGENTS.md` and `CLAUDE.md` from that single
+  source. Deterministic (no embedded timestamp), records the source digest and generator version, and
+  **refuses to overwrite a hand-written file** so a consumer's own guidance cannot be silently
+  replaced. Both outputs say plainly that a prompt is not a permission boundary.
+- **Review manifest** (`agent-rules/review-manifest.yaml`) naming every security-sensitive path, why
+  review is required, and what to check — controls, mappings, patterns, policy, gate logic, security
+  tests, scanner configs, workflows, agent settings, lockfiles, and consumer records. It is data, not
+  enforcement; the platform wiring is Step 13.
+- **Change report** (`tools/review-changes.mjs`) that notices deleted test files, removed test cases,
+  added skips, removed assertions, added mocks, and scan-scope changes, and reports what it cannot
+  judge. It requires review on the mechanics rather than claiming an AST heuristic proves intent.
+- **Operator requirements** (`agent-rules/operator-requirements.md`): filesystem, credential, network,
+  and runtime restrictions as operator obligations, each with a check, and the statement that prompt
+  text cannot satisfy AGT-01.
+- A test asserts the generated guidance contains **no permissive construction**, so a future source
+  edit cannot quietly permit a skipped test or a simulated scan.
+
+**Defects found and fixed while building this:** the generator assumed its output directory existed
+(found by the tests); the manifest referenced an invented control, caught by its own validation; the
+mock pattern missed helper names like `mockDatabase`; and the generated headers initially asserted
+tool loading behaviour as fact, which is now labelled unverified because `coding_tool` is unfilled.
+
+Suite: **390 unit + 8 integration tests, all passing.**
+
 ### Blocked — Batch B remainder
 
 - **Steps 07–10 are blocked.** Docker is **absent** from this machine — the CLI symlink points at a

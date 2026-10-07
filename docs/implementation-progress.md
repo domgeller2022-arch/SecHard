@@ -660,6 +660,57 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
     recipe. Until then, only the tests exercise them.
 - **Next step:** Steps 07–08 for the application, or Step 10 once they exist. Both blocked on E3.
 
+### Step 12 — Generate and protect agent guidance
+
+- **State:** `verified`, with the tool-compatibility check `blocked` on an unfilled owner decision.
+- **Files changed:** `agent-rules/core/rules.yaml`, `agent-rules/generated/{AGENTS.md,CLAUDE.md}`,
+  `agent-rules/review-manifest.yaml`, `agent-rules/operator-requirements.md`,
+  `src/agent/{generate,review-manifest,change-report}.ts`,
+  `tools/{generate-agent-rules.ts,review-changes.mjs}`, `tests/agent/**`.
+- **Actual checks run:**
+  - `npx vitest run tests/agent` → **33 tests, 3 files, pass.**
+  - `node tools/generate-agent-rules.ts` → generated both formats; re-running produced **byte-identical
+    output** (no timestamp is embedded, so a diff means the source changed).
+  - Merge protection exercised: a hand-written `AGENTS.md` was **refused** and left byte-identical,
+    while a missing `CLAUDE.md` beside it was generated.
+  - `node tools/review-changes.mjs 8ea01a0 c914316` over a real range → exit 1 and a report naming
+    each sensitive-path change (scanner configs, policy, gate logic, lockfiles, tests).
+  - Full suite: **390 unit + 8 integration tests, all passing** on Node 24.21.0.
+- **Observed outcomes and evidence references:**
+  - The rules source covers all seven required areas (authorized work, untrusted context,
+    dependencies, secret boundaries, actual execution, preserved tests, unresolved findings) in 15
+    rules, each `must` or `must_not` — there is deliberately no `should`, because an optional rule is
+    an option the agent will take.
+  - A test asserts the generated text contains **no permissive construction** (permission to skip or
+    ignore, to simulate, "no need to run", "trust the tool", or any "optional"). A prohibition phrased
+    as "never claim that a simulated check passed" passes; a permission would not.
+  - Both formats state plainly that a prompt is not a permission boundary, and the operator document
+    names filesystem, credential, network, and runtime restrictions with a **check** for each.
+  - The review manifest validates: every entry names a real control (validation caught an invented
+    `AGT-CTX-01` and it was corrected), states why review is required, and says what to check. A
+    pattern matching everything is rejected, so the manifest cannot degrade into "review everything".
+  - The change report detects a weakened test in a real temporary repository: removed case, added
+    skip, removed assertion, added mock, and the sensitive-path change — and reports a docs-only
+    change as clean. An unknown revision produces a limitation, not a clean result.
+- **Limitations and unresolved findings:**
+  - **Tool-compatibility verification is `blocked` on `coding_tool`.** The plan asks that generated
+    files be checked against the selected tool's documented loading and precedence behaviour. That
+    is unfilled in the owner decisions, so the generated headers say the behaviour is **not yet
+    verified** and the expectation is stated as an expectation. No compatibility claim is made.
+  - **The manifest is data, not enforcement.** It states what needs review; the platform enforces it.
+    Wiring the manifest into required checks and CODEOWNERS is Step 13.
+  - **The change report notices mechanics, not intent.** It cannot tell whether a removed assertion
+    was wrong or inconvenient, and it says so in every report. Reformatting appears as removal plus
+    addition.
+  - **`review_status: draft`** on both the rules source and the manifest, pending owner review.
+  - **Consumer files are protected from overwrite but not from drift**: the generator refuses a
+    hand-edited file, so a consumer that hand-edits must merge deliberately rather than silently
+    losing the generated rules.
+- **Owner decisions or external setup still needed:** `coding_tool` (B15) to complete the
+  compatibility check; owner review of the rules source.
+- **Next step:** Step 11 remains blocked on the container runtime (ZAP needs Docker); Steps 13 and 14
+  depend on it and on the GitHub test environment.
+
 ### Steps 07–10 — blocked
 
 - **Step 07 (reference application):** `blocked` — requires Docker; absent (E3).

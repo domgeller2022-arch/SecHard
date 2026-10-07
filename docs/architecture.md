@@ -41,6 +41,7 @@ fixtures, and stated limitations before it is added.
 | Execution | `src/execution/` | Reviewed-executable registry, provisioning policy, verified downloads, bounded process launch |
 | Adapters | `src/adapters/` | Scanner and reference-stack implementations (Steps 06–11) |
 | Evidence | `src/evidence/` | Identities, canonical hashing, digests, freshness, reports |
+| Agent guidance | `src/agent/` | Rule generation from the single source, sensitive-file review manifest, security-test change report |
 
 The domain layer does not import from execution or adapters. The decision engine is a pure function
 over validated records so it can be tested independently of any tool.

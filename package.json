@@ -29,7 +29,9 @@
     "hardening": "node dist/cli.js",
     "generate:matrix": "npm run build --silent && node tools/generate-matrix.ts",
     "build:fixtures": "node tools/build-fixtures.ts",
-    "fetch:tools": "node tools/fetch-tools.mjs"
+    "fetch:tools": "node tools/fetch-tools.mjs",
+    "generate:agent-rules": "npm run build --silent && node tools/generate-agent-rules.ts",
+    "review:changes": "node tools/review-changes.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

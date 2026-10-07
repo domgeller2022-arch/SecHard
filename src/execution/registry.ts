@@ -21,6 +21,8 @@ import { extractVersion } from './version.js';
 export interface ExecutionIdentity {
   readonly name: string;
   readonly executable: string;
+  /** Used when `executable` is absent on this machine. Recorded so no PATH lookup is needed. */
+  readonly fallbackExecutable?: string;
   readonly versionArgs?: readonly string[];
   readonly expectedVersion: string;
   readonly digest?: string;
@@ -67,13 +69,13 @@ export type UnavailableReason =
  * the refusal is the honest answer: executing it would be relying on an identity nobody checked.
  */
 export function resolveTool(name: string, toolchain: ToolchainRecord = loadToolchain()): ToolAvailability {
-  const declared = toolchain.security_tools?.[name];
-  if (declared === undefined) {
-    return { available: false, reason: 'not_recorded', message: `tool '${name}' is not recorded in the toolchain` };
-  }
-
   const identity = toolchain.executables?.[name];
+
   if (identity === undefined) {
+    const declared = toolchain.security_tools?.[name];
+    if (declared === undefined) {
+      return { available: false, reason: 'not_recorded', message: `tool '${name}' is not recorded in the toolchain` };
+    }
     return {
       available: false,
       reason: 'identity_unverified',

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ValidationIssue } from '../validation/errors.js';
 import { loadDocument } from '../validation/loader.js';
@@ -6,6 +7,7 @@ import { confineReference, isRemoteReference } from '../validation/paths.js';
 import { validateAgainstSchema } from '../validation/schema.js';
 import { checkDuplicateIds, checkReference } from '../validation/semantic.js';
 import { loadCatalogue, type ControlDefinition, type Profile } from '../domain/definitions.js';
+import { loadToolchain } from '../execution/registry.js';
 import { sha256Hex } from '../evidence/digest.js';
 import type { ApprovalRecord } from '../domain/approval.js';
 import type { AssessmentRecord, ExceptionRecord, GatePolicy, ManualEvidence } from '../domain/types.js';
@@ -292,12 +294,29 @@ function resolvePolicyCommit(policyRoot: string): string {
 }
 
 /**
+ * The git to use, from the reviewed toolchain record.
+ *
+ * Resolved to an absolute path rather than looked up through PATH: Step 06's execution rule forbids
+ * PATH lookups, and a caller-influenced PATH could otherwise redirect the command that establishes
+ * source identity.
+ */
+function gitExecutable(): string | undefined {
+  const identity = loadToolchain().executables?.git;
+  const candidates = [identity?.executable, identity?.fallbackExecutable, '/usr/bin/git'].filter(
+    (candidate): candidate is string => typeof candidate === 'string',
+  );
+  return candidates.find((candidate) => existsSync(candidate));
+}
+
+/**
  * Runs git with an argument array and no shell. Output is bounded because it comes from the
  * environment rather than from this repository's code.
  */
 function runGit(cwd: string, args: readonly string[]): string | undefined {
+  const executable = gitExecutable();
+  if (executable === undefined) return undefined;
   try {
-    const stdout = execFileSync('git', [...args], {
+    const stdout = execFileSync(executable, [...args], {
       cwd,
       encoding: 'utf8',
       timeout: 10_000,

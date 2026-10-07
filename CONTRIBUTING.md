@@ -40,9 +40,22 @@ looks like a one-line fix.
 | `controls/approvals.yaml` | An agent must never write an approval. Verify each digest resolves and that `kind` is honest about self-review versus independent review |
 | `controls/patterns/` | Corrected rationale is present, provenance is recorded, and no pattern claims `implemented: true` verification that does not exist |
 | `upstream/sources.yaml`, `upstream/notices/` | Licence, use type, attribution, and notice for each imported component; `planned` is not `verified` |
+| `agent-rules/core/rules.yaml` | A rule was not weakened into a soft preference, and nothing now permits a skipped test or a simulated scan. Regenerate the outputs in the same change |
+| `agent-rules/review-manifest.yaml` | New sensitive paths are covered and no pattern was widened to match everything |
 | `.github/workflows/` | Permissions, pinned references, and whether a job executes untrusted code with privileged access |
 | `.npmrc`, `package.json` | `engines`, `packageManager`, dependency additions, and any relaxation of the install policy |
 | `docs/` claims | Every "verified" or "supported" statement still matches `docs/implementation-progress.md` |
+
+## Generated files
+
+`controls/matrix.md`, `docs/checkpoints/control-review-sheet.md`, and everything under
+`agent-rules/generated/` are generated. Do not hand-edit them: edit the source and run the generator
+in the same commit. The generator refuses to overwrite a file that lacks its generated marker, so a
+hand-edited copy will fail generation rather than be silently replaced.
+
+Before opening a pull request that touches security tests, policy, scanner configuration, or
+workflows, run `pnpm run review:changes <base>` and include the report. It does not judge intent; it
+makes the change visible so a reviewer can.
 
 ## Approvals and imported guidance
 

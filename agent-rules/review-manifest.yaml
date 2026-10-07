@@ -1,0 +1,167 @@
+schema: hardening/review-manifest/v1
+version: 1
+review_status: draft
+
+# Paths whose changes require human review before merge.
+#
+# This manifest is data, not enforcement. Enforcement is the platform's job (required checks,
+# CODEOWNERS, review rules) and is configured in Step 13. What this file does is state, in one place,
+# which changes are security-sensitive and what a reviewer should look at, so the list can be
+# reviewed itself and cannot drift into a stale comment.
+#
+# `requires`:
+#   human_review      at least one human must read the change
+#   approval_record   an owner approval record must be updated or re-confirmed
+#
+# `consumer` marks paths that live in a consuming application repository rather than in this one.
+
+entries:
+  - id: controls
+    control: GOV-02
+    requires: approval_record
+    paths:
+      - controls/controls.yaml
+      - controls/control.schema.json
+      - controls/approvals.yaml
+    reason: >-
+      Control definitions are the policy everything else is measured against. Editing a definition
+      invalidates its approval, and marking a definition owner_reviewed is an owner action.
+    reviewer_checks:
+      - Acceptance criteria still describe behaviour that can be tested
+      - The content digest changed, so any previous approval no longer applies
+      - review_status was not set to owner_reviewed by the author
+
+  - id: mappings
+    control: GOV-02
+    requires: human_review
+    paths:
+      - controls/mappings/**
+    reason: A mapping is a claim about another standard. An unreviewed one must stay related_risk.
+    reviewer_checks:
+      - The framework edition and requirement were checked against the pinned source
+      - The relationship is related_risk unless the requirement was actually verified
+
+  - id: patterns
+    control: AGT-02
+    requires: human_review
+    paths:
+      - controls/patterns/**
+    reason: >-
+      Patterns are guidance adapted from external material. A wrong or uncorrected pattern becomes
+      wrong advice in every generated instruction file.
+    reviewer_checks:
+      - The corrections recorded in provenance were actually applied
+      - No verification is marked implemented before a fixture exists
+
+  - id: policy
+    control: GOV-02
+    requires: human_review
+    paths:
+      - policy/gate-policy.yaml
+      - policy/dependency-policy.yaml
+      - policy/toolchain.yaml
+      - pnpm-workspace.yaml
+    reason: >-
+      These files decide what blocks and which executables may run. Relaxing a threshold here
+      weakens every gate at once.
+    reviewer_checks:
+      - No freshness window, blocking severity, or required stage method was relaxed
+      - No new executable was added without a verified identity
+
+  - id: gate_logic
+    control: CI-03
+    requires: human_review
+    paths:
+      - src/domain/**
+      - src/validation/**
+      - src/execution/**
+    reason: The evaluator and the validator turn records into decisions. A change can turn a block into a pass.
+    reviewer_checks:
+      - The tests still fail when the behaviour they guard is removed
+      - Unknown severity, empty scope, and missing evidence still block
+
+  - id: security_tests
+    control: AGT-03
+    requires: human_review
+    paths:
+      - tests/**
+    reason: >-
+      The tests are the control. A deleted, skipped, or weakened assertion is a control removal that
+      looks like a cleanup.
+    reviewer_checks:
+      - Every removed or newly skipped case has a stated reason
+      - No assertion was loosened to make a failing behaviour pass
+
+  - id: scanner_configs
+    control: SEC-01
+    requires: human_review
+    paths:
+      - ci/configs/**
+    reason: A scanner exclusion is how a real finding gets missed later.
+    reviewer_checks:
+      - Any exclusion names a specific reviewed path, not a broad pattern
+      - The excluded path is still scanned explicitly where it is supposed to be
+
+  - id: workflows
+    control: CI-01
+    requires: human_review
+    paths:
+      - .github/workflows/**
+      - .github/CODEOWNERS
+    reason: Workflows hold credentials and decide what runs. A pull request must not be able to weaken its own checks.
+    reviewer_checks:
+      - Permissions are minimal and no deployment or publishing secret is reachable from untrusted analysis
+      - The change does not make the gate weaker for the pull request containing it
+
+  - id: agent_settings
+    control: AGT-01
+    requires: human_review
+    paths:
+      - agent-rules/**
+      - .claude/**
+      - AGENTS.md
+      - CLAUDE.md
+    reason: >-
+      Instructions and runtime settings shape agent behaviour. Prompt text is not a permission
+      boundary, but it is still security-sensitive configuration.
+    reviewer_checks:
+      - No generated wording permits a simulated scan, a skipped test, or a policy bypass
+      - Hand-written guidance was merged rather than overwritten
+
+  - id: lockfiles
+    control: DEP-01
+    requires: human_review
+    paths:
+      - pnpm-lock.yaml
+      - package.json
+    reason: A lockfile change is a dependency change, including transitive ones nobody named.
+    reviewer_checks:
+      - No version is younger than the reviewed release-age delay
+      - New packages have a verified identity and a recorded licence
+
+  - id: consumer_manifest
+    control: CTX-01
+    consumer: true
+    requires: human_review
+    paths:
+      - .hardening/app.yaml
+      - .hardening/assessments.yaml
+    reason: The manifest declares what the application is; every applicability decision depends on it.
+    reviewer_checks:
+      - A feature was not switched to disabled to remove an obligation
+      - An unknown declaration was resolved rather than left to look absent
+
+  - id: consumer_exceptions
+    control: EXC-01
+    consumer: true
+    requires: approval_record
+    paths:
+      - .hardening/exceptions.yaml
+      - .hardening/manual-evidence.yaml
+      - .hardening/policy-lock.json
+    reason: >-
+      Exceptions and evidence accept risk. The policy lock pins which reviewed policy applies.
+    reviewer_checks:
+      - The scope is precise, the approver is a person, and the expiry is real
+      - A sole maintainer's acceptance is recorded as self-review
+      - The policy lock names the reviewed commit and was not widened by the change
