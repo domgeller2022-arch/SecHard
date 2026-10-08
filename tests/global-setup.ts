@@ -27,4 +27,13 @@ export default function setup(): void {
     stdio: 'ignore',
     timeout: 60_000,
   });
+
+  // The example lives inside this repository, so its policy pin moves with every commit. Re-linking
+  // before the suite keeps validation failing for real reasons rather than staleness. A real
+  // consumer pins a released commit and re-locks deliberately.
+  execFileSync(process.execPath, [join(repo, 'tools', 'relink-example.mjs')], {
+    cwd: repo,
+    stdio: 'ignore',
+    timeout: 60_000,
+  });
 }

@@ -733,6 +733,58 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 07/08 — reference application: records and row-level security (2026-10-07)
+
+- **State:** `in_progress`. The database layer of Steps 07 and 08 is implemented and **verified by
+  execution against the real stack**. The Next.js application itself is not written.
+- **Files added:** `examples/nextjs-supabase/.hardening/app.yaml`,
+  `examples/nextjs-supabase/supabase/migrations/20261007000001_notes.sql`,
+  `examples/nextjs-supabase/supabase/seed.sql`, `examples/nextjs-supabase/README.md`,
+  `tools/relink-example.mjs`, `tests/global-setup.ts` (re-links the example before the suite).
+- **Actual checks run — the first real authorization evidence in this repository:**
+  - `supabase db reset` → migration applied, seed loaded, containers restarted.
+  - **As user A** (`set local role authenticated` with A's JWT subject): visible notes = **1** (A's
+    own), other users' notes visible = **0**.
+  - **As user B**: visible = **1**, other users' notes = **0**.
+  - **A attempting to update B's note** → `UPDATE 0`. The note's title was then read back with a
+    privileged connection and is **unchanged** ("User B private note"). The denial is verified against
+    stored state, not just against a status code.
+  - **A attempting to insert a note with `owner_id` = B** → `ERROR: new row violates row-level
+    security policy for table "notes"`. Client-supplied ownership cannot be injected.
+  - **Anonymous** → `ERROR: permission denied for table notes`. Grants are revoked as well as
+    policies applied, so anonymity fails at the grant layer.
+  - Full suite after these changes: **418 unit + 8 integration tests, all passing.**
+- **Design decisions recorded in the migration:**
+  - `owner_id` defaults to `auth.uid()` and the policy's `WITH CHECK` enforces it, so ownership is set
+    by the session and cannot be reassigned by a client.
+  - `force row level security` is set as well as `enable`, so the table owner does not silently bypass
+    the policy.
+  - Grants and policies are stated separately: a policy cannot grant access that was never granted,
+    and a grant without a policy would expose the table.
+  - Seeding runs as a privileged role and is separate from the unprivileged clients used for
+    assertions. The seeded password is a local-development value against the `.invalid` TLD.
+- **Flakiness observed, recorded rather than hidden:** one run of the Opengrep scanner test failed at
+  30.7s while the Supabase VM was compiling containers; the same test passed in 15.6s on an idle
+  machine and the full suite is green. The cause is resource contention, not a logic change. Not
+  retried automatically; noted here as the plan requires.
+- **Open finding (unchanged):** the LAN binding finding above. The macOS application firewall is
+  **disabled** on this machine and `sudo` requires a password, so the recommended containment cannot
+  be applied by the agent. Exact commands are in `examples/nextjs-supabase/README.md`. The stack is
+  **stopped**; the ports are closed.
+
+### Owner decisions actioned — CODEOWNERS and the GitHub test environment (2026-10-07)
+
+- `github_codeowners: domgeller2022-arch`, `github_owner: domgeller2022-arch` (inferred from the
+  owner's statement that this single account has sole access), `repo_visibility: private`.
+- `.github/CODEOWNERS` created. Every sensitive path from the review manifest is covered, the file
+  protects itself via `/.github/`, and a trust test now asserts: it exists, contains no placeholder,
+  every handle is a valid username shape, and the handles match `github_codeowners` exactly — so the
+  file cannot silently name nobody while looking like protection.
+- `docs/ci-trust.md` gained the exact GitHub test environment setup steps (separate owner, disposable
+  repositories, fine-grained token scopes, short expiry, environment-only handling) and the two
+  documented limits: a fine-grained token has one resource owner, and merge queues need an
+  organisation.
+
 ### Step 07 — Secure local reference application (in progress; infrastructure proven)
 
 - **State:** `in_progress`. The local stack runs; the application itself is not built yet. One

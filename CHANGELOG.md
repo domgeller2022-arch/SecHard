@@ -204,6 +204,29 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — reference application database layer with verified RLS (7 October 2026)
+
+- `examples/nextjs-supabase/.hardening/app.yaml` — the application's manifest, with every feature
+  declared explicitly and the exclusions visible.
+- `supabase/migrations/20261007000001_notes.sql` — notes table, `owner_id` defaulting to
+  `auth.uid()`, `force row level security`, one owner-scoped policy with `WITH CHECK`, and grants that
+  revoke anonymous access.
+- `supabase/seed.sql` — two synthetic users and one note each, seeded privileged and separate from the
+  unprivileged clients used for assertions.
+- **First real authorization evidence:** as user A, 1 note visible and 0 of another user's; A's attempt
+  to update B's note affected **0 rows** and B's note was verified **unchanged** through a privileged
+  connection; A's attempt to insert with `owner_id` = B was rejected by the policy; anonymous access
+  is denied at the grant layer.
+- `tools/relink-example.mjs` keeps the example's policy lock current, invoked from the test setup.
+- **CODEOWNERS installed** for `domgeller2022-arch`, with a trust test that checks the handles match
+  the owner decisions exactly. `github_owner` and `repo_visibility: private` recorded.
+- `docs/ci-trust.md` now carries the exact GitHub test environment setup steps.
+
+**Flakiness recorded:** one Opengrep test failed at 30.7s under load from the Supabase VM build and
+passed in 15.6s when idle; the full suite is green. Not auto-retried.
+
+Suite: **418 unit + 8 integration tests, all passing.**
+
 ### In progress — Step 07 local reference stack (7 October 2026)
 
 - The Supabase local stack **runs on this machine**: `supabase start` completes after disabling the

@@ -1,0 +1,41 @@
+# CODEOWNERS — who must review which paths.
+#
+# This file is not enforcement on its own. GitHub requests these reviewers automatically, and the
+# branch protection setting "require review from code owners" is what makes an approval mandatory.
+# A line naming an identity that does not exist or lacks write access is silently skipped, so
+# `tests/workflows/trust.test.ts` checks this file against the identity recorded in
+# `01-owner-decisions.md` rather than trusting that it parses.
+#
+# The owner is the sole maintainer. Every path below therefore names one account; the structure is
+# kept so that adding a reviewer later is a one-line change rather than a rewrite.
+
+# Default: everything requires the owner.
+*                           @domgeller2022-arch
+
+# Controls, policy, and the decision engine. A change here can turn a block into a pass.
+/controls/                  @domgeller2022-arch
+/profiles/                  @domgeller2022-arch
+/policy/                    @domgeller2022-arch
+/src/domain/                @domgeller2022-arch
+/src/validation/            @domgeller2022-arch
+/src/execution/             @domgeller2022-arch
+/src/agent/                 @domgeller2022-arch
+
+# The tests are the control.
+/tests/                     @domgeller2022-arch
+
+# Agent guidance shapes what an agent is told; runtime restrictions enforce it.
+/agent-rules/               @domgeller2022-arch
+
+# Workflows hold credentials and decide what runs.
+/.github/                   @domgeller2022-arch
+
+# Scanner configuration: an exclusion is how a real finding gets missed later.
+/ci/configs/                @domgeller2022-arch
+
+# A lockfile change is a dependency change, including transitive ones nobody named.
+/pnpm-lock.yaml             @domgeller2022-arch
+
+# Sensitive documents that describe the trust model and the evidence rules.
+/docs/trust-model.md        @domgeller2022-arch
+/docs/implementation-progress.md @domgeller2022-arch

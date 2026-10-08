@@ -59,6 +59,38 @@ These are paragraph-level instructions because the work is in repository setting
 8. **A failure must stay visible.** A scheduled or required check that fails should notify someone.
    Nothing here rewrites a failing result into a passing one.
 
+## GitHub test environment setup (for platform verification)
+
+Platform verification needs a disposable environment. Exact steps:
+
+1. **Create a separate account or organisation** — never your main account or any repository with
+   real code. A free organisation is enough. Name it in `github_test_owner`.
+2. **Create the disposable repositories** it will use — for example one repository for workflow
+   tests and one to act as the "consumer" repository. Name them in `github_test_repos`.
+3. **Make the repository settings reproducible**: protect the default branch, require the
+   `hardening-gate` check, and note what you configured. The point is to test the settings as much
+   as the YAML.
+4. **Create a fine-grained personal access token** scoped to that owner:
+   - Resource owner: the test account or organisation only.
+   - Repository access: only the repositories in `github_test_repos`.
+   - Permissions, minimum needed for the operations being tested: **Contents** read/write (push
+     branches), **Actions** read/write (dispatch and read workflow runs), **Administration**
+     read/write only if the tests must change repository settings, **Metadata** read (implied).
+   - Short expiry — days, not months. Revoke it when the batch is done.
+5. **Export it at run time only**, as the variable named by `github_test_token_env_var`
+   (default `HARDENING_TEST_GITHUB_TOKEN`). Never write it to a file, a commit, an artifact, or a
+   log. This repository reads it from the environment and nothing else.
+6. **Tell me when steps 1–5 are done** and I will run the platform tests and record the results.
+
+Two limits to know before you start, both recorded in the plan:
+
+- A fine-grained token has **one resource owner**, so it cannot span an upstream repository and a
+  fork under a different owner. Testing fork behaviour needs either a fork created by the owner or a
+  second credential.
+- **Merge queues are not available** for personal-account repositories; they need an organisation
+  with queue support. If that capability is absent, the merge-queue claim stays outside the
+  supported set rather than being reported as verified.
+
 ## Status
 
 Platform verification has **not** been performed: the GitHub test environment fields

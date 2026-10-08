@@ -158,18 +158,57 @@ describe('the workflows pass the workflow analyser', () => {
   });
 });
 
-describe('CODEOWNERS is not fabricated', () => {
-  it('is absent while the owner identity is unfilled, with a template instead', () => {
-    // A CODEOWNERS line naming a display name matches nobody. GitHub skips invalid lines, so a
-    // fabricated file would look like protection while providing none.
-    expect(existsSync(join(packageRoot(), '.github', 'CODEOWNERS'))).toBe(false);
+describe('CODEOWNERS names the recorded owner', () => {
+  const codeownersPath = join(packageRoot(), '.github', 'CODEOWNERS');
 
+  it('exists and contains no placeholder', () => {
+    expect(existsSync(codeownersPath)).toBe(true);
+    const contents = readFileSync(codeownersPath, 'utf8');
+    expect(contents).not.toMatch(/REPLACE_WITH/);
+    // Every handle must look like a GitHub username or team reference.
+    for (const handle of contents.match(/@\S+/g) ?? []) {
+      expect(handle, handle).toMatch(/^@[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/);
+    }
+  });
+
+  it('uses exactly the identity recorded in the owner decisions', () => {
+    // A handle that does not exist, or that lacks write access, is skipped silently by GitHub —
+    // the file would look like protection while matching nobody. The owner decisions file is the
+    // record of which identity was actually chosen.
+    const decisionsPath = join(packageRoot(), '..', '01-owner-decisions.md');
+    if (!existsSync(decisionsPath)) {
+      // Consumed outside the build pack; there is no record to compare against in that layout.
+      return;
+    }
+    const decisions = readFileSync(decisionsPath, 'utf8');
+    const match = decisions.match(/^github_codeowners:\s*(.+)$/m);
+    const recorded = (match?.[1] ?? '').trim();
+    expect(recorded.length, 'github_codeowners is unfilled but CODEOWNERS exists').toBeGreaterThan(0);
+    expect(recorded).not.toBe('TODO');
+
+    const contents = readFileSync(codeownersPath, 'utf8');
+    const handles = new Set((contents.match(/@\S+/g) ?? []).map((handle) => handle.slice(1)));
+    for (const identity of recorded.split(',').map((entry) => entry.trim())) {
+      expect(handles, `CODEOWNERS must name ${identity}`).toContain(identity);
+    }
+    expect(handles.size).toBe(recorded.split(',').filter((entry) => entry.trim().length > 0).length);
+  });
+
+  it('covers every sensitive area and protects itself', () => {
+    const contents = readFileSync(codeownersPath, 'utf8');
+    for (const path of ['/controls/', '/policy/', '/src/domain/', '/tests/', '/agent-rules/', '/.github/', '/ci/configs/']) {
+      expect(contents, path).toContain(path);
+    }
+    // The workflow trust tests and this file itself are inside /.github/, which is covered above.
+    expect(contents).toMatch(/^\*\s+@/m);
+  });
+
+  it('keeps a template for consumers, with no invented identity', () => {
     const template = readFileSync(join(packageRoot(), 'templates', 'CODEOWNERS.template'), 'utf8');
     const handles = template.match(/@\S+/g) ?? [];
     expect(handles.length).toBeGreaterThan(0);
     for (const handle of handles) {
       expect(handle, 'the template must not contain an invented handle').toBe('@REPLACE_WITH_REVIEWER');
     }
-    expect(template).toMatch(/github_codeowners.*TODO/);
   });
 });

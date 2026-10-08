@@ -1,0 +1,66 @@
+# The reference application's manifest.
+#
+# Every feature is declared explicitly. A missing key is treated as `unknown` by the evaluator, never
+# as false, so omitting one would not remove the obligation — it would only make the result unclear.
+schema_version: app/v1
+id: nextjs-supabase-example
+name: Reference private-notes application
+description: >-
+  A small Next.js App Router application backed by Supabase, used to exercise the hardening
+  controls against a real stack: real Postgres, real row-level security, and real unprivileged
+  clients. Two normal users and anonymous access tests.
+
+stack:
+  kind: nextjs-supabase
+  runtime_versions:
+    node: { version: "24.21.0", support: supported }
+    supabase: { version: "2.118.0", support: supported, notes: "CLI pinned; the local stack runs via colima" }
+    nextjs: { version: "pending", support: planned, notes: "Pinned when the application is written" }
+  package_manager: { version: "12.9.1", support: supported }
+
+features:
+  accounts: { state: enabled, notes: "Email sign-in, sign-out, and account recovery" }
+  private_resources: { state: enabled, notes: "Each user owns their notes" }
+  roles: { state: disabled, notes: "No custom role model; every authenticated user is equal" }
+  tenancy: { state: disabled, notes: "Single-tenant by design" }
+  recovery: { state: enabled, notes: "Provider-supported recovery flow" }
+  payments: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  webhooks: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  uploads: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  outbound_requests: { state: disabled, notes: "The application makes no outbound calls" }
+  personal_data: { state: enabled, notes: "Account email addresses and note content" }
+  runtime_ai: { state: disabled, notes: "Excluded by the nextjs-supabase profile" }
+  hosting: { state: disabled, notes: "Local development only; no deployment is configured" }
+  interfaces: { state: enabled }
+  environments: { state: enabled, notes: "Local only" }
+  persistent_storage: { state: enabled, notes: "Notes are persisted in Postgres" }
+
+data:
+  classification: personal
+  categories: ["account identifier", "user-authored note content"]
+  jurisdictions: []
+
+exposed_interfaces:
+  - { kind: page, path: "/", auth_required: false, environment: local }
+  - { kind: page, path: "/notes", auth_required: true, environment: local }
+  - { kind: route_handler, path: "/auth/callback", auth_required: false, environment: local }
+
+environments:
+  - { name: local, kind: local, internet_facing: false, separated: true }
+
+profiles:
+  - nextjs-supabase
+
+# Re-locked to this repository's current commit by `node tools/relink-example.mjs`. A real consumer
+# pins a released commit instead and re-locks deliberately.
+policy_lock:
+  repository: local-checkout
+  commit: "adeb961ec71441930dc09edb41c493e963057e6e"
+  policy_digest: "076e216ce8657bc669dd095b4fa897e7798f22e8188c2efdb9460360cdc930c7"
+  locked_at: "2026-10-08T05:52:38.499Z"
+
+maintainer:
+  name: repository-owner
+  contact: "see SECURITY.md"
+
+updated_at: "2026-10-07T00:00:00Z"
