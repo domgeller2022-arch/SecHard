@@ -355,6 +355,11 @@ export interface GatePolicy {
   readonly coverage: { readonly require_expected_scope_for_pass: boolean; readonly empty_scope_blocks: boolean };
   readonly evidence: { readonly fixture_origin_can_satisfy_release: boolean; readonly duplicate_check_ids_block: boolean };
   readonly control_categories: { readonly error_not_exceptable: readonly string[]; readonly never_exceptable: readonly string[] };
+  /** Ceilings on what an exception may waive. Absent fields default to the restrictive setting. */
+  readonly exceptions?: {
+    readonly critical_findings_never_waivable?: boolean;
+    readonly high_findings_require_non_self_approver_at_release?: boolean;
+  };
 }
 
 export interface Reason {

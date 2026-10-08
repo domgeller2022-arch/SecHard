@@ -76,8 +76,6 @@ type StagePolicy = {
   readonly advisory_snapshot_max_age_hours?: number;
 };
 
-const BLOCKING_SEVERITIES: ReadonlySet<Severity> = new Set<Severity>(['critical', 'high']);
-
 const COVERAGE_ORDER: Record<Coverage, number> = { complete: 0, partial: 1, unknown: 2 };
 
 const worse = (a: Coverage, b: Coverage): Coverage =>
@@ -118,12 +116,27 @@ export function evaluate(input: EvaluationInput): GateDecision {
   const resultsByCheck = groupBy(input.results, (result) => result.check_id);
   const controlVersions: Record<string, number> = {};
   for (const control of input.controls) controlVersions[control.id] = control.definition_version;
+
+  // A control is never waivable when either its profile or the gate policy says so. Both sources are
+  // enforced: the profile is per-selection policy, and the gate-policy list is a global floor that a
+  // profile edit cannot remove.
+  const neverControls = resolveNeverControls(input);
   const usableExceptions = resolveExceptions(input.exceptions, input.now, {
     ...(input.exceptionPolicy === undefined ? {} : { exceptionPolicy: input.exceptionPolicy }),
+    neverControls,
     controlVersions,
   });
   const manualByControl = groupBy(input.manualEvidence, (record) => record.control);
   const controlsById = new Map(input.controls.map((control) => [control.id, control]));
+
+  const waiverContext: WaiverContext = {
+    neverControls,
+    controlVersions,
+    stage: input.stage,
+    blockingSeverities: resolveBlockingSeverities(input.policy),
+    criticalNeverWaivable: input.policy.exceptions?.critical_findings_never_waivable !== false,
+    highRequiresNonSelfAtRelease: input.policy.exceptions?.high_findings_require_non_self_approver_at_release !== false,
+  };
 
   const controlOutcomes: ControlEvaluation[] = [];
   const unsupportedScope: string[] = [];
@@ -152,6 +165,7 @@ export function evaluate(input: EvaluationInput): GateDecision {
       policy: input.policy,
       now: input.now,
       sourceDirty: input.plan.inputs.source_dirty === true,
+      waiver: waiverContext,
     });
 
     controlOutcomes.push(outcome);
@@ -164,6 +178,7 @@ export function evaluate(input: EvaluationInput): GateDecision {
   reasons.push(
     ...rejectUnusableExceptions(input.exceptions, input.now, usableExceptions, {
       ...(input.exceptionPolicy === undefined ? {} : { exceptionPolicy: input.exceptionPolicy }),
+      neverControls,
       controlVersions,
     }),
   );
@@ -178,16 +193,95 @@ export function evaluate(input: EvaluationInput): GateDecision {
   const approvalReasons = evaluateApprovals(input);
   reasons.push(...approvalReasons.reasons);
 
+  // One outcome per control, not one per check. A control with two checks (SEC-01 scans repository
+  // and history separately) previously produced two rows and its summary count was really a check
+  // count. The worst check outcome governs; a waiver is acceptable only when no check is unmet.
+  const aggregated = aggregateControlOutcomes(controlOutcomes);
+
   return {
-    satisfied: reasons.length === 0 && controlOutcomes.every(isAcceptable),
+    // A decision can be satisfied with waivers, but only waivers: every other reason blocks, and a
+    // waived control is never reported as a pass.
+    satisfied: reasons.every((item) => item.code === 'waiver.applied') && aggregated.every(isAcceptable),
     stage: input.stage,
     environment: input.environment,
     reasons,
-    control_outcomes: controlOutcomes,
+    control_outcomes: aggregated,
     coverage_gaps: gaps,
     unsupported_scope: unsupportedScope,
     ...(approvalReasons.states === undefined ? {} : { approval_states: approvalReasons.states }),
   };
+}
+
+/** The global floor from `risk.blocking_severities`, falling back to the restrictive default. */
+function resolveBlockingSeverities(policy: GatePolicy): ReadonlySet<Severity> {
+  const configured = policy.risk.blocking_severities.filter((severity) => severity === 'critical' || severity === 'high');
+  return new Set(configured.length > 0 ? configured : ['critical', 'high']);
+}
+
+/** Every control that can never be excepted: the profile's `never` entries plus the policy floor. */
+function resolveNeverControls(input: EvaluationInput): ReadonlySet<string> {
+  const never = new Set<string>(input.policy.control_categories.never_exceptable);
+  if (input.exceptionPolicy !== undefined) {
+    for (const [control, policy] of Object.entries(input.exceptionPolicy)) {
+      if (policy === 'never') never.add(control);
+    }
+  }
+  return never;
+}
+
+const OUTCOME_RANK: Readonly<Record<ControlOutcome, number>> = {
+  unmet: 0,
+  unsupported: 1,
+  unknown: 2,
+  waived: 3,
+  satisfied: 4,
+  not_applicable: 5,
+};
+
+/**
+ * Collapses per-check outcomes into per-control outcomes. The control's outcome is the worst of its
+ * checks, its coverage the worst coverage, and its reasons the union. Required and satisfied checks
+ * list every check that contributed, so a report can show what a control actually depended on.
+ */
+function aggregateControlOutcomes(evaluations: readonly ControlEvaluation[]): ControlEvaluation[] {
+  const order: string[] = [];
+  const groups = new Map<string, ControlEvaluation[]>();
+  for (const evaluation of evaluations) {
+    const existing = groups.get(evaluation.control);
+    if (existing === undefined) {
+      groups.set(evaluation.control, [evaluation]);
+      order.push(evaluation.control);
+    } else {
+      existing.push(evaluation);
+    }
+  }
+
+  return order.map((control) => {
+    const group = groups.get(control) as ControlEvaluation[];
+    const first = group[0] as ControlEvaluation;
+    const outcome = group.reduce<ControlOutcome>(
+      (worst, item) => (OUTCOME_RANK[item.outcome] < OUTCOME_RANK[worst] ? item.outcome : worst),
+      'not_applicable',
+    );
+    const applicability = group.every((item) => item.applicability === 'not_applicable')
+      ? 'not_applicable'
+      : group.some((item) => item.applicability === 'unknown')
+        ? 'unknown'
+        : 'applicable';
+    const coverage = group.reduce<Coverage>((worst, item) => worse(worst, item.coverage), 'complete');
+
+    return {
+      control,
+      definition_version: first.definition_version,
+      applicability,
+      outcome,
+      coverage,
+      required_checks: [...new Set(group.flatMap((item) => [...item.required_checks]))].sort(),
+      satisfied_checks: [...new Set(group.flatMap((item) => [...item.satisfied_checks]))].sort(),
+      reasons: group.flatMap((item) => [...item.reasons]),
+      waiver_refs: [...new Set(group.flatMap((item) => [...item.waiver_refs]))],
+    };
+  });
 }
 
 /**
@@ -240,7 +334,17 @@ function describeApprovalProblem(state: ApprovalState): string {
 }
 
 const isAcceptable = (outcome: ControlEvaluation): boolean =>
-  outcome.outcome === 'satisfied' || outcome.outcome === 'not_applicable';
+  outcome.outcome === 'satisfied' || outcome.outcome === 'not_applicable' || outcome.outcome === 'waived';
+
+interface WaiverContext {
+  /** Controls that can never be waived, from the profiles and the gate policy together. */
+  readonly neverControls: ReadonlySet<string>;
+  readonly controlVersions: Readonly<Record<string, number>>;
+  readonly stage: Stage;
+  readonly blockingSeverities: ReadonlySet<Severity>;
+  readonly criticalNeverWaivable: boolean;
+  readonly highRequiresNonSelfAtRelease: boolean;
+}
 
 interface CheckContext {
   readonly results: readonly CheckResult[];
@@ -251,6 +355,7 @@ interface CheckContext {
   readonly policy: GatePolicy;
   readonly now: Date;
   readonly sourceDirty: boolean;
+  readonly waiver: WaiverContext;
 }
 
 function evaluateCheck(
@@ -300,7 +405,7 @@ function evaluateCheck(
         check_id: check.check_id,
       }),
     );
-    return build(controlId, definition, 'unmet', 'unknown', satisfiedChecks, reasons, waiverRefs);
+    return build(controlId, check.check_id, definition, 'unmet', 'unknown', satisfiedChecks, reasons, waiverRefs);
   }
 
   if (context.results.length > 1) {
@@ -351,14 +456,19 @@ function evaluateCheck(
     }
   }
 
+  // A waiver may only be applied to a result that produced an answer. An error, unsupported,
+  // skipped, pending, or stale result has no finding to accept; converting one into a waiver would
+  // turn "we could not tell" into "we accepted the risk".
+  const waivable = result.outcome === 'pass' || result.outcome === 'fail';
+
   for (const finding of result.findings ?? []) {
-    const evaluated = evaluateFinding(finding, check, context.exceptions);
+    const evaluated = evaluateFinding(finding, check, waivable ? context.exceptions : NO_EXCEPTIONS, context.waiver);
     reasons.push(...evaluated.reasons);
     waiverRefs.push(...evaluated.waiver_refs);
   }
 
   if (waiverRefs.length > 0 && reasons.every((item) => item.code === 'waiver.applied')) {
-    return build(controlId, definition, 'waived', result.coverage, satisfiedChecks, reasons, waiverRefs);
+    return build(controlId, check.check_id, definition, 'waived', result.coverage, satisfiedChecks, reasons, waiverRefs);
   }
 
   const hasFailure = reasons.some((item) => item.code !== 'evidence.fixture_origin_noted');
@@ -371,11 +481,11 @@ function evaluateCheck(
         }),
       );
     }
-    return build(controlId, definition, outcomeFor(result.outcome), result.coverage, satisfiedChecks, reasons, waiverRefs);
+    return build(controlId, check.check_id, definition, outcomeFor(result.outcome), result.coverage, satisfiedChecks, reasons, waiverRefs);
   }
 
   satisfiedChecks.push(check.check_id);
-  return build(controlId, definition, 'satisfied', result.coverage, satisfiedChecks, reasons, waiverRefs);
+  return build(controlId, check.check_id, definition, 'satisfied', result.coverage, satisfiedChecks, reasons, waiverRefs);
 }
 
 /**
@@ -436,12 +546,12 @@ function evaluateManualCheck(
   });
 
   if (current.length === 0 && staleReasons.length > 0) {
-    return build(controlId, definition, 'unmet', 'unknown', [], [...reasons, ...staleReasons], []);
+    return build(controlId, check.check_id, definition, 'unmet', 'unknown', [], [...reasons, ...staleReasons], []);
   }
 
   const passing = current.filter((record) => record.outcome === 'pass');
   if (passing.length > 0) {
-    return build(controlId, definition, 'satisfied', 'complete', passing.map((record) => record.id), reasons, []);
+    return build(controlId, check.check_id, definition, 'satisfied', 'complete', passing.map((record) => record.id), reasons, []);
   }
 
   if (forRecipe.length === 0) {
@@ -470,11 +580,12 @@ function evaluateManualCheck(
     }
   }
 
-  return build(controlId, definition, 'unmet', 'unknown', [], reasons, []);
+  return build(controlId, check.check_id, definition, 'unmet', 'unknown', [], reasons, []);
 }
 
 function build(
   control: string,
+  checkId: string,
   definition: { readonly definition_version: number },
   outcome: ControlOutcome,
   coverage: Coverage,
@@ -488,7 +599,7 @@ function build(
     applicability: reasons.some((item) => item.code === 'control.applicability_unknown') ? 'unknown' : 'applicable',
     outcome,
     coverage: reasons.length > 0 ? worse(coverage, 'unknown') : coverage,
-    required_checks: [],
+    required_checks: [checkId],
     satisfied_checks: satisfiedChecks,
     reasons,
     waiver_refs: waiverRefs,
@@ -648,15 +759,25 @@ function scopeReasons(check: ExpectedCheck, result: CheckResult): Reason[] {
   return [];
 }
 
+const NO_EXCEPTIONS: ReadonlyMap<string, ExceptionRecord> = new Map();
+
+interface FindingWaiver {
+  readonly exception?: ExceptionRecord;
+  /** Why a matching exception may not be applied; the finding then stays blocking. */
+  readonly forbidden?: string;
+}
+
 function evaluateFinding(
   finding: Finding,
   check: ExpectedCheck,
   exceptions: ReadonlyMap<string, ExceptionRecord>,
+  waiver: WaiverContext,
 ): { reasons: Reason[]; waiver_refs: string[] } {
   const controlIds = finding.control_ids ?? check.control_ids;
-  const exception = findException(finding, exceptions);
+  const found = findException(finding, check, controlIds, exceptions, waiver);
 
-  if (exception !== undefined) {
+  if (found.exception !== undefined) {
+    const exception = found.exception;
     return {
       reasons: [
         reason('waiver.applied', `${finding.id} is waived by ${exception.id}, which expires ${exception.expires_at}; the finding remains visible`, {
@@ -671,10 +792,25 @@ function evaluateFinding(
     };
   }
 
+  // A matching exception that policy refuses to apply is reported, not silently ignored: the owner
+  // should see that a waiver was attempted and why it does not hold.
+  const forbidden: Reason[] =
+    found.forbidden === undefined
+      ? []
+      : [
+          reason('waiver.forbidden', `${finding.id} cannot be waived: ${found.forbidden}; the finding stays blocking`, {
+            control_ids: controlIds,
+            check_id: check.check_id,
+            finding_id: finding.id,
+            severity: finding.severity,
+          }),
+        ];
+
   // A triage label with no stated reason is not triage. This applies whatever the severity is.
   if (finding.triage === 'false_positive' && (finding.triage_reason ?? '').length < 10) {
     return {
       reasons: [
+        ...forbidden,
         reason('finding.false_positive_unsupported', `${finding.id} is marked a false positive without a stated reason`, {
           control_ids: controlIds,
           check_id: check.check_id,
@@ -694,6 +830,7 @@ function evaluateFinding(
     }
     return {
       reasons: [
+        ...forbidden,
         reason('finding.unknown_severity_untriaged', `${finding.id} has unknown severity and has not been triaged`, {
           control_ids: controlIds,
           check_id: check.check_id,
@@ -705,9 +842,10 @@ function evaluateFinding(
     };
   }
 
-  if (BLOCKING_SEVERITIES.has(finding.severity) && finding.triage !== 'fixed') {
+  if (waiver.blockingSeverities.has(finding.severity) && finding.triage !== 'fixed') {
     return {
       reasons: [
+        ...forbidden,
         reason('finding.blocking', `${finding.id} (${finding.severity}): ${finding.title ?? finding.rule_id}`, {
           control_ids: controlIds,
           check_id: check.check_id,
@@ -722,15 +860,75 @@ function evaluateFinding(
   return { reasons: [], waiver_refs: [] };
 }
 
-function findException(finding: Finding, exceptions: ReadonlyMap<string, ExceptionRecord>): ExceptionRecord | undefined {
-  const explicit = finding.exception_ref === undefined ? undefined : exceptions.get(finding.exception_ref);
-  if (explicit !== undefined) return explicit;
-
-  for (const exception of exceptions.values()) {
-    if (exception.scope.finding_id === finding.id) return exception;
-    if (exception.scope.rule_id !== undefined && exception.scope.rule_id === finding.rule_id) return exception;
+/**
+ * Finds the exception that applies to this finding, if any, and decides whether policy permits it.
+ *
+ * The policy checks are all resolved from the *finding's* control, never from the exception's own
+ * scope: otherwise naming an exceptable control in the scope would launder a finding on a
+ * never-exceptable one. A scope that names another check does not match at all.
+ */
+function findException(
+  finding: Finding,
+  check: ExpectedCheck,
+  controlIds: readonly string[],
+  exceptions: ReadonlyMap<string, ExceptionRecord>,
+  waiver: WaiverContext,
+): FindingWaiver {
+  const matched: ExceptionRecord[] = [];
+  if (finding.exception_ref !== undefined) {
+    const explicit = exceptions.get(finding.exception_ref);
+    if (explicit !== undefined) matched.push(explicit);
   }
-  return undefined;
+  for (const exception of exceptions.values()) {
+    if (exception.scope.finding_id !== undefined && exception.scope.finding_id === finding.id) matched.push(exception);
+    if (exception.scope.rule_id !== undefined && exception.scope.rule_id === finding.rule_id) matched.push(exception);
+  }
+
+  let forbidden: string | undefined;
+  for (const exception of matched) {
+    const scope = exception.scope;
+
+    // The record must actually be about this item. A check-scoped exception for another check, or a
+    // control-scoped exception naming a control this finding does not belong to, does not apply.
+    if (scope.check_id !== undefined && scope.check_id !== check.check_id) continue;
+    if (scope.control !== undefined && !controlIds.includes(scope.control)) continue;
+
+    const never = controlIds.find((id) => waiver.neverControls.has(id));
+    if (never !== undefined) {
+      forbidden = `the control ${never} is never exceptable, whatever scope the exception uses`;
+      continue;
+    }
+
+    // Definition-version invalidation applies to the control the exception is about: the scope's own
+    // control when it names one, otherwise the finding's controls.
+    const grantedAgainst = scope.control_definition_version;
+    if (grantedAgainst !== undefined) {
+      const ids = scope.control !== undefined ? [scope.control] : controlIds;
+      const changed = ids.find((id) => waiver.controlVersions[id] !== undefined && waiver.controlVersions[id] !== grantedAgainst);
+      if (changed !== undefined) {
+        forbidden = `it was granted against definition version ${grantedAgainst}, but ${changed} is now version ${waiver.controlVersions[changed]}`;
+        continue;
+      }
+    }
+
+    if (waiver.criticalNeverWaivable && finding.severity === 'critical') {
+      forbidden = 'a critical finding can never be waived; it needs containment and remediation';
+      continue;
+    }
+    if (
+      waiver.highRequiresNonSelfAtRelease &&
+      finding.severity === 'high' &&
+      waiver.stage === 'release' &&
+      exception.self_review !== false
+    ) {
+      forbidden = `a high finding at release requires a non-self approver, and ${exception.id} is not independently approved`;
+      continue;
+    }
+
+    return { exception };
+  }
+
+  return forbidden === undefined ? {} : { forbidden };
 }
 
 /**
@@ -740,6 +938,8 @@ function findException(finding: Finding, exceptions: ReadonlyMap<string, Excepti
  */
 interface ExceptionContext {
   readonly exceptionPolicy?: Readonly<Record<string, 'permitted' | 'never'>>;
+  /** The gate-policy floor, unioned with every profile's `never` list. */
+  readonly neverControls: ReadonlySet<string>;
   readonly controlVersions: Readonly<Record<string, number>>;
 }
 
@@ -765,16 +965,17 @@ function resolveExceptions(
 /**
  * Returns why an exception may not be applied at all, ignoring its own contents.
  *
- * Two cases: a profile that marks the control `never` exceptable has already decided, and an
- * exception granted against an older definition version does not survive the definition changing —
- * the acceptance criteria it accepted are not the ones now in force.
+ * Two cases: a control the profiles or the gate policy mark `never` exceptable has already decided,
+ * and an exception granted against an older definition version does not survive the definition
+ * changing — the acceptance criteria it accepted are not the ones now in force. When the scope does
+ * not name a control, the apply-time check resolves the target control from the finding itself.
  */
 function exceptionBlockedBy(context: ExceptionContext, exception: ExceptionRecord): string | undefined {
   const control = exception.scope.control;
   if (control === undefined) return undefined;
 
-  if (context.exceptionPolicy?.[control] === 'never') {
-    return `profile policy marks ${control} as not exceptable`;
+  if (context.neverControls.has(control) || context.exceptionPolicy?.[control] === 'never') {
+    return `profile or gate policy marks ${control} as not exceptable`;
   }
 
   const grantedAgainst = exception.scope.control_definition_version;
@@ -789,6 +990,9 @@ function exceptionBlockedBy(context: ExceptionContext, exception: ExceptionRecor
 function isPreciselyScoped(exception: ExceptionRecord): boolean {
   const scope = exception.scope;
   if (Object.keys(scope).length === 0) return false;
+  // A rule_id on its own is not precise: it would waive that rule across every check. It must be
+  // anchored to the control or the check it is about.
+  if (scope.rule_id !== undefined && scope.control === undefined && scope.check_id === undefined) return false;
   return (
     scope.check_id !== undefined ||
     scope.finding_id !== undefined ||

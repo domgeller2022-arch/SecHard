@@ -1,139 +1,139 @@
-# hardening
+# SecHard (`sechard`)
 
 A versioned security **control catalogue**, real **verification checks**, and honest **release
-evidence** for applications built with AI coding tools.
+evidence** for applications built with AI coding tools. The CLI is `hardening`.
 
-The problem this addresses: guidance, checklists, and scanner output all exist separately from any
-particular application's actual state, so an AI-assisted build can look checked without being
-checked. This repository connects the two. A shared catalogue of control definitions lives here; each
-application keeps its own applicability decisions, implementation records, evidence, and exceptions.
+Guidance, checklists, and scanner output usually live apart from any particular application's actual
+state, so an AI-assisted build can look checked without being checked. SecHard connects the two: a
+shared catalogue of control definitions lives here; each application keeps its own applicability
+decisions, evidence, and exceptions.
+
+The owner's goal, recorded 2026-10-08: point SecHard at an application and get a thorough audit that
+**audits and suggests, never fixes** — with quality a first-class section of the report, every check
+it could not run stated as a warning, and nothing claimed that was not executed. Audit mode
+(Batch U) is not built yet; this README says what exists today.
 
 ## Status
 
-**Under active construction.** This is a Step-by-step build against
-`02-implementation-plan.md`. What exists today is the first batch: schemas, 35 draft control
-definitions, two profiles, the planning and decision engine, and a working CLI.
+**Batch R (repair) of the remediation plan is implemented; Batch W (wiring the scanners into the
+CLI) has not started.** The gate, evaluator, tool pinning, adapters, reference application, and live
+checks exist and are tested, but `hardening check` still runs only the built-in record-consistency
+recipe.
 
-Read these before trusting anything here:
+Read before trusting anything:
 
 | File | Why it matters |
 | --- | --- |
-| `docs/implementation-progress.md` | Exactly which steps are verified, blocked, or not started, and every blocker |
-| `CHANGELOG.md` | What changed at each step, with blocked work stated |
-| `docs/supported-versions.md` | What is actually verified versus merely planned |
+| `docs/status.md` | Generated from the progress record: each step's actual state |
+| `docs/implementation-progress.md` | The full record: checks run, failures, blockers |
+| `CHANGELOG.md` | What changed, with blocked and unverified work stated |
 | `docs/trust-model.md` | What this repository trusts and refuses to trust |
-
-No scanner is integrated. No reference application exists. No external platform verification has been
-performed. Nothing here claims a control is satisfied.
-
-## What it does not claim
-
-- A passing test suite is not a security assessment.
-- A linked standards category (`related_risk`) is not conformance. Mappings must be reviewed.
-- A stored `status: pass` in an application is a claim. The evaluator recomputes outcomes.
-- A digest proves a file did not change. It does not prove who produced it.
-- Zero scanner findings is meaningful only when expected scope was actually covered.
-- Fixture output never satisfies a real release requirement.
-- Required-check enforcement is a platform setting. Adding YAML does not create it.
-- A reviewed pattern or a generated agent rule is guidance, not verification. It cannot satisfy a
-  control or produce release evidence.
-- An approval recorded by an agent is not proof of human review. Only an owner action creates a
-  valid approval, and the `kind` field distinguishes self-review from independent review.
+| `docs/supported-versions.md` | What is verified versus merely planned |
+| `docs/ci-trust.md` | What the workflows establish, their trust limit, and the H4 gap |
 
 ## Requirements
 
 | Component | Version | Status |
 | --- | --- | --- |
-| Node.js | 24 LTS (codename Krypton), tested target 24.21.0 | Pinned in `package.json` `engines` |
+| Node.js | 24 LTS (Krypton), tested target 24.21.0 | Pinned in `package.json` `engines` |
 | pnpm | 12.9.1 | Pinned via `packageManager` |
 
-Linux CI is the supported execution environment. macOS support is claimed only after the documented
-subset has actually been run there.
+Linux is the supported CI execution environment. The per-platform toolchain record pins assets for
+`linux-x64`, `linux-arm64`, `darwin-x64`, and `darwin-arm64`; a platform with no pinned asset is
+refused, never guessed. On macOS, only the checks actually run on that host are claimed.
 
-## Build
+## Build and test
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm run build
-pnpm run typecheck
+pnpm install --frozen-lockfile --filter sechard   # only this package; not the example workspace
+pnpm run build                                    # dist/; must precede anything that imports it
+pnpm run typecheck                                # sources and tests
+pnpm run typecheck:tools                          # tool scripts, against the built dist/
 pnpm run lint
-pnpm test
-pnpm run test:integration
+pnpm test                                         # unit tests: no fetched tools, no example build
+pnpm run test:scanners                            # needs `pnpm run fetch:tools`; real scanner runs
+pnpm run test:example                             # needs the example built (`next build`)
+pnpm run test:integration                         # the compiled CLI from outside the repository
 ```
 
-`pnpm install --frozen-lockfile` is the required install command. `--frozen-lockfile` alone is not the
-whole policy: the install-time minimum-release-age delay and the install-script allowlist are Step 06
-work and are not enforced yet.
+`fetch:tools` downloads the pinned scanner binaries for the current platform and verifies each
+against the digest reviewed in `policy/toolchain.yaml` before anything is written. When a platform
+is not pinned it exits with `unsupported_platform`. A `GITHUB_TOKEN` is used when present.
 
 ## CLI
 
-```text
-hardening validate  --app APP_ROOT --policy POLICY_ROOT
-hardening plan      --app APP_ROOT --policy POLICY_ROOT --stage pr --environment local --out RUN_DIR
-hardening check     --app APP_ROOT --policy POLICY_ROOT --plan RUN_DIR/plan.json --out RUN_DIR
-hardening gate      --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
-hardening report    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
-hardening approvals --policy POLICY_ROOT
-```
-
-Repository tooling (run from this repository):
-
 ```bash
-pnpm run generate:matrix        # regenerate controls/matrix.md and the owner review sheet
-pnpm run generate:agent-rules   # regenerate agent-rules/generated/{AGENTS.md,CLAUDE.md}
-pnpm run review:changes <base> [head]   # report security-test and sensitive-path changes
-pnpm run fetch:tools            # fetch and digest-verify the pinned scanner binaries (provisioning)
-```
+export APP=/path/to/your/application
+export POLICY=/path/to/SecHard
+export RUNS="$APP/.hardening/runs"
 
-`approvals` prints the reviewed-content digest of every control definition and whether a valid owner
-approval is on record. Approval names that digest, so an edited definition loses its approval even
-without a version bump. Release evaluation requires a valid approval for every applicable control;
-development and PR stages may exercise draft definitions and their reports say the policy is draft.
+hardening validate --app "$APP" --policy "$POLICY"
+hardening plan --app "$APP" --policy "$POLICY" --stage pr --environment local --out "$RUNS"
+export RUN_DIR="$(ls -d "$RUNS"/*/ | tail -1)"
+hardening check --app "$APP" --policy "$POLICY" --plan "$RUN_DIR/plan.json" --out "$RUN_DIR"
+hardening gate --app "$APP" --policy "$POLICY" --run "$RUN_DIR"
+hardening report --app "$APP" --policy "$POLICY" --run "$RUN_DIR"
+hardening approvals --policy "$POLICY"
+```
 
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Decision satisfied |
-| `1` | Valid execution with a blocking finding or unmet requirement |
+| `1` | Valid execution with a blocking finding or unmet requirement; `check` also exits 1 when a required check did not run |
 | `2` | Invalid inputs, or execution/evidence errors |
 
 Both nonzero results fail a required CI check. `report` uses the same evaluation as `gate`, so
-formatting can never change the decision.
+formatting can never change the decision. Evidence is bound to the run and attempt it records, not
+just the commit.
 
-**Implementation status of the commands:** see `docs/implementation-progress.md`. As of Batch A only
-`validate`, `plan`, `check` (one built-in recipe), `gate`, and `report` exist, and they cover policy
-and record consistency only — no scanner, no application test, and no deployment check.
+## What works today
 
-## Adopting it in an application
+- The loader, planning, and pure evaluation engine (identity, freshness, scope, fixtures, approvals,
+  exceptions, manual evidence).
+- Four scanner adapters with pinned, digest-verified tools, exercised against vulnerable and fixed
+  fixtures (`test:scanners`).
+- The reference Next.js + Supabase application: forced RLS, an authorization matrix with proven
+  detection on a weakened policy, a browser suite, build/client-asset inspection, and a ZAP passive
+  baseline.
+- Guarded live HTTP checks against an approved-target inventory; TLS is deliberately separate and
+  blocks a production release until evidence exists.
+- Generated agent guidance, a review manifest, and a security-test change report.
+- Workflows with a fail-closed final gate; the final job re-runs the gate against the uploaded plan
+  and results.
 
-Not available yet. Adoption of an independent consumer repository is Step 15. Do not start from this
-repository as a workspace dependency: the plan requires proving that adoption works without hidden
-master-workspace dependencies.
+## What does not work yet
 
-## Agent guidance
+- **`hardening check` runs no scanner.** Except for the record-consistency recipe, every planned
+  check reports `unsupported`, and the gate blocks. Wiring the adapters into the CLI is Batch W
+  (audit finding C1).
+- **A pull request supplies its own `.hardening/` records**, so it can weaken its own assessment
+  until Batch W3 (audit finding H4).
+- **No audit mode.** Pointing SecHard at an arbitrary folder or URL without a manifest is Batch U.
+- **No quality section.** Duplication, complexity, dead code, test quality, and AI-authorship tells
+  are Batch Q.
+- **Standards are mapped at chapter level only** (`related_risk`), with no requirement IDs; that is
+  Batch S.
+- **Platform verification has not been performed.** Required checks, CODEOWNERS resolution, forks,
+  and merge queues are unverified until the owner's throwaway GitHub account exists.
+- **No licence and no security contact.** `code_licence`, `docs_licence`, `owner_legal_name`, and
+  `security_contact_email` are unfilled owner decisions; the package is private and `UNLICENSED`.
 
-`agent-rules/core/rules.yaml` is the single reviewed source; `agent-rules/generated/AGENTS.md` and
-`CLAUDE.md` are generated from it so the two formats cannot drift. The generator refuses to overwrite
-a file it did not generate. `agent-rules/review-manifest.yaml` lists the paths whose changes require
-human review, and `agent-rules/operator-requirements.md` states the runtime restrictions an operator
-must configure, because prompt text is not a permission boundary.
+## Adoption and audit mode
 
-## Patterns and agent guidance
+Independent consumer adoption is not available yet; it is Batch D (original Step 15). Do not start
+from this repository as a workspace dependency. The reference application under
+`examples/nextjs-supabase/` is a demonstration, not a template.
 
-`controls/patterns/patterns.yaml` holds reviewed security patterns adapted from external guidance.
-Each records its related controls, corrected rationale, limitations, a vulnerable and a permitted
-example, verification methods, and provenance with the corrections applied. They are supporting
-records: they cannot override applicability, approve an exception, or produce execution success, and
-their IDs cannot be mistaken for control IDs.
+## Security-sensitive paths
 
-## Contributing
-
-See `CONTRIBUTING.md`. Changes to control definitions, schemas, policy, security-test assertions, and
-gate logic are security-sensitive and need review. Control definitions written by the build agent
-carry `review_status: draft` until the owner records approval.
+Control definitions, schemas, policy, profiles, gate logic, security tests, scanner configurations,
+and workflows are security-sensitive. `agent-rules/review-manifest.yaml` says why each requires
+review. `agent-rules/core/rules.yaml` is the single source for the generated `AGENTS.md`/`CLAUDE.md`
+guidance. Prompt text is not a permission boundary; `agent-rules/operator-requirements.md` states
+the runtime restrictions an operator has to configure.
 
 ## Licence
 
-**Unresolved.** `code_licence` and `docs_licence` in `01-owner-decisions.md` are still `TODO`, so no
-`LICENSE` file exists and the package is marked `private` and `UNLICENSED`. Copied or adapted
-upstream material keeps its own licence and notice regardless of that decision. See
-`docs/supported-versions.md` for per-component licences.
+**Unresolved.** `docs_licence` and `code_licence` in `01-owner-decisions.md` are `TODO`, so there is
+no `LICENSE` file and the package is marked `private` and `UNLICENSED`. Copied or adapted upstream
+material keeps its own licence and notice. See `docs/supported-versions.md`.

@@ -11,6 +11,7 @@ import {
   policy,
   planFor,
   referenceProfile,
+  resultIndexForControl,
 } from '../helpers/fixtures.js';
 import { evaluate } from '../../src/domain/evaluator.js';
 import { planIdentity } from '../../src/domain/planner.js';
@@ -144,8 +145,9 @@ describe('an expired or changed exception does not hide the issue', () => {
 
   it('still records the waiver when it genuinely applies', () => {
     const plan = planFor('pr');
-    const results = allPassing(plan).map((result, index) =>
-      index === 0
+    const index = resultIndexForControl(plan, 'CODE-01');
+    const results = allPassing(plan).map((result, i) =>
+      i === index
         ? { ...result, findings: [{ id: 'f-medium', tool: 'opengrep', rule_id: 'weak-crypto', severity: 'medium' as const }] }
         : result,
     );
@@ -519,14 +521,18 @@ describe('an exception cannot override a profile that forbids it', () => {
 
   it('reports a valid exception as a waiver rather than as a pass', () => {
     const plan = planFor('release');
-    const results = allPassing(plan).map((result, index) =>
-      index === 0 ? { ...result, findings: [{ id: 'f-waive', tool: 'manual', rule_id: 'x', severity: 'medium' as const }] } : result,
+    const index = resultIndexForControl(plan, 'WEB-01');
+    const results = allPassing(plan).map((result, i) =>
+      i === index ? { ...result, findings: [{ id: 'f-waive', tool: 'manual', rule_id: 'x', severity: 'medium' as const }] } : result,
     );
     const decision = evaluateWith({
       plan,
       results,
       stage: 'release',
       environment: 'production',
+      // The control also carries a manual requirement at release; it is current here so the only
+      // thing between this control and satisfaction is the accepted finding.
+      manualEvidence: [manualEvidence({ id: 'ME-WEB-01', control: 'WEB-01', recipe: 'web/manual-boundaries' })],
       exceptions: [exceptionFor({ id: 'EXC-9003', scope: { control: 'WEB-01', finding_id: 'f-waive', environment: 'production' } })],
     });
     const waived = decision.control_outcomes.find((item) => item.waiver_refs.length > 0);

@@ -118,9 +118,13 @@ export function makeResult(
     duration_ms: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
     exit_code: outcome.outcome === 'pass' ? 0 : 1,
     scope: { expected: 1, observed: outcome.observed, files: outcome.files.map((file) => redactSecrets(file)) },
-    findings: outcome.findings.map((finding) =>
-      finding.detail === undefined ? finding : { ...finding, detail: redactSecrets(finding.detail) },
-    ),
+    findings: outcome.findings.map((finding) => ({
+      ...finding,
+      // Titles and details come from tools and application files. A title can carry a secret just as
+      // a detail can, and a report is published; redaction happens once, at the boundary.
+      ...(finding.title === undefined ? {} : { title: redactSecrets(finding.title) }),
+      ...(finding.detail === undefined ? {} : { detail: redactSecrets(finding.detail) }),
+    })),
     evidence_origin: 'actual_tool',
     ...(outcome.diagnostic === undefined ? {} : { diagnostic: redactSecrets(outcome.diagnostic) }),
   };

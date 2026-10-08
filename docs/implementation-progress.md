@@ -745,8 +745,8 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   without write access to the repository (a public repository is readable without being granted,
   which masks the missing permission until the push). The working credential is the owner's SSH key.
 
-**For the next session — read in this order:** this file, then `docs/status-report.md` (the audited
-state, nine findings, and the owner decisions outstanding), then `docs/checkpoints/batch-*.md`.
+**For the next session — read in this order:** this file, then `docs/status.md` (generated from this
+record; it replaced `docs/status-report.md` in Batch R), then `docs/checkpoints/batch-*.md`.
 
 - **Batches A and B are complete. Batch C is complete except Step 13's platform half**, which needs
   the throwaway GitHub account the owner is creating at the end. **Batch D (Steps 15–16) has not
@@ -756,7 +756,7 @@ state, nine findings, and the owner decisions outstanding), then `docs/checkpoin
 - **Next steps, in order:** Step 15 (independent consumer adoption), Step 16 (updater, scheduled
   checks, release notes, readiness summaries at 0.1.0), then Step 13's platform half when the test
   environment exists.
-- **Open findings** are listed in `docs/status-report.md`; the ones that matter most are the binding
+- **Open findings** are listed in `docs/status.md` (and the progress record); the ones that matter most are the binding
   finding (page 1), the six ZAP warnings on the example, and the unfilled owner decisions
   (`security_contact_email` in particular, which blocks OPS-03).
 
@@ -1384,3 +1384,105 @@ Batch A; nothing from Steps 06+ was started.
 | Scanners | — | **none integrated; none run** |
 | Application tests | — | **none exist** |
 | Live / TLS / platform checks | — | **none exist** |
+
+---
+
+## Batch R — Repair (remediation plan, 2026-10-08)
+
+**Authorisation.** `authorised_batch: R` in `01-owner-decisions.md`, set on the owner's instruction
+to work the remediation plan. The owner's clarified goals (audit-report section 0) were recorded in
+the owner decisions before R started. The remediation plan's audit-mode batch is called **U** here,
+renamed from the plan's "A" to avoid colliding with the original Batch A.
+
+**Scope.** `docs/audit/2026-10-08-remediation-plan.md` Batch R: R1 toolchain, R2 CI, R3 fail-closed
+workflows, R4 exceptions, R5 report safety, R6 documentation truth, R7 owner hygiene. The gap
+analysis in `docs/audit/2026-10-08-remediation-gap-analysis.md` identified items the plan missed;
+the batch-R ones were implemented here (M5 filtered installs, C1/C3 dead policy data, C2/C3
+evaluator aggregation, C5 console redaction, E1 plan/results artefacts).
+
+- **State:** `verified` for R1–R6, with R3's GitHub-side acceptance and all R7 owner items pending.
+  A GitHub Actions run cannot be observed from this machine yet (no token under
+  `github_test_token_env_var`; the repository is pushed over SSH only), so "repo-checks green on
+  GitHub" is `awaiting_external_verification` rather than claimed.
+- **Files changed:** `policy/toolchain.yaml` (per-platform records), `tools/fetch-tools.mjs`
+  (platform-aware, reviewed-digest-first, token-aware), `src/execution/registry.ts`
+  (platform resolution, `unsupported_platform`), `src/commands/io.ts`,
+  `src/agent/review-manifest.ts` (git candidates); `src/commands/run.ts` (check exit codes,
+  console/report safety, waived section), `src/commands/check.ts` (title redaction),
+  `src/domain/evaluator.ts` (H1–H3, per-control aggregation), `src/domain/types.ts`,
+  `policy/gate-policy.yaml` (exceptions block), `schemas/exception.schema.json`;
+  `.github/workflows/repo-checks.yaml`, `hardening-pr.yaml`, `hardening-release.yaml`;
+  `tsconfig.json`, `tsconfig.tools.json`, `package.json`;
+  `tools/relink-example.mjs`, `tools/generate-status.mjs`,
+  `examples/nextjs-supabase/.hardening/app.template.yaml`, `.gitignore`;
+  `README.md`, `docs/ci-trust.md`, `docs/status.md`, `docs/audit/**`;
+  tests: `tests/gate/exceptions.test.ts`, `tests/cli/report-safety.test.ts`,
+  `tests/cli/readme.test.ts`, `tests/scanners/workflow-analysis.test.ts`,
+  `tests/example/real-build.test.ts`, and updates across the existing suites.
+- **Actual checks run (all on Node 24.21.0):**
+  - `pnpm run typecheck` → 0 errors; `pnpm run typecheck:tools` → 0 errors (after build).
+  - `pnpm test` → **468 tests, 27 files, all passing** with no fetched tools and no example build.
+  - The README replay test found a real CLI defect: `process.exit()` dropped buffered pipe output, so
+    `src/cli.ts` now writes synchronously before exiting.
+  - `pnpm run test:integration` → **8 passing**.
+  - `pnpm run test:scanners` → **15 passing** against the real pinned tools at the new per-platform
+    paths.
+  - `pnpm run fetch:tools` on darwin-x64 → 4 tools verified against the reviewed pins, 0 failures;
+    `--platform plan9-x64` → exit 2, `unsupported_platform` for every tool.
+  - `git status` after `pnpm test` shows no generated-file noise (the example manifest is now
+    generated from a template into a gitignored path).
+  - `pnpm install --frozen-lockfile --filter sechard` → installs only this package.
+- **R1 (C3, M6).** `policy/toolchain.yaml` records 16 pinned assets (4 tools × 4 platforms) with
+  archive and executable digests; no absolute machine path remains anywhere in `executables`. The
+  native-platform versions were observed by running the binaries; other platforms carry the release
+  tag's version and are verified by `runTool` on their first CI run, stated per entry. Digests were
+  bootstrapped through the reviewed download path (approved origin, redirect host, size cap,
+  SHA-256) with a one-off script whose output was pasted into policy deliberately; subsequent runs
+  verify against the reviewed pin first.
+- **R2 (C4, M4, M5).** `build` now precedes `typecheck:tools`; `tools/**` is typechecked by
+  `tsconfig.tools.json` against built `dist/`; the suites are split (`test`, `test:scanners`,
+  `test:example`, `test:integration`); every workflow install is filtered to `sechard`, so consumer
+  jobs no longer install Next.js, Playwright, and the Supabase CLI. The example manifest is generated
+  from `.hardening/app.template.yaml` and gitignored, so `pnpm test` no longer dirties the tree.
+- **R3 (C2, M2, E1).** `check` exits 1 when a required check is `unsupported`, `skipped`, or
+  `pending`, and 2 on `error`, while still writing its results first. Both consumer workflows have no
+  `|| echo` and no `continue-on-error`; report and gate always run; the final job downloads
+  `plan.json` + `results.json` + reports and re-runs the gate against the recomputed plan, failing on
+  a missing artefact. The audit's shell reproduction is a test: the gate step's own script is
+  executed with a failing `pnpm` stub and must exit nonzero.
+- **R4 (H1, H2, H3, plus dead policy data C1/C3).** The `never` policy is resolved from the finding's
+  or check's control, unioned with the gate-policy `never_exceptable` floor; a `rule_id`-only scope
+  is rejected by the schema and the evaluator; a check-scoped or control-scoped exception must match
+  the item it is applied to; waivers apply only to `pass`/`fail` outcomes. **H2 decision, recorded in
+  `policy/gate-policy.yaml`:** a valid waiver on a permitted control lets the gate pass while the
+  finding remains visible in a new "Waived" report section; critical findings are never waivable; a
+  high finding waived at release requires `self_review: false`.
+- **R5 (M1, M7).** Every untrusted string reaching Markdown goes through `redactSecrets` then
+  `escapeMarkdown`; console output is redacted and newline-flattened; finding titles are redacted at
+  result creation. `control_outcomes` is now one row per control (worst check outcome, union of
+  reasons), with `required_checks`/`satisfied_checks` populated, so the summary counts controls, not
+  checks.
+- **R6 (M3, D4).** README rewritten to state what works and what does not; `docs/status.md` is
+  generated from this record by `tools/generate-status.mjs`; `docs/status-report.md` removed; the
+  audit, remediation plan, and gap analysis now live in `docs/audit/`; `docs/ci-trust.md` documents
+  the H4 gap and the new fail-closed behaviour; a test replays the README's CLI block against a
+  scratch consumer.
+- **R7 (H6).** The generated control review sheet now carries a "pending re-approval" banner; owner
+  hygiene items (`LICENSE`, `NOTICE`, `SECURITY.md` contact, the history-rewrite backup removal) are
+  recorded below as owner actions. The history-rewrite backup in the temp directory was removed.
+- **Limitations and unresolved findings:**
+  - **Repository-side CI is unverified.** The rewrites are locally tested (including the shell
+    harness), but no GitHub Actions run has been observed for this commit.
+  - **R3's scripts re-run the gate against a PR-head manifest** until Batch W3; the H4 gap is
+    documented in `docs/ci-trust.md`, not closed.
+  - **`check` still runs no scanner**: required checks are `unsupported`, so the CLI exits 1 on the
+    example and every consumer. Batch W wires the adapters.
+  - **Gap-analysis items not in Batch R remain open:** audit-mode execution isolation and `--url`
+    SSRF rules (Batch U), SARIF redaction (Batch U), AUTH-02 recovery/session tests, the LAN binding
+    finding, control-catalogue versioning for new QUAL/AI IDs, and step-13 residual clauses.
+- **Owner decisions or external setup still needed:** `code_licence`, `docs_licence`,
+  `owner_legal_name`, `security_contact_email` (public-repository exposure continues until either the
+  contact exists or the repository is made private); the throwaway GitHub test environment for
+  platform verification; the R4 H2 decision is recorded and awaits owner review.
+- **Next step:** Batch W (wire Steps 09–11 into `check`; finish Step 13's PR trust), after the owner
+  reviews the Batch R checkpoint at `docs/checkpoints/batch-r.md`.

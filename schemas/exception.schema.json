@@ -24,7 +24,7 @@
     "scope": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Exact scope. `check_id` or `finding_id` pins a single item; `control` alone is broader than necessary and should be justified. An empty scope is a blanket waiver and is rejected here.",
+      "description": "Exact scope. `check_id` or `finding_id` pins a single item; `control` alone is broader than necessary and should be justified. A `rule_id` without a `control` or `check_id` would waive that rule across every check and is rejected. An empty scope is a blanket waiver and is rejected here.",
       "minProperties": 1,
       "properties": {
         "control": { "type": "string", "pattern": "^(CTX|GOV|AGT|DEP|SEC|CI|CODE|QUAL|AUTH|AUTHZ|DATA|WEB|ABUSE|BIZ|DEPLOY|OPS|PRIV|REL|EXC)-[0-9]{2}$" },
@@ -60,6 +60,28 @@
     "created_at": { "$ref": "#/$defs/timestamp" },
     "revoked_at": { "$ref": "#/$defs/timestamp" }
   },
+  "allOf": [
+    {
+      "description": "A rule-scoped exception must also name the control or the check it applies to.",
+      "if": {
+        "type": "object",
+        "required": ["scope"],
+        "properties": {
+          "scope": { "type": "object", "required": ["rule_id"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "scope": {
+            "anyOf": [
+              { "type": "object", "required": ["control"] },
+              { "type": "object", "required": ["check_id"] }
+            ]
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "exceptionId": { "type": "string", "pattern": "^EXC-[0-9]{4,}$", "maxLength": 32 },
     "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }

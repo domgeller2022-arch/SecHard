@@ -1,4 +1,10 @@
-# The reference application's manifest.
+# The reference application's manifest TEMPLATE.
+#
+# tools/relink-example.mjs materialises `.hardening/app.yaml` from this file with the current commit
+# and policy digest. The generated file is gitignored because its lock moves with every commit; a
+# committed copy would be stale immediately and would make `pnpm test` dirty the working tree.
+#
+# The real manifest.
 #
 # Every feature is declared explicitly. A missing key is treated as `unknown` by the evaluator, never
 # as false, so omitting one would not remove the obligation — it would only make the result unclear.
@@ -55,9 +61,9 @@ profiles:
 # pins a released commit instead and re-locks deliberately.
 policy_lock:
   repository: local-checkout
-  commit: "3e220e97f60ef830594649b8e51c0f6a140fbd86"
-  policy_digest: "076e216ce8657bc669dd095b4fa897e7798f22e8188c2efdb9460360cdc930c7"
-  locked_at: "2026-10-08T13:31:05.608Z"
+  commit: "REPLACE_WITH_POLICY_COMMIT"
+  policy_digest: "REPLACE_WITH_POLICY_DIGEST"
+  locked_at: "REPLACE_WITH_LOCK_TIME"
 
 maintainer:
   name: repository-owner

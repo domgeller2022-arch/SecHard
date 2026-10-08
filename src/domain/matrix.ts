@@ -140,6 +140,11 @@ export function generateMatrix(options: MatrixOptions): { readonly matrixPath: s
   const sheet = [
     '# Control review sheet',
     '',
+    '> **Pending re-approval (Batch R, 2026-10-08).** The 2026-10-08 external audit found that the',
+    '> existing approval records were written in the same commit that changed the definitions, and the',
+    '> remediation batches change definitions again. Treat every existing approval as historical: do',
+    '> not rely on it for a release claim, and re-approve against the final sheet at Batch D.',
+    '',
     'One row per control for owner review.',
     '',
     `Review state: ${draftCount} draft, ${reviewedCount} owner-reviewed. Whether a definition is`,

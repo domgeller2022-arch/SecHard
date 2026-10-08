@@ -1,9 +1,10 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { packageRoot } from '../../src/validation/schema.js';
-import { runTool } from '../../src/execution/registry.js';
 
 /**
  * Trust tests for the CI configuration.
@@ -38,8 +39,10 @@ interface Job {
 interface Step {
   readonly uses?: string;
   readonly run?: string;
+  readonly if?: string;
   readonly with?: Record<string, unknown>;
   readonly env?: Record<string, unknown>;
+  readonly 'continue-on-error'?: unknown;
 }
 
 function load(name: string): Workflow {
@@ -146,15 +149,125 @@ describe('every workflow is pinned and minimally privileged', () => {
   });
 });
 
-describe('the workflows pass the workflow analyser', () => {
-  it('zizmor reports nothing on the pinned workflows', async () => {
-    const result = await runTool('zizmor', ['--format', 'json', '--no-progress', '.github/workflows'], {
-      cwd: packageRoot(),
-      timeoutMs: 120_000,
-    });
-    expect(result.ran, 'zizmor is required for this suite; run `pnpm run fetch:tools`').toBe(true);
-    const findings = JSON.parse(result.outcome?.stdout ?? '[]') as readonly { ident: string; determinations?: { severity?: string } }[];
-    expect(findings.map((finding) => `${finding.ident}:${finding.determinations?.severity ?? '?'}`)).toEqual([]);
+/**
+ * C2 regression. The 2026-10-08 audit reproduced a consumer pull request where the gate was blocked
+ * and the job was still green, because `hardening gate ... || echo "gate blocked"` always exits 0.
+ *
+ * A YAML-shape assertion cannot catch that: the workflow looked correct. The second test below
+ * executes the step's own script with a stub `pnpm` that fails, which is what the audit did.
+ */
+describe('a blocked gate cannot leave a green job', () => {
+  const consumerFiles = ['hardening-pr.yaml', 'hardening-release.yaml'];
+
+  it('has no fail-open construct in the consumer workflows', () => {
+    for (const file of consumerFiles) {
+      const workflow = load(file);
+      for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
+        for (const [index, step] of (job.steps ?? []).entries()) {
+          const where = `${file} ${jobName} step ${index}`;
+          expect(step['continue-on-error'], where).toBeUndefined();
+          if (step.run !== undefined) {
+            expect(step.run, `${where} masks a failure with || echo/true`).not.toMatch(/\|\|\s*(true|echo)\b/);
+          }
+        }
+      }
+    }
+  });
+
+  it('runs the real gate step script with a failing gate and requires a failing exit', () => {
+    const workflow = load('hardening-pr.yaml');
+    const gateStep = (workflow.jobs?.['hardening-pr']?.steps ?? []).find((step) => step.run?.includes('hardening gate'));
+    expect(gateStep?.run, 'the hardening-pr job must run a gate step').toBeDefined();
+    // The gate must run even when the check step failed; otherwise a failed check skips the only
+    // step that decides.
+    expect(String(gateStep?.if ?? '')).toContain('always()');
+
+    const bin = mkdtempSync(join(tmpdir(), 'hardening-harness-'));
+    const pnpmStub = join(bin, 'pnpm');
+    writeFileSync(pnpmStub, '#!/bin/sh\nexit 1\n');
+    chmodSync(pnpmStub, 0o755);
+
+    let status = 0;
+    try {
+      execFileSync('bash', ['-c', gateStep?.run ?? ''], {
+        env: {
+          ...process.env,
+          PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+          APP_ROOT: '/tmp/app',
+          HARDENING_RUN_DIR: '/tmp/run',
+        },
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      status = (error as { status?: number }).status ?? 1;
+    }
+    // The script exits nonzero when the gate fails. A reintroduced `|| echo` would exit 0 here.
+    expect(status).not.toBe(0);
+  });
+
+  it('re-runs the gate in the final job against the uploaded plan and results', () => {
+    for (const file of consumerFiles) {
+      const workflow = load(file);
+      const gateJob = workflow.jobs?.['hardening-gate'];
+      const runs = (gateJob?.steps ?? []).flatMap((step) => (step.run === undefined ? [] : [step.run])).join('\n');
+      expect(runs, `${file}: the final job must run the gate itself`).toContain('hardening gate');
+      expect(runs, `${file}: the final job must reject a missing artifact`).toMatch(/plan\.json/);
+      const uploads = (workflow.jobs?.[Object.keys(workflow.jobs ?? {})[0] ?? '']?.steps ?? []).some(
+        (step) => step.uses?.startsWith('actions/upload-artifact@') && String(step.with?.['path'] ?? '').includes('plan.json'),
+      );
+      expect(uploads, `${file}: the run artifact must include plan.json`).toBe(true);
+    }
+  });
+});
+
+describe('CI provisioning is split and build-ordered', () => {
+  it('installs only this tool in every workflow, never the example workspace member', () => {
+    for (const file of workflowFiles) {
+      const workflow = load(file);
+      for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
+        for (const step of job.steps ?? []) {
+          if (step.run === undefined || !step.run.includes('pnpm install')) continue;
+          expect(step.run, `${file} ${jobName}: install must be lockfile-frozen`).toContain('--frozen-lockfile');
+          expect(step.run, `${file} ${jobName}: install must be filtered to the tool package`).toContain('--filter sechard');
+        }
+      }
+    }
+  });
+
+  it('builds before anything that imports dist', () => {
+    const workflow = load('repo-checks.yaml');
+    const steps = workflow.jobs?.['build-and-test']?.steps ?? [];
+    const indexOf = (needle: string): number => steps.findIndex((step) => step.run?.includes(needle));
+    const build = indexOf('pnpm run build');
+    expect(build, 'repo-checks must run a build').toBeGreaterThanOrEqual(0);
+    expect(indexOf('pnpm run typecheck:tools'), 'typecheck:tools must run after build').toBeGreaterThan(build);
+    expect(indexOf('pnpm run typecheck'), 'plain typecheck must run after build').toBeGreaterThan(build);
+  });
+
+  it('splits the suites so each job provisions only what its suite needs', () => {
+    const packageJson = JSON.parse(readFileSync(join(packageRoot(), 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    // Unit tests must not require fetched tools or a built example.
+    expect(packageJson.scripts['test']).toContain('--exclude "tests/scanners/**"');
+    expect(packageJson.scripts['test']).toContain('--exclude "tests/example/**"');
+    expect(packageJson.scripts['test']).toContain('--exclude "tests/integration/**"');
+    expect(packageJson.scripts['test:scanners']).toContain('tests/scanners');
+    expect(packageJson.scripts['test:example']).toContain('tests/example');
+    expect(packageJson.scripts['test:integration']).toContain('tests/integration');
+  });
+
+  it('passes the job token to tool fetching so CI is not rate-limited', () => {
+    for (const file of ['repo-checks.yaml']) {
+      const workflow = load(file);
+      const fetchSteps = Object.values(workflow.jobs ?? {})
+        .flatMap((job) => job.steps ?? [])
+        .filter((step) => step.run?.includes('fetch:tools'));
+      expect(fetchSteps.length).toBeGreaterThan(0);
+      for (const step of fetchSteps) {
+        expect(step.env?.['GITHUB_TOKEN'], `${file}: fetch:tools must receive GITHUB_TOKEN`).toBeDefined();
+      }
+    }
   });
 });
 

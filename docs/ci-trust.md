@@ -3,6 +3,21 @@
 What the workflows guarantee, what they cannot, and the platform settings a human must configure.
 Read this before trusting a green run.
 
+Batch R (2026-10-08) made both consumer workflows fail-closed. Every gate step runs without
+`|| echo` or `continue-on-error`, `check` exits nonzero when required work did not run, and the final
+`hardening-gate` job re-runs the gate with trusted tooling against the uploaded plan and results
+instead of trusting a dependency job's colour. `tests/workflows/trust.test.ts` executes the gate
+step's own script with a failing stub to prove the failure propagates (the audit's C2 reproduction).
+
+## Known gap: a pull request still supplies its own records
+
+Until Batch W3 lands, both callable workflows evaluate against the **pull request's own**
+`.hardening/app.yaml`, exceptions, and manual evidence. A pull request can therefore turn a feature
+off, add a `pass` attestation, or add an exception, and be judged by those records. This is audit
+finding H4, it is not fixed by anything in this directory, and it is why a green `hardening-pr` run
+is not yet a trust claim about the change. The fix is to evaluate against the base branch's records
+and report the PR's record changes as "requires review".
+
 ## What the local tests establish
 
 `tests/workflows/trust.test.ts` asserts, on every run:
@@ -15,7 +30,11 @@ Read this before trusting a green run.
 - a stable `hardening-gate` job exists, depends on every other job, and runs with `if: always()`;
 - the callable workflows declare `workflow_call` and require the pinned `hardening_ref` input;
 - the consumer template pins the called workflow *and* the policy ref to a commit;
-- zizmor reports nothing on the pinned workflows.
+- no consumer workflow masks a gate failure with `|| echo`/`|| true` or `continue-on-error`;
+- the gate step's actual script fails the job when the gate fails, by executing it;
+- the installs are filtered to the tool package, so a consumer job does not install the example's
+  Next.js, Playwright, and Supabase CLI dependencies;
+- zizmor reports nothing on the pinned workflows (`tests/scanners`, which fetches the pinned tool).
 
 ## What the local tests cannot establish
 
@@ -42,9 +61,11 @@ These are paragraph-level instructions because the work is in repository setting
 2. **Review before merge.** Require at least one approving review for changes under the paths in
    `agent-rules/review-manifest.yaml`, and enable dismissal of stale approvals when new commits
    arrive.
-3. **CODEOWNERS.** Install `templates/CODEOWNERS.template` as `.github/CODEOWNERS` once
-   `github_codeowners` in `01-owner-decisions.md` is filled with real usernames or teams that have
-   write access. Verify the file parses: GitHub silently skips lines it cannot resolve.
+3. **CODEOWNERS.** `.github/CODEOWNERS` is installed and names the recorded owner
+   (`github_codeowners` in `01-owner-decisions.md`); a trust test asserts it contains no placeholder
+   and matches the owner decisions exactly. The file only *requests* review. Require an approving
+   review in the platform settings, or GitHub will merge without one: the file parses, but nothing
+   enforces it by itself.
 4. **Bypass permissions.** Record who may bypass the required checks. Prefer nobody. If someone must,
    name them, and review their bypass use as an incident-style event rather than a routine.
 5. **Sensitive-file review.** Treat `.github/`, `policy/`, `controls/`, `src/domain/`,

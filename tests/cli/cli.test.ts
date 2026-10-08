@@ -149,8 +149,11 @@ describe('plan, check, gate, report end to end', () => {
 
   it('runs the built-in recipe and reports a real pass for it', () => {
     const result = cli(['check', '--app', FIXTURE, '--policy', REPO, '--plan', join(runDir, 'plan.json'), '--out', runDir]);
-    expect(result.status).toBe(0);
+    // Required checks that did not run make `check` exit 1. That is the fail-closed contract: a CI
+    // job must not be green because the only implemented recipe passed.
+    expect(result.status).toBe(1);
     expect(result.stdout).toContain('produced');
+    expect(result.stdout).toContain('required check(s) did not run');
 
     const results = JSON.parse(readFileSync(join(runDir, 'results.json'), 'utf8')) as {
       check_id: string;

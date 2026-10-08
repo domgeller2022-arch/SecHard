@@ -16,6 +16,7 @@ import {
   passingResult,
   planFor,
   referenceProfile,
+  resultIndexForControl,
 } from '../helpers/fixtures.js';
 import { planIdentity } from '../../src/domain/planner.js';
 import { evaluate } from '../../src/domain/evaluator.js';
@@ -503,8 +504,9 @@ describe('findings block regardless of a friendly label', () => {
 describe('exceptions are narrow, current, and never erase the failure', () => {
   it('accepts a valid precisely scoped exception and keeps the finding visible', () => {
     const plan = planFor('pr');
-    const results = allPassing(plan).map((result, index) =>
-      index === 0
+    const index = resultIndexForControl(plan, 'SEC-01');
+    const results = allPassing(plan).map((result, i) =>
+      i === index
         ? { ...result, findings: [{ id: 'f1', tool: 'opengrep', rule_id: 'sqli', severity: 'medium' as const }] }
         : result,
     );
@@ -517,6 +519,9 @@ describe('exceptions are narrow, current, and never erase the failure', () => {
     expect(outcome?.outcome).toBe('waived');
     expect(outcome?.waiver_refs).toEqual(['EXC-0001']);
     expect(outcome?.reasons.some((item) => item.code === 'waiver.applied' && item.message.includes('remains visible'))).toBe(true);
+    // H2 decision: a valid waiver on a permitted control lets the gate pass, with the finding visible.
+    expect(decision.reasons.every((item) => item.code === 'waiver.applied')).toBe(true);
+    expect(decision.satisfied).toBe(true);
   });
 
   it('rejects an expired exception and leaves the finding blocking', () => {

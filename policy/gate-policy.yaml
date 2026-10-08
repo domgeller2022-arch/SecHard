@@ -55,12 +55,26 @@ risk:
 control_categories:
   # Controls in these categories are never satisfied by an excepted execution error. An error means
   # the work did not produce an answer, which is different from an accepted risk.
+  # This list is enforced by the evaluator, unioned with every profile's own `policy: never` list:
+  # whichever source forbids a waiver wins.
   error_not_exceptable:
     - CI-03
     - REL-01
     - EXC-01
     - GOV-02
   never_exceptable: [CI-03, REL-01, EXC-01, GOV-02, AUTHZ-01, AUTHZ-02, AUTHZ-03, AGT-03]
+
+exceptions:
+  # H2 decision, recorded 2026-10-08 as the remediation plan requires. A valid, precisely scoped,
+  # permitted exception lets the gate pass while the finding stays visible as a waiver; it never
+  # erases the finding. The two rules below are additional ceilings on what may be waived.
+  critical_findings_never_waivable: true
+  high_findings_require_non_self_approver_at_release: true
+  notes: >-
+    A critical finding can never be waived, whatever the exception record says. A high finding may be
+    waived outside release, but a release-stage waiver requires an approver other than the owner
+    (self_review: false). Findings on a control that is never_exceptable or marked `never` by the
+    selected profile cannot be waived at all, whatever scope the exception uses.
 
 coverage:
   # Zero findings is meaningful only when expected scope was examined.

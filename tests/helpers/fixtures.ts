@@ -149,6 +149,20 @@ export function allPassing(plan: ExecutionPlan, overrides: Partial<CheckResult> 
     .map((check) => passingResult(check, overrides));
 }
 
+/** Current attestations for every manual requirement in a plan, keyed by recipe. */
+export function allManual(plan: ExecutionPlan): ManualEvidence[] {
+  return plan.expected_checks
+    .filter((check) => check.execution?.mode === 'manual')
+    .map((check, index) => manualEvidence({ id: `ME-${index}`, control: check.control_ids[0] ?? 'CTX-01', recipe: check.recipe }));
+}
+
+/** Index of the first result belonging to a control, so a test can attach a finding to its check. */
+export function resultIndexForControl(plan: ExecutionPlan, controlId: string): number {
+  return plan.expected_checks
+    .filter((check) => check.execution?.mode !== 'manual')
+    .findIndex((check) => check.control_ids.includes(controlId));
+}
+
 export function evaluateWith(input: {
   plan: ExecutionPlan;
   results: readonly CheckResult[];

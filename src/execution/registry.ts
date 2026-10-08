@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { packageRoot } from '../validation/schema.js';
@@ -14,22 +14,55 @@ import { extractVersion } from './version.js';
  * digest. When any of those is missing the answer is `unavailable`, not a guess. Refusing to run an
  * unidentified binary is the control, not an inconvenience.
  *
+ * Records are platform-aware. A fetched tool is resolved relative to the policy root as
+ * `tools/bin/<name>/<version>/<platform>/<binary>`; a platform-provided tool is resolved from its
+ * per-platform candidate list. Neither path is ever looked up through `PATH`, and no record contains
+ * an absolute path from a particular machine.
+ *
  * `checking` never installs. A missing binary produces an error; provisioning is a separate,
  * explicit action (see `provision.ts`).
  */
 
+/** A release asset pinned for one platform. */
+export interface PlatformAsset {
+  readonly asset: string;
+  /** The binary name inside the extracted directory. */
+  readonly binary: string;
+  readonly archive: 'tar.gz' | 'none';
+  /** SHA-256 of the downloaded archive or raw asset, kept as provenance of the download. */
+  readonly archiveSha256?: string;
+  /** SHA-256 of the executable on disk; this is the pin checked before every run. */
+  readonly digest: string;
+  readonly expectedVersion: string;
+  readonly versionProvenance?: string;
+  readonly provenance?: string;
+}
+
 export interface ExecutionIdentity {
   readonly name: string;
-  readonly executable: string;
+  readonly kind?: 'platform' | 'fetched';
+  /**
+   * Direct executable path. Retained for tests and for a record that genuinely pins one path; the
+   * reviewed toolchain uses `candidates` and `platforms` instead.
+   */
+  readonly executable?: string;
   /** Used when `executable` is absent on this machine. Recorded so no PATH lookup is needed. */
   readonly fallbackExecutable?: string;
+  /** Platform-provided tools: candidate paths per `<os>-<arch>`, in preference order. */
+  readonly candidates?: Readonly<Record<string, readonly string[]>>;
+  /** Fetched tools: the pinned asset per `<os>-<arch>`. */
+  readonly platforms?: Readonly<Record<string, PlatformAsset>>;
+  /** Version directory used to resolve a fetched tool's path. */
+  readonly version?: string;
   readonly versionArgs?: readonly string[];
-  readonly expectedVersion: string;
+  /** Only present on direct records; platform records carry it per asset. */
+  readonly expectedVersion?: string;
   readonly digest?: string;
   readonly fetched: boolean;
   readonly identity: 'verified' | 'unverified';
   readonly source?: string;
   readonly licence?: string;
+  readonly provenance?: string;
 }
 
 export interface ToolchainRecord {
@@ -41,7 +74,6 @@ export interface ToolchainRecord {
     readonly default_max_output_bytes?: number;
   };
   readonly security_tools?: Record<string, { readonly identity?: string; readonly step?: number; readonly purpose?: string }>;
-  /** Optional verified identities. Absent for every scanner today. */
   readonly executables?: Record<string, ExecutionIdentity>;
 }
 
@@ -49,8 +81,22 @@ export function loadToolchain(path = join(packageRoot(), 'policy', 'toolchain.ya
   return parse(readFileSync(path, 'utf8')) as ToolchainRecord;
 }
 
+/** The platform key used by the toolchain records and provisioning: `<os>-<arch>`. */
+export function platformKey(platform: string = process.platform, arch: string = process.arch): string {
+  const os = platform === 'darwin' ? 'darwin' : platform === 'linux' ? 'linux' : platform;
+  const architecture = arch === 'x64' ? 'x64' : arch === 'arm64' ? 'arm64' : arch;
+  return `${os}-${architecture}`;
+}
+
+export interface ResolveOptions {
+  readonly policyRoot?: string;
+  readonly platform?: string;
+  /** Injectable for tests: decides whether a candidate path exists on this machine. */
+  readonly fileExists?: (path: string) => boolean;
+}
+
 export type ToolAvailability =
-  | { readonly available: true; readonly identity: ExecutionIdentity }
+  | { readonly available: true; readonly identity: ExecutionIdentity; readonly executable: string; readonly expectedVersion: string }
   | { readonly available: false; readonly reason: UnavailableReason; readonly message: string };
 
 export type UnavailableReason =
@@ -61,16 +107,19 @@ export type UnavailableReason =
   | 'digest_mismatch'
   | 'version_metadata_missing'
   | 'not_executable'
+  /** The record has no entry for this operating system and architecture. */
+  | 'unsupported_platform'
   /** Recorded and verified, but executed through the container runtime rather than as a local binary. */
   | 'container_executed';
 
 /**
  * Resolves a tool against reviewed toolchain data without running it.
  *
- * A recorded-but-unverified tool is refused here. That is the current state of every scanner, and
- * the refusal is the honest answer: executing it would be relying on an identity nobody checked.
+ * A recorded-but-unverified tool is refused here. A platform with no pinned asset is refused as
+ * `unsupported_platform`: guessing an asset for an unreviewed platform is exactly the kind of
+ * inference this registry exists to prevent.
  */
-export function resolveTool(name: string, toolchain: ToolchainRecord = loadToolchain()): ToolAvailability {
+export function resolveTool(name: string, toolchain: ToolchainRecord = loadToolchain(), options: ResolveOptions = {}): ToolAvailability {
   const identity = toolchain.executables?.[name];
 
   if (identity === undefined) {
@@ -98,33 +147,67 @@ export function resolveTool(name: string, toolchain: ToolchainRecord = loadToolc
   if (identity.identity !== 'verified') {
     return { available: false, reason: 'identity_unverified', message: `tool '${name}' is recorded with an unverified identity` };
   }
-  if (!identity.executable.startsWith('/')) {
-    return { available: false, reason: 'not_absolute', message: `tool '${name}' has a non-absolute executable path '${identity.executable}'; PATH lookup is not trusted` };
+
+  const platform = options.platform ?? platformKey();
+  const policyRoot = options.policyRoot ?? packageRoot();
+  const fileExists = options.fileExists ?? existsSync;
+
+  let executable = identity.executable;
+  let expectedVersion = identity.expectedVersion;
+  let digest = identity.digest;
+
+  if (identity.candidates !== undefined) {
+    const candidates = identity.candidates[platform] ?? [];
+    const found = candidates.find((candidate) => fileExists(candidate));
+    if (found === undefined) {
+      return {
+        available: false,
+        reason: 'unsupported_platform',
+        message: `tool '${name}' has no recorded candidate path on ${platform}; refusal is the correct outcome`,
+      };
+    }
+    executable = found;
+  } else if (identity.platforms !== undefined) {
+    const asset = identity.platforms[platform];
+    if (asset === undefined) {
+      return {
+        available: false,
+        reason: 'unsupported_platform',
+        message: `tool '${name}' has no pinned asset for ${platform}; refusing to guess an unreviewed binary`,
+      };
+    }
+    executable = join(policyRoot, 'tools', 'bin', name, identity.version ?? asset.expectedVersion, platform, asset.binary);
+    expectedVersion = asset.expectedVersion;
+    digest = asset.digest;
   }
-  if (identity.fetched && (identity.digest === undefined || !/^[0-9a-f]{64}$/.test(identity.digest))) {
+
+  if (executable === undefined || !executable.startsWith('/')) {
+    return { available: false, reason: 'not_absolute', message: `tool '${name}' resolves to a non-absolute executable path; PATH lookup is not trusted` };
+  }
+  if (identity.fetched && (digest === undefined || !/^[0-9a-f]{64}$/.test(digest))) {
     return { available: false, reason: 'digest_missing', message: `tool '${name}' is fetched but has no verified digest` };
   }
-  if (identity.expectedVersion.trim().length === 0) {
+  if (expectedVersion === undefined || expectedVersion.trim().length === 0) {
     return { available: false, reason: 'version_metadata_missing', message: `tool '${name}' has no recorded version` };
   }
 
   // When a digest is recorded, the binary on disk must match it before it runs. A pin that is never
   // checked detects nothing: the file could have been replaced by anything.
-  if (identity.digest !== undefined) {
-    const observed = digestOfFile(identity.executable);
+  if (digest !== undefined) {
+    const observed = digestOfFile(executable);
     if (observed === undefined) {
-      return { available: false, reason: 'not_executable', message: `tool '${name}' is not readable at ${identity.executable}` };
+      return { available: false, reason: 'not_executable', message: `tool '${name}' is not readable at ${executable}` };
     }
-    if (observed !== identity.digest) {
+    if (observed !== digest) {
       return {
         available: false,
         reason: 'digest_mismatch',
-        message: `tool '${name}' does not match its recorded digest (expected ${identity.digest.slice(0, 12)}…, found ${observed.slice(0, 12)}…)`,
+        message: `tool '${name}' does not match its recorded digest (expected ${digest.slice(0, 12)}…, found ${observed.slice(0, 12)}…)`,
       };
     }
   }
 
-  return { available: true, identity };
+  return { available: true, identity, executable, expectedVersion };
 }
 
 export function digestOfFile(file: string): string | undefined {
@@ -147,6 +230,8 @@ export interface RunToolSpec {
   readonly timeoutMs?: number;
   readonly maxOutputBytes?: number;
   readonly toolchain?: ToolchainRecord;
+  /** Platform and policy-root overrides; the reviewed toolchain is resolved relative to the policy root. */
+  readonly resolve?: ResolveOptions;
 }
 
 /**
@@ -155,12 +240,12 @@ export interface RunToolSpec {
  * without running the tool.
  */
 export async function runTool(name: string, args: readonly string[], spec: RunToolSpec): Promise<ToolRunResult> {
-  const availability = resolveTool(name, spec.toolchain);
+  const availability = resolveTool(name, spec.toolchain, spec.resolve === undefined ? {} : spec.resolve);
   if (!availability.available) return { ran: false, availability };
 
   const identity = availability.identity;
   const base: ProcessSpec = {
-    executable: identity.executable,
+    executable: availability.executable,
     args: [...(identity.versionArgs ?? ['--version'])],
     cwd: spec.cwd,
     timeoutMs: 30_000,
@@ -180,19 +265,19 @@ export async function runTool(name: string, args: readonly string[], spec: RunTo
       },
     };
   }
-  if (observed !== identity.expectedVersion) {
+  if (observed !== availability.expectedVersion) {
     return {
       ran: false,
       availability: {
         available: false,
         reason: 'version_metadata_missing',
-        message: `'${name}' reports version ${observed}, but the toolchain records ${identity.expectedVersion}`,
+        message: `'${name}' reports version ${observed}, but the toolchain records ${availability.expectedVersion}`,
       },
     };
   }
 
   const outcome = await runProcess({
-    executable: identity.executable,
+    executable: availability.executable,
     args: [...args],
     cwd: spec.cwd,
     timeoutMs: spec.timeoutMs ?? 600_000,

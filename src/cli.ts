@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createRunDirectory, environmentIdentity, writeAtomic, writeJson, type RunRecord } from './evidence/store.js';
@@ -53,16 +52,31 @@ interface Options {
   run?: string;
 }
 
+/**
+ * Writes to a file descriptor synchronously.
+ *
+ * `process.stdout.write` is asynchronous on a pipe, and `process.exit()` does not wait for it: a
+ * CI job capturing the CLI through a pipe can silently lose the first commands' output. `writeSync`
+ * flushes before returning, so every branch below can exit immediately without truncating.
+ */
+function out(text: string): void {
+  writeSync(1, text);
+}
+
+function err(text: string): void {
+  writeSync(2, text);
+}
+
 function fail(message: string, stderr: readonly string[] = []): never {
-  process.stderr.write(`hardening: ${message}\n`);
-  for (const line of stderr) process.stderr.write(`${line}\n`);
+  err(`hardening: ${message}\n`);
+  for (const line of stderr) err(`${line}\n`);
   process.exit(2);
 }
 
 function emit(outcome: CommandOutcome): void {
-  for (const line of outcome.stdout) process.stdout.write(`${line}\n`);
-  for (const warning of outcome.warnings ?? []) process.stdout.write(`warning: ${warning}\n`);
-  for (const line of outcome.stderr) process.stderr.write(`${line}\n`);
+  for (const line of outcome.stdout) out(`${line}\n`);
+  for (const warning of outcome.warnings ?? []) out(`warning: ${warning}\n`);
+  for (const line of outcome.stderr) err(`${line}\n`);
 }
 
 function required(options: Options, name: keyof Options): string {
@@ -103,12 +117,12 @@ const command = positionals[0] ?? 'help';
 const options = values as Options;
 
 if (command === 'help') {
-  process.stdout.write(USAGE);
+  out(USAGE);
   process.exit(0);
 }
 
 if (command === 'version') {
-  process.stdout.write(`${readVersion()}\n`);
+  out(`${readVersion()}\n`);
   process.exit(0);
 }
 
@@ -176,7 +190,7 @@ if (command === 'plan') {
   };
   writeJson(run.runRecordPath, record);
 
-process.stdout.write(`  plan written to ${run.planPath}\n`);
+out(`  plan written to ${run.planPath}\n`);
 emit(planned);
 process.exit(planned.exitCode);
 }
@@ -198,7 +212,7 @@ if (command === 'check') {
 
   if (checked.results !== undefined) {
     writeJson(run.resultsPath, checked.results);
-    process.stdout.write(`  results written to ${run.resultsPath}\n`);
+    out(`  results written to ${run.resultsPath}\n`);
   }
 
   emit(checked);
@@ -220,7 +234,7 @@ const report = reportCommand({ appRoot, policyRoot }, { planPath, resultsPath: r
 mkdirSync(runDir, { recursive: true });
 writeJson(run.reportJsonPath, report.json);
 writeAtomic(run.reportMarkdownPath, report.markdown);
-process.stdout.write(`  report written to ${run.reportJsonPath}\n`);
-process.stdout.write(`  report written to ${run.reportMarkdownPath}\n`);
+out(`  report written to ${run.reportJsonPath}\n`);
+out(`  report written to ${run.reportMarkdownPath}\n`);
 emit(report);
 process.exit(report.exitCode);

@@ -8,6 +8,7 @@ import { ValidationError, type ValidationIssue } from '../validation/errors.js';
 import { evaluate } from '../domain/evaluator.js';
 import { loadConsumer, loadPolicy, resolveSourceIdentity, type LoadedPolicy, type Paths } from './io.js';
 import { buildReport } from './report.js';
+import { escapeMarkdown, redactSecrets } from '../evidence/redaction.js';
 import type { ApplicabilityRule } from '../domain/applicability.js';
 import type { PlanInput } from '../domain/planner.js';
 import type { AssessmentRecord, CheckResult, ExecutionPlan, GateDecision, ManifestRecord, ReleaseEvidence } from '../domain/types.js';
@@ -250,15 +251,33 @@ export function checkCommand(
     );
   }
 
+  // The CLI contract (02-implementation-plan): 0 satisfied, 1 blocked by unmet required work, 2 on
+  // execution or evidence errors. `check` runs everything it safely can and still exits nonzero when
+  // required work did not happen. A caller that treats exit 0 as "the security work ran" must not be
+  // fooled by required checks that silently reported unsupported.
+  const byCheckId = new Map(results.map((result) => [result.check_id, result]));
+  const notRun = plan.expected_checks.filter((check) => {
+    if (!check.required || check.execution?.mode === 'manual') return false;
+    const outcome = byCheckId.get(check.check_id)?.outcome;
+    return outcome === undefined || outcome === 'unsupported' || outcome === 'skipped' || outcome === 'pending';
+  });
+  const errored = results.filter((result) => result.outcome === 'error');
+  const exitCode: 0 | 1 | 2 = errored.length > 0 ? 2 : notRun.length > 0 ? 1 : 0;
+
   return {
-    exitCode: 0,
+    exitCode,
     stdout: [
       `check: produced ${results.length} result(s)`,
       ...results.map((result) => `  - ${result.check_id}: ${result.outcome} (${result.coverage})`),
+      exitCode === 0
+        ? 'check: every required check produced a result'
+        : exitCode === 1
+          ? `check: ${notRun.length} required check(s) did not run; the gate cannot treat that as a pass`
+          : `check: ${errored.length} execution error(s); see the results`,
     ],
     stderr: [],
     results,
-  } as CheckOutcome;
+  };
 }
 
 export function gateCommand(
@@ -341,7 +360,7 @@ export function gateCommand(
     `  stage ${decision.stage} / ${decision.environment}`,
     `  controls satisfied: ${decision.control_outcomes.filter((item) => item.outcome === 'satisfied').length}/${decision.control_outcomes.length}`,
     `  waived: ${decision.control_outcomes.filter((item) => item.outcome === 'waived').length}`,
-    ...decision.reasons.map((item) => `  - ${item.code}: ${item.message}`),
+    ...decision.reasons.map((item) => `  - ${item.code}: ${consoleSafe(item.message)}`),
   ];
 
   return {
@@ -565,7 +584,7 @@ export function reportCommand(
  * Formats the same evaluation the gate produced. Markdown and JSON therefore cannot disagree: this
  * function takes the finished evidence object and does no further evaluation.
  */
-function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: number): string {
+export function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: number): string {
   const lines: string[] = [
     `# Hardening report — ${evidence.application.id}`,
     '',
@@ -587,7 +606,7 @@ function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: number): st
   if (evidence.decision.reasons.length === 0) {
     lines.push('No blocking reasons.');
   } else {
-    for (const item of evidence.decision.reasons) lines.push(`- ${escape(item)}`);
+    for (const item of evidence.decision.reasons) lines.push(`- ${reportSafe(item)}`);
   }
 
   lines.push(
@@ -608,7 +627,7 @@ function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: number): st
 
   for (const outcome of evidence.control_outcomes ?? []) {
     lines.push(
-      `| ${escape(outcome.control)} | ${outcome.applicability} | ${outcome.outcome} | ${outcome.coverage} | ${escape((outcome.reasons ?? []).join('; ') || '-')} |`,
+      `| ${reportSafe(outcome.control)} | ${outcome.applicability} | ${outcome.outcome} | ${outcome.coverage} | ${reportSafe((outcome.reasons ?? []).join('; ') || '-')} |`,
     );
   }
 
@@ -618,19 +637,32 @@ function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: number): st
   } else {
     lines.push('| Severity | Finding | Controls |', '| --- | --- | --- |');
     for (const item of evidence.outstanding) {
-      lines.push(`| ${item.severity} | ${escape(item.summary)} (\`${escape(item.id)}\`) | ${item.control_ids?.join(', ') ?? '-'} |`);
+      lines.push(`| ${item.severity} | ${reportSafe(item.summary)} (\`${reportSafe(item.id)}\`) | ${item.control_ids?.join(', ') ?? '-'} |`);
+    }
+  }
+
+  // Waivers are reported as their own section rather than hidden in the control table: a reader must
+  // be able to see exactly what is being carried as accepted risk, and by which exception.
+  const waived = (evidence.control_outcomes ?? []).filter((outcome) => (outcome.waiver_refs ?? []).length > 0);
+  if (waived.length > 0) {
+    lines.push('', '## Waived', '', '| Control | Outcome | Waived by | Waiver reasons |', '| --- | --- | --- | --- |');
+    for (const outcome of waived) {
+      const reasons = (outcome.reasons ?? []).filter((item) => item.includes('waiver.applied')).join('; ');
+      lines.push(
+        `| ${reportSafe(outcome.control)} | ${outcome.outcome} | ${(outcome.waiver_refs ?? []).map((ref) => reportSafe(ref)).join(', ')} | ${reportSafe(reasons || '-')} |`,
+      );
     }
   }
 
   if ((evidence.unsupported_scope ?? []).length > 0) {
     lines.push('', '## Unsupported scope', '');
-    for (const item of evidence.unsupported_scope ?? []) lines.push(`- ${escape(item.area)}: ${escape(item.reason)}`);
+    for (const item of evidence.unsupported_scope ?? []) lines.push(`- ${reportSafe(item.area)}: ${reportSafe(item.reason)}`);
   }
 
   if ((evidence.exceptions ?? []).length > 0) {
     lines.push('', '## Exceptions', '', '| Exception | Control | Status | Expires | Self-review |', '| --- | --- | --- | --- | --- |');
     for (const item of evidence.exceptions ?? []) {
-      lines.push(`| ${escape(item.id)} | ${escape(item.control)} | ${item.status} | ${item.expires_at} | ${item.self_review === true ? 'yes' : 'no'} |`);
+      lines.push(`| ${reportSafe(item.id)} | ${reportSafe(item.control)} | ${item.status} | ${item.expires_at} | ${item.self_review === true ? 'yes' : 'no'} |`);
     }
   }
 
@@ -638,8 +670,18 @@ function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: number): st
   return `${lines.join('\n')}\n`;
 }
 
-function escape(value: string): string {
-  return String(value).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+/**
+ * Untrusted text entering a report: redact secret-shaped values first, then neutralise Markdown
+ * structure. Both steps are needed. Redaction keeps a value from being published; escaping stops a
+ * finding title from injecting an image, a link, or HTML into a report a person reads.
+ */
+function reportSafe(value: string): string {
+  return escapeMarkdown(redactSecrets(String(value)));
+}
+
+/** Console output has no Markdown semantics, but it must not carry secrets or forged extra lines. */
+export function consoleSafe(value: string): string {
+  return redactSecrets(String(value)).replace(/\r?\n/g, ' ');
 }
 
 function loadPlanFile(planPath: string): { plan: ExecutionPlan; identity: string } | undefined {

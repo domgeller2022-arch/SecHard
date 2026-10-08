@@ -64,7 +64,9 @@ function fullFlow(
   const environment = stage === 'release' ? 'production' : 'local';
   expect(cli(['plan', '--app', dir, '--policy', REPO, '--stage', stage, '--environment', environment, '--out', runs], dir).status).toBe(0);
   const runDir = latestRun(runs);
-  expect(cli(['check', '--app', dir, '--policy', REPO, '--plan', join(runDir, 'plan.json'), '--out', runDir], dir).status).toBe(0);
+  // The fixture consumer's required scanner checks are not implemented, so `check` exits 1: the
+  // fail-closed contract. The gate then blocks on the same facts.
+  expect(cli(['check', '--app', dir, '--policy', REPO, '--plan', join(runDir, 'plan.json'), '--out', runDir], dir).status).toBe(1);
   const gated = cli(['gate', '--app', dir, '--policy', REPO, '--run', runDir], dir);
   const reported = cli(['report', '--app', dir, '--policy', REPO, '--run', runDir], dir);
   return { runDir, gated, reported };
@@ -88,8 +90,16 @@ describe('the compiled CLI works from outside the master repository', () => {
 
     const markdown = readFileSync(join(runDir, 'report.md'), 'utf8');
     expect(markdown).toContain('# Hardening report');
-    // The one real check that ran is recorded as a pass, alongside everything that did not.
-    expect(markdown).toMatch(/GOV-02 \| applicable \| satisfied/);
+    // GOV-02 emits two required checks. The record-consistency recipe really ran and passed, and the
+    // control's aggregation records that while still reporting the control as unsupported because
+    // its second required check has no implementation.
+    const evidence = JSON.parse(readFileSync(join(runDir, 'report.json'), 'utf8')) as {
+      control_outcomes: { control: string; outcome: string; satisfied_checks?: string[]; required_checks?: string[] }[];
+    };
+    const gov = evidence.control_outcomes.find((outcome) => outcome.control === 'GOV-02');
+    expect(gov?.satisfied_checks?.some((id) => id.includes('policy/record-consistency'))).toBe(true);
+    expect((gov?.required_checks ?? []).length).toBeGreaterThan(1);
+    expect(markdown).toMatch(/GOV-02 \| applicable \| unsupported/);
   });
 
   it('shows unmet manual requirements at release rather than forcing every control to pass', () => {

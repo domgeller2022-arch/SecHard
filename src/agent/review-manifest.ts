@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { packageRoot } from '../validation/schema.js';
 import { loadCatalogue } from '../domain/definitions.js';
-import { loadToolchain } from '../execution/registry.js';
+import { loadToolchain, platformKey } from '../execution/registry.js';
 
 /**
  * The sensitive-file review manifest.
@@ -107,9 +107,12 @@ export type GitRunner = (cwd: string, args: readonly string[]) => string | undef
  */
 export function gitExecutable(): string | undefined {
   const identity = loadToolchain().executables?.git;
-  const candidates = [identity?.executable, identity?.fallbackExecutable, '/usr/bin/git'].filter(
-    (candidate): candidate is string => typeof candidate === 'string',
-  );
+  const candidates = [
+    ...(identity?.candidates?.[platformKey()] ?? []),
+    identity?.executable,
+    identity?.fallbackExecutable,
+    '/usr/bin/git',
+  ].filter((candidate): candidate is string => typeof candidate === 'string');
   return candidates.find((candidate) => existsSync(candidate));
 }
 

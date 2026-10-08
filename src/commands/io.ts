@@ -7,7 +7,7 @@ import { confineReference, isRemoteReference } from '../validation/paths.js';
 import { validateAgainstSchema } from '../validation/schema.js';
 import { checkDuplicateIds, checkReference } from '../validation/semantic.js';
 import { loadCatalogue, type ControlDefinition, type Profile } from '../domain/definitions.js';
-import { loadToolchain } from '../execution/registry.js';
+import { loadToolchain, platformKey } from '../execution/registry.js';
 import { sha256Hex } from '../evidence/digest.js';
 import type { ApprovalRecord } from '../domain/approval.js';
 import type { AssessmentRecord, ExceptionRecord, GatePolicy, ManualEvidence } from '../domain/types.js';
@@ -302,9 +302,12 @@ function resolvePolicyCommit(policyRoot: string): string {
  */
 function gitExecutable(): string | undefined {
   const identity = loadToolchain().executables?.git;
-  const candidates = [identity?.executable, identity?.fallbackExecutable, '/usr/bin/git'].filter(
-    (candidate): candidate is string => typeof candidate === 'string',
-  );
+  const candidates = [
+    ...(identity?.candidates?.[platformKey()] ?? []),
+    identity?.executable,
+    identity?.fallbackExecutable,
+    '/usr/bin/git',
+  ].filter((candidate): candidate is string => typeof candidate === 'string');
   return candidates.find((candidate) => existsSync(candidate));
 }
 

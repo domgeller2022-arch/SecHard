@@ -210,67 +210,224 @@ container_runtime:
     `brew services start colima`; that is an operator choice, not required by this repository.
 
 executables:
-  # Platform-provided tool. Recorded with an absolute path so source-identity resolution never
-  # performs a PATH lookup, which Step 06's execution rule forbids. No digest is recorded: an OS
-  # update replaces this binary and a stale digest would fail every run. `fetched: false` means the
-  # registry does not require one.
+  # Platform-aware, relocatable tool records (Batch R, R1).
+  #
+  # Nothing here contains an absolute path from one machine. A fetched tool is resolved from the
+  # policy root as `tools/bin/<name>/<version>/<platform>/<binary>`; a platform-provided tool is
+  # resolved from its per-platform candidate list. There is no PATH lookup in either case.
+  #
+  # `platforms` keys are `<os>-<arch>` and are the only supported platforms. A platform with no
+  # entry is refused as `unsupported_platform` rather than guessed. Each entry records the release
+  # asset name, the archive digest (provenance of the download) and the executable digest (the pin
+  # checked before every run, because an extracted binary does not share the archive's hash).
+  #
+  # `versionProvenance` states how truthfully each `expectedVersion` was established: a version
+  # observed by running the binary on this machine, or the release tag's declared version, which
+  # `runTool` verifies against the installed binary on its first run on that platform.
+
   git:
     name: git
-    executable: "/usr/local/bin/git"
-    fallbackExecutable: "/usr/bin/git"
+    kind: platform
     versionArgs: ["--version"]
     expectedVersion: "2.55.0"
     fetched: false
     identity: verified
     source: "platform-provided"
     licence: GPL-2.0-only
-    provenance: "platform tool, not fetched by this repository"
+    provenance: "platform tool, not fetched by this repository; resolved from candidates, never PATH"
+    candidates:
+      darwin-x64: ["/usr/local/bin/git", "/usr/bin/git"]
+      darwin-arm64: ["/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"]
+      linux-x64: ["/usr/bin/git"]
+      linux-arm64: ["/usr/bin/git"]
+
   gitleaks:
     name: gitleaks
-    executable: "/Users/dd/Desktop/Security Hardening/hardening/tools/bin/gitleaks/v8.30.1/gitleaks"
+    kind: fetched
+    version: "8.30.1"
     versionArgs: ["version"]
-    expectedVersion: "8.30.1"
-    digest: "cee01fea7173f1b779dff188e1c26ecbcb4027d394acc573b23aaf0be260e291"
-    archiveSha256: "dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709"
     fetched: true
     identity: verified
     source: "https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1"
     licence: MIT
-    provenance: "publisher checksums file cross-checked with the release asset digest"
+    platforms:
+      darwin-x64:
+        asset: gitleaks_8.30.1_darwin_x64.tar.gz
+        binary: gitleaks
+        archive: tar.gz
+        archiveSha256: "dfe101a4db2255fc85120ac7f3d25e4342c3c20cf749f2c20a18081af1952709"
+        digest: "cee01fea7173f1b779dff188e1c26ecbcb4027d394acc573b23aaf0be260e291"
+        expectedVersion: "8.30.1"
+        versionProvenance: "observed by running the binary on darwin-x64"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+      darwin-arm64:
+        asset: gitleaks_8.30.1_darwin_arm64.tar.gz
+        binary: gitleaks
+        archive: tar.gz
+        archiveSha256: "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"
+        digest: "ba52fb1bfabbcde42f032afad3d6e0b19dff8ed105229a16e7caa338bbc0e84f"
+        expectedVersion: "8.30.1"
+        versionProvenance: "release tag; runTool verifies it on first darwin-arm64 run"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+      linux-x64:
+        asset: gitleaks_8.30.1_linux_x64.tar.gz
+        binary: gitleaks
+        archive: tar.gz
+        archiveSha256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+        digest: "88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509"
+        expectedVersion: "8.30.1"
+        versionProvenance: "release tag; runTool verifies it on first linux-x64 run"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+      linux-arm64:
+        asset: gitleaks_8.30.1_linux_arm64.tar.gz
+        binary: gitleaks
+        archive: tar.gz
+        archiveSha256: "e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080"
+        digest: "00e91bbe655bd7c47753e8cfe61cb76ea1a5d7e7702fe161ee40102b46b3823b"
+        expectedVersion: "8.30.1"
+        versionProvenance: "release tag; runTool verifies it on first linux-arm64 run"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+
   osv_scanner:
     name: osv_scanner
-    executable: "/Users/dd/Desktop/Security Hardening/hardening/tools/bin/osv_scanner/v2.6.0/osv-scanner"
+    kind: fetched
+    version: "2.6.0"
     versionArgs: ["--version"]
-    expectedVersion: "2.6.0"
-    digest: "60c5296637e977b28eeda5c7f13573e447659a632922737f94d11fa7e30ad6ca"
     fetched: true
     identity: verified
     source: "https://github.com/google/osv-scanner/releases/tag/v2.6.0"
     licence: Apache-2.0
-    provenance: "publisher checksums file cross-checked with the release asset digest"
+    platforms:
+      darwin-x64:
+        asset: osv-scanner_darwin_amd64
+        binary: osv-scanner
+        archive: none
+        archiveSha256: "60c5296637e977b28eeda5c7f13573e447659a632922737f94d11fa7e30ad6ca"
+        digest: "60c5296637e977b28eeda5c7f13573e447659a632922737f94d11fa7e30ad6ca"
+        expectedVersion: "2.6.0"
+        versionProvenance: "observed by running the binary on darwin-x64"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+      darwin-arm64:
+        asset: osv-scanner_darwin_arm64
+        binary: osv-scanner
+        archive: none
+        archiveSha256: "98c460dcd37de25819babd757d04542045b6243113e209edcd4d89fedb0256b4"
+        digest: "98c460dcd37de25819babd757d04542045b6243113e209edcd4d89fedb0256b4"
+        expectedVersion: "2.6.0"
+        versionProvenance: "release tag; runTool verifies it on first darwin-arm64 run"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+      linux-x64:
+        asset: osv-scanner_linux_amd64
+        binary: osv-scanner
+        archive: none
+        archiveSha256: "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108"
+        digest: "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108"
+        expectedVersion: "2.6.0"
+        versionProvenance: "release tag; runTool verifies it on first linux-x64 run"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+      linux-arm64:
+        asset: osv-scanner_linux_arm64
+        binary: osv-scanner
+        archive: none
+        archiveSha256: "2c71403eb443d05891c4f268c3ad771cf4f16e5443463fd7851ef8f454d3c7e4"
+        digest: "2c71403eb443d05891c4f268c3ad771cf4f16e5443463fd7851ef8f454d3c7e4"
+        expectedVersion: "2.6.0"
+        versionProvenance: "release tag; runTool verifies it on first linux-arm64 run"
+        provenance: "publisher checksums file cross-checked with the release asset digest"
+
   opengrep:
     name: opengrep
-    executable: "/Users/dd/Desktop/Security Hardening/hardening/tools/bin/opengrep/v1.30.0/opengrep"
+    kind: fetched
+    version: "1.30.0"
     versionArgs: ["--version"]
-    expectedVersion: "1.30.0"
-    digest: "650772a849a2986880982b7dea0371f96a75d354de95f94e8c1a2e6f8f6262d1"
     fetched: true
     identity: verified
     source: "https://github.com/opengrep/opengrep/releases/tag/v1.30.0"
     licence: LGPL-2.1
-    provenance: "release asset digest only (no publisher checksums file)"
+    platforms:
+      darwin-x64:
+        asset: opengrep_osx_x86
+        binary: opengrep
+        archive: none
+        archiveSha256: "650772a849a2986880982b7dea0371f96a75d354de95f94e8c1a2e6f8f6262d1"
+        digest: "650772a849a2986880982b7dea0371f96a75d354de95f94e8c1a2e6f8f6262d1"
+        expectedVersion: "1.30.0"
+        versionProvenance: "observed by running the binary on darwin-x64"
+        provenance: "release asset digest only (no publisher checksums file); the cosign .sig/.cert pair is not yet verified"
+      darwin-arm64:
+        asset: opengrep_osx_arm64
+        binary: opengrep
+        archive: none
+        archiveSha256: "0f5bc3dec09d995c61331a4017b856ede508f90d95b018d95f1dc6166be89fdd"
+        digest: "0f5bc3dec09d995c61331a4017b856ede508f90d95b018d95f1dc6166be89fdd"
+        expectedVersion: "1.30.0"
+        versionProvenance: "release tag; runTool verifies it on first darwin-arm64 run"
+        provenance: "release asset digest only (no publisher checksums file)"
+      linux-x64:
+        asset: opengrep_manylinux_x86
+        binary: opengrep
+        archive: none
+        archiveSha256: "35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c"
+        digest: "35779bdd72e92129c8df2a77f0c55e8c08356801ea92591ef32108d6b28d564c"
+        expectedVersion: "1.30.0"
+        versionProvenance: "release tag; runTool verifies it on first linux-x64 run"
+        provenance: "release asset digest only (no publisher checksums file)"
+      linux-arm64:
+        asset: opengrep_manylinux_aarch64
+        binary: opengrep
+        archive: none
+        archiveSha256: "a5d5a4a58ba5d46ff51e921663da1c2bba38f4b03987f4aeec87f16c6ad3ecae"
+        digest: "a5d5a4a58ba5d46ff51e921663da1c2bba38f4b03987f4aeec87f16c6ad3ecae"
+        expectedVersion: "1.30.0"
+        versionProvenance: "release tag; runTool verifies it on first linux-arm64 run"
+        provenance: "release asset digest only (no publisher checksums file)"
+
   zizmor:
     name: zizmor
-    executable: "/Users/dd/Desktop/Security Hardening/hardening/tools/bin/zizmor/v1.30.1/zizmor"
+    kind: fetched
+    version: "1.30.1"
     versionArgs: ["--version"]
-    expectedVersion: "1.30.1"
-    digest: "ca04f59e9ccdc58eed3641abcd304a4cd37e7f416f1bfacf019da77b66d62dcb"
-    archiveSha256: "10e6b18b11ea07e515a16f0f0518c7b07527bc9977c1fd5698181ce7f3554202"
     fetched: true
     identity: verified
     source: "https://github.com/zizmorcore/zizmor/releases/tag/v1.30.1"
     licence: MIT
-    provenance: "release asset digest only (no publisher checksums file)"
+    platforms:
+      darwin-x64:
+        asset: zizmor-x86_64-apple-darwin.tar.gz
+        binary: zizmor
+        archive: tar.gz
+        archiveSha256: "10e6b18b11ea07e515a16f0f0518c7b07527bc9977c1fd5698181ce7f3554202"
+        digest: "ca04f59e9ccdc58eed3641abcd304a4cd37e7f416f1bfacf019da77b66d62dcb"
+        expectedVersion: "1.30.1"
+        versionProvenance: "observed by running the binary on darwin-x64"
+        provenance: "release asset digest only (no publisher checksums file)"
+      darwin-arm64:
+        asset: zizmor-aarch64-apple-darwin.tar.gz
+        binary: zizmor
+        archive: tar.gz
+        archiveSha256: "e28d22b087f9ebb8d99da6e740d348c930f559961c7c3f12badda54f882195a2"
+        digest: "0cd1e69b329cdbc2ded5cd3b5161f21ffd89652eab6563153e4af5a69344c64d"
+        expectedVersion: "1.30.1"
+        versionProvenance: "release tag; runTool verifies it on first darwin-arm64 run"
+        provenance: "release asset digest only (no publisher checksums file)"
+      linux-x64:
+        asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
+        binary: zizmor
+        archive: tar.gz
+        archiveSha256: "e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a"
+        digest: "d39db5594fd89d57fdadd744079e1b3a405f24ff312714904f8bd708c69f322f"
+        expectedVersion: "1.30.1"
+        versionProvenance: "release tag; runTool verifies it on first linux-x64 run"
+        provenance: "release asset digest only (no publisher checksums file)"
+      linux-arm64:
+        asset: zizmor-aarch64-unknown-linux-gnu.tar.gz
+        binary: zizmor
+        archive: tar.gz
+        archiveSha256: "7ff1dce33bdd18fd2a4affe63bdd47efcccca97b2cec1c1863ec26e9e2647540"
+        digest: "72715e768ed9eda0fb7ace42ce50168c99c9146246710858fd2daf9b31ab14b1"
+        expectedVersion: "1.30.1"
+        versionProvenance: "release tag; runTool verifies it on first linux-arm64 run"
+        provenance: "release asset digest only (no publisher checksums file)"
 
 reference_stack:
   status: planned

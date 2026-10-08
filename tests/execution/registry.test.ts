@@ -48,7 +48,9 @@ describe('an unidentified tool is not executed', () => {
         // Digests are checked against the file on disk inside resolveTool, so reaching here means
         // the binary matched its recorded digest.
         expect(availability.identity.identity).toBe('verified');
-        expect(availability.identity.expectedVersion).toMatch(/^\d+\.\d+\.\d+/);
+        expect(availability.expectedVersion).toMatch(/^\d+\.\d+\.\d+/);
+        // The path is derived from the policy root, not recorded absolutely anywhere.
+        expect(availability.executable).toContain(join('tools', 'bin', name));
       } else {
         // A checkout without the downloaded tools must refuse rather than fall through.
         expect(availability.reason).toBe('not_executable');
@@ -56,10 +58,13 @@ describe('an unidentified tool is not executed', () => {
     }
   });
 
-  it('refuses a tool that is not recorded at all', () => {
-    const availability = resolveTool('not-a-tool');
+  it('refuses an unlisted platform rather than guessing an asset', () => {
+    const availability = resolveTool('gitleaks', loadToolchain(), { platform: 'plan9-x64' });
     expect(availability.available).toBe(false);
-    if (!availability.available) expect(availability.reason).toBe('not_recorded');
+    if (!availability.available) {
+      expect(availability.reason).toBe('unsupported_platform');
+      expect(availability.message).toMatch(/no pinned asset for plan9-x64/);
+    }
   });
 
   it('records testssl as unverified, the four scanners as verified, and ZAP as a pinned image', () => {
@@ -74,11 +79,28 @@ describe('an unidentified tool is not executed', () => {
       expect(toolchain.security_tools?.[name]?.identity, name).toBe('verified');
       const identity = toolchain.executables?.[name];
       expect(identity, name).toBeDefined();
-      // Every recorded digest is a SHA-256 and every executable path is absolute.
-      expect(identity?.digest).toMatch(/^[0-9a-f]{64}$/);
-      expect(identity?.executable.startsWith('/')).toBe(true);
-      expect(identity?.expectedVersion).toMatch(/^\d+\.\d+\.\d+/);
+      const platforms = Object.entries(identity?.platforms ?? {});
+      expect(platforms.length, `${name} must pin all four platforms`).toBe(4);
+      for (const [platform, asset] of platforms) {
+        expect(asset.digest, `${name} ${platform} digest`).toMatch(/^[0-9a-f]{64}$/);
+        expect(asset.archiveSha256, `${name} ${platform} archive digest`).toMatch(/^[0-9a-f]{64}$/);
+        expect(asset.expectedVersion).toMatch(/^\d+\.\d+\.\d+/);
+        expect(asset.binary.length).toBeGreaterThan(0);
+      }
+      // No absolute path from any one machine may be recorded, for any tool.
+      expect(JSON.stringify(identity), `${name} records a machine path`).not.toMatch(/"\/Users\//);
+      expect(JSON.stringify(identity)).not.toMatch(/"\/home\//);
     }
+    // The platform-provided tool is resolved from candidates, never a single machine path.
+    const git = toolchain.executables?.git;
+    expect(git?.candidates?.['linux-x64']).toContain('/usr/bin/git');
+    expect(JSON.stringify(git)).not.toMatch(/"\/Users\//);
+  });
+
+  it('refuses a tool that is not recorded at all', () => {
+    const availability = resolveTool('not-a-tool');
+    expect(availability.available).toBe(false);
+    if (!availability.available) expect(availability.reason).toBe('not_recorded');
   });
 });
 

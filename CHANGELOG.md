@@ -13,6 +13,81 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Batch R — repair, from the external audit (8 October 2026)
+
+The 2026-10-08 external audit (`docs/audit/2026-10-08-external-audit.md`) found that the gate could
+be weakened, the consumer workflow failed open, the scanners only worked on one machine, and the
+repository's own CI had never passed. Batch R of the remediation plan fixed those, plus items the
+plan's own gap analysis identified. Checkpoint: `docs/checkpoints/batch-r.md`.
+
+**Exception handling — the audit's H1–H3, all reproduced and fixed**
+
+- **A "never waivable" control can no longer be waived by scope shape.** The never policy is resolved
+  from the finding's or check's control, unioned with the gate policy's `never_exceptable` floor;
+  an exception that names a different control does not apply, and a `rule_id` with neither a
+  `control` nor a `check_id` is rejected by the schema and the evaluator.
+- **A valid waiver now lets the gate pass, visibly.** H2 decision recorded in
+  `policy/gate-policy.yaml`: a permitted, precisely scoped waiver makes the decision satisfied while
+  the finding appears in a new "Waived" report section. Critical findings can never be waived; a high
+  finding at release needs `self_review: false`.
+- **A waiver can no longer be applied over an execution error, unsupported, skipped, or pending
+  result.** A result that produced no answer has nothing to accept.
+- The gate policy's `never_exceptable` and `risk.blocking_severities` lists are now enforced rather
+  than dead data.
+
+**Report safety and counting**
+
+- Every untrusted string entering Markdown is redacted and escaped (`escapeMarkdown(redactSecrets(…))`);
+  console output is redacted and newline-flattened; finding titles are redacted at result creation.
+- `control_outcomes` is one row per control (worst check outcome, union of reasons), with
+  `required_checks`/`satisfied_checks` populated. Summary counts are controls, not checks.
+
+**Fail-closed CLI and workflows — the audit's C2 and M2**
+
+- `hardening check` exits 1 when a required check is `unsupported`, `skipped`, or `pending`, and 2 on
+  `error`, still writing results first. Previously it always exited 0.
+- `hardening-pr.yaml` and `hardening-release.yaml`: no `|| echo`, no `continue-on-error`; the report
+  and gate always run; the final `hardening-gate` job downloads `plan.json` + `results.json` and
+  re-runs the gate with trusted tooling, failing on a missing artefact.
+- A trust test executes the gate step's own script with a failing `pnpm` stub and requires a nonzero
+  exit — the audit's reproduction, now a regression test.
+
+**Platform-aware toolchain — the audit's C3 and M6**
+
+- `policy/toolchain.yaml` records 4 tools × 4 platforms (`darwin-x64`, `darwin-arm64`, `linux-x64`,
+  `linux-arm64`) with release asset, archive digest, executable digest, and version. No absolute
+  machine path remains; fetched tools resolve as `tools/bin/<name>/<version>/<platform>/<binary>`.
+- `tools/fetch-tools.mjs` is platform-aware, verifies the reviewed pin before the hosting API
+  digest, sends `GITHUB_TOKEN` when present, and exits `unsupported_platform` for anything unpinned.
+- Non-native platform versions are the release tag's declared version, verified by `runTool` on
+  first run there; native versions were observed by execution. Provenance is stated per entry.
+
+**CI — the audit's C4, M4, M5**
+
+- `tools/**` is typechecked by `tsconfig.tools.json` after `build`; CI builds before anything that
+  imports `dist/`.
+- Suites split: `test` (no external preconditions), `test:scanners`, `test:example`,
+  `test:integration`. The example-build inspection moved to `tests/example/`.
+- Every workflow install is filtered (`--filter sechard`), so consumer jobs no longer install
+  Next.js, Playwright, and the Supabase CLI.
+- The example manifest is generated from `.hardening/app.template.yaml` into a gitignored path, so
+  `pnpm test` no longer rewrites a tracked file.
+
+**Documentation truth — the audit's M3**
+
+- `README.md` rewritten to state what works and what does not; `docs/status.md` generated from the
+  progress record by `tools/generate-status.mjs` (`--check` fails on drift); `docs/status-report.md`
+  removed; the audit, remediation plan, and gap analysis live in `docs/audit/`.
+- `docs/ci-trust.md` documents the fail-closed behaviour and the still-open H4 gap (a PR supplies its
+  own records until Batch W3).
+- The generated control review sheet carries a "pending re-approval" banner (audit H6).
+- A test replays the README's CLI block against a scratch consumer. Writing that test found a real
+  defect: `process.exit()` does not wait for asynchronous stdout writes, so a CLI captured through a
+  pipe could lose the first commands' output. The CLI now writes to its descriptors synchronously.
+
+Suite at this point: **468 unit + 8 integration + 16 scanner + 5 example tests**, all passing on
+Node 24.21.0.
+
 ### Added — Batch B: Step 06 tool execution (6 October 2026)
 
 Batch B was authorised on the owner's instruction. Step 06 was implemented and verified; Steps
