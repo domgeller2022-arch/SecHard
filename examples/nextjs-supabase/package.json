@@ -1,0 +1,13 @@
+{
+  "name": "example-nextjs-supabase",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference application: a small private-notes app used to exercise the hardening controls.",
+  "type": "module",
+  "scripts": {
+    "supabase": "supabase"
+  },
+  "devDependencies": {
+    "supabase": "2.118.0"
+  }
+}

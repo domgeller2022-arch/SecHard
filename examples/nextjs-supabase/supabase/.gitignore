@@ -1,0 +1,4 @@
+# Supabase CLI local state. Branch data, temporary files, and the running stack's metadata are local
+# to this machine and are not part of the repository.
+.branches
+.temp

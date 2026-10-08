@@ -13,6 +13,12 @@
 #                             reviewed hook; `pkg: false` recorded a review decision without
 #                             running it.
 #
+# Workspace members. The reference example is a package so that the reviewed dependency policy —
+# including the release-age delay — applies to it as it does to the core.
+packages:
+  - '.'
+  - 'examples/*'
+
 # minimumReleaseAge is in MINUTES. 10080 = 7 days, the reviewed policy value.
 # It is a delay, not a safety proof.
 minimumReleaseAge: 10080

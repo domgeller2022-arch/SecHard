@@ -204,6 +204,21 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### In progress — Step 07 local reference stack (7 October 2026)
+
+- The Supabase local stack **runs on this machine**: `supabase start` completes after disabling the
+  `realtime` and `analytics` services in the example's own `config.toml` (the reference app does not
+  use them; on this host they came up unhealthy and made the CLI tear the whole stack down).
+  Postgres on 54322, data API on 54321, and the CLI reported the new-style `sb_publishable_…` /
+  `sb_secret_…` keys.
+- The example is a workspace package, so the reviewed dependency policy — including the seven-day
+  release-age delay — applies to it. Supabase CLI pinned at 2.118.0.
+- **Open security finding:** the local stack is **reachable from the LAN** — `curl` to the machine's
+  LAN address on port 54321 returns 200. The port forwarder binds all interfaces and neither colima
+  0.10.3 nor Supabase CLI 2.118.0 offers a loopback-only switch in the versions tested. Step 07's
+  requirement to bind disposable dev services to local interfaces is therefore **not met**, and the
+  step is not verified while this holds. Mitigations are recorded in the progress record.
+
 ### Changed — owner decisions actioned (7 October 2026)
 
 - **All 35 control definitions approved by the owner.** `controls/approvals.yaml` holds 35 records

@@ -733,6 +733,52 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 07 — Secure local reference application (in progress; infrastructure proven)
+
+- **State:** `in_progress`. The local stack runs; the application itself is not built yet. One
+  verified security finding is open against this step's acceptance criteria.
+- **Files changed so far:** `pnpm-workspace.yaml` (the example is a workspace package so the reviewed
+  dependency policy applies to it), `examples/nextjs-supabase/package.json`,
+  `examples/nextjs-supabase/supabase/config.toml`, `examples/nextjs-supabase/supabase/.gitignore`,
+  `examples/nextjs-supabase/supabase/.temp/` (ignored).
+- **Actual checks run:**
+  - `supabase --version` → 2.118.0 (pinned devDependency, mature at 12 days).
+  - `supabase init` → generated `supabase/config.toml`.
+  - `supabase start` (first attempt) → the stack pulled and ran, then **tore itself down** because
+    three optional containers reported unhealthy: `analytics`, `vector`, `realtime`.
+  - Disabled `realtime` and `analytics` in the example's `config.toml` — the reference app does not
+    use them — and removed the need for a CLI flag. `supabase start` then completed:
+    **"Started supabase local development setup."** Postgres on `127.0.0.1:54322`, data API on
+    `127.0.0.1:54321`, and the CLI reported the new-style `sb_publishable_…` and `sb_secret_…` keys.
+  - Runtime is colima (installed earlier this session); `supabase stop` and `start` were exercised.
+- **Verified security finding, open:**
+  - **The local stack is reachable from the local network.** `lsof` shows the port forwarder
+    (`limactl`, formerly `ssh`) listening on `*` for 54321–54324, and
+    `curl http://192.168.0.228:54321/rest/v1/` returned **200** — the same response as loopback.
+  - The Supabase CLI's own output warns: "All services bind to 0.0.0.0 (network-accessible, not just
+    localhost)" and "API keys and JWT secrets are shared defaults."
+  - **Step 07's acceptance criteria require disposable development services to be bound to
+    appropriate local interfaces. This is not satisfied**, so Step 07 cannot be called verified while
+    it holds.
+  - Attempted mitigation: restarting colima with `--port-forwarder grpc` did not change the bind —
+    `limactl` still listens on `*`. Neither colima 0.10.3 nor Supabase CLI 2.118.0 exposes a
+    loopback-only switch in the tested versions; the `host` field that config.toml documents for some
+    other sections has no counterpart for the API or database services.
+  - Mitigations available to the owner (in order of preference): enable the macOS application
+    firewall and block incoming connections for the forwarder; run the local stack only while
+    developing and never on an untrusted network; or treat the developer machine's network as part of
+    the trust boundary for local development. **The third option is not a security control and is
+    recorded only so the choice is explicit.**
+  - Consequence for later steps: Step 11's live checks must not assume a loopback-only development
+    environment, and `DEPLOY-01` evidence must record what was actually bound.
+- **Limitations and unresolved findings:**
+  - The application (Next.js), its manifest, migrations, RLS policies, and functional tests are not
+    written yet.
+  - The stack is running with syntactically default credentials, which the CLI itself flags as
+    unsuitable for anything but local development. They are not secrets of value; they are recorded
+    here because they exist.
+- **Next step:** resolve or accept the binding finding, then build the application and migrations.
+
 ### Owner decisions actioned (2026-10-07)
 
 - **`coding_tool`: opencode (primary), Claude Code and Codex available.** Step 12's compatibility
