@@ -733,6 +733,57 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 07 — reference application built and verified end to end (2026-10-07)
+
+- **State:** `verified` for the application and its functional behaviour, with the binding finding
+  below still open on its own criterion.
+- **Files added:** `examples/nextjs-supabase/app/**` (layout, landing page, notes page, Server
+  Actions, auth callback route), `lib/supabase/{server,middleware}.ts`, `middleware.ts`,
+  `next.config.ts`, `tsconfig.json`, `.env.example`, `e2e/notes.spec.ts`, `playwright.config.ts`,
+  `tools/sync-example-env.mjs`; `package.json` completed.
+- **Pinned versions:** Next 16.3.7, React and React DOM 19.3.0, `@supabase/ssr` 0.12.7,
+  `@supabase/supabase-js` 2.117.2, Playwright 1.63.0 — all mature under the seven-day release-age
+  policy, which applies to the example because it is a workspace package.
+- **Actual checks run:**
+  - `next build` → **success**, with routes `/`, `/notes`, `/auth/callback` and middleware.
+  - `pnpm exec playwright test` → **7 tests, all passing in 15.4s**, against a production build
+    (`next start`), with the real Supabase stack running. Playwright is configured with **one
+    worker, no retries**, because a security assertion that passes on the second attempt is a flaky
+    assertion.
+  - Root suite after the change: **428 unit + 8 integration tests, all passing**; `pnpm run lint`
+    green once Playwright's generated `test-results/` was ignored.
+- **What the browser tests actually prove:**
+  - **Anonymous** visiting `/notes` is redirected to the sign-in form, and **the private content is
+    never sent** — asserted by absence, not by visibility.
+  - **User A sees A's note and never B's**; **user B sees B's and never A's** — through the real
+    interface, real cookies, real Server Actions, and real row-level security.
+  - **Sign out, then sign in as the other user, does not leak the previous user's notes** — the
+    cache/session-separation case.
+  - **Owner positive flow**: create, rename, and delete all work. This matters because a policy that
+    denies everybody would pass the negative tests and fail these.
+  - The notes response is **not publicly cacheable** (`cache-control` carries no `public` and no
+    positive `s-maxage`).
+- **Security decisions recorded in the code:**
+  - The server client acts **as the signed-in user** from the request cookies; the application never
+    uses the secret key, so no request path reaches around row-level security. Seeding uses a
+    privileged connection.
+  - The middleware uses **`getUser()`, not `getSession()`** — the latter reads a cookie the client
+    could have written. It is documented as a convenience for the interface, not the boundary.
+  - The query for a user's notes has **no `owner_id` filter**, deliberately: the policy decides, and a
+    second weaker filter in application code could drift from it and give false assurance.
+  - The auth callback validates its `next` parameter against a fixed set of internal paths, because
+    redirecting to an arbitrary query value is the classic open-redirect mistake.
+  - `productionBrowserSourceMaps` is left off, which is what SEC-02's build check will inspect.
+- **Limitations and unresolved findings:**
+  - **No recovery-flow test yet.** AUTH-02's recovery isolation needs the email flow; local mail is
+    captured by the stack's SMTP service and the flow is exercised in Step 14's operational work.
+  - **No manipulated-ID or direct-API bypass test through the app yet** — those are Step 08's matrix;
+    the database-level equivalents were verified with psql, and the app-level ones need the matrix.
+  - **QUAL-01's configured thresholds are not in place.** `next build` type-checks the application,
+    and the root `lint` checks hygiene, but no linter or duplication/complexity threshold is
+    configured for the example. Recorded as outstanding rather than implied complete.
+  - The **binding finding** above remains open; the stack was run only for these tests and is stopped.
+
 ### Standards and upstream resources incorporated (2026-10-07)
 
 - **State:** `verified` for the records and the consistency tests.

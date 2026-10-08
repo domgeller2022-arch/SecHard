@@ -35,6 +35,11 @@ examples/**/.next/
 .npmrc.local
 .pnpmrc.local
 
+# Playwright artifacts. A test run writes screenshots, traces, and a last-run marker; none of it is
+# source, and a committed trace can carry private page content.
+examples/**/test-results/
+examples/**/playwright-report/
+
 # OS and editor noise
 .DS_Store
 Thumbs.db

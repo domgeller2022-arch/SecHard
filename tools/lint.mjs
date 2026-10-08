@@ -15,6 +15,8 @@ const IGNORED_DIRS = new Set([
   'runs',
   '.next',
   '.turbo',
+  'test-results',
+  'playwright-report',
 ]);
 const TEXT_EXTENSIONS = new Set([
   '.ts',

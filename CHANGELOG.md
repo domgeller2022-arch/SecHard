@@ -204,6 +204,30 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — reference application verified end to end (7 October 2026)
+
+The Next.js application is built and its session and authorization behaviour is verified in a real
+browser against the real stack.
+
+- **`examples/nextjs-supabase/app/**`** — landing page and sign-in, the private notes page, Server
+  Actions for authentication and notes, and the auth callback route. Pinned: Next 16.3.7, React
+  19.3.0, `@supabase/ssr` 0.12.7, `@supabase/supabase-js` 2.117.2, Playwright 1.63.0.
+- **Security decisions in the code:** the server client acts as the signed-in user from cookies and
+  the **secret key is never used**; the middleware validates with `getUser()` rather than
+  `getSession()`; the notes query has no `owner_id` filter because the policy is the boundary; the
+  auth callback validates its `next` parameter against a fixed allowlist.
+- **`e2e/notes.spec.ts` — 7 Playwright tests, all passing** against a production build, one worker,
+  **no retries**: anonymous redirect with content never sent; A sees A's and never B's; B sees B's and
+  never A's; sign-out and sign-in as another user does not leak the previous user's notes; create,
+  rename, and delete all work; and the notes response is not publicly cacheable.
+- `tools/sync-example-env.mjs` writes the gitignored `.env.local` from the running stack, and writes
+  **only the publishable key**.
+- `next build` succeeds; root suite **428 unit + 8 integration**, lint green.
+
+Recorded as outstanding rather than implied complete: recovery-flow isolation, the Step 08
+manipulated-ID and direct-API matrix, and QUAL-01's configured lint/duplication thresholds for the
+example.
+
 ### Added — standards and upstream resources incorporated (7 October 2026)
 
 - **`upstream/sources.yaml`: 4 → 35 records.** Every standard and candidate tool from the blueprint's
