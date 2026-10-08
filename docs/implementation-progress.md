@@ -1167,7 +1167,7 @@ are recorded in `docs/ci-trust.md`.
 - **Verified security finding, open:**
   - **The local stack is reachable from the local network.** `lsof` shows the port forwarder
     (`limactl`, formerly `ssh`) listening on `*` for 54321–54324, and
-    `curl http://192.168.0.228:54321/rest/v1/` returned **200** — the same response as loopback.
+    a request to the machine's LAN address on the forwarded port returned **200** — the same response as loopback. The address is withheld from this record because the repository is published; the finding and its evidence do not depend on it.
   - The Supabase CLI's own output warns: "All services bind to 0.0.0.0 (network-accessible, not just
     localhost)" and "API keys and JWT secrets are shared defaults."
   - **Step 07's acceptance criteria require disposable development services to be bound to
