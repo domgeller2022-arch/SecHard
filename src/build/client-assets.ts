@@ -28,6 +28,11 @@ export interface Marker {
  *
  * The fixture marker is deliberately included: it is the synthetic value the leak fixture plants, and
  * a check that cannot detect its own fixture has never been shown to work.
+ *
+ * The provider markers were extended in Batch W after the 2026-10-08 audit showed the original set
+ * missed the commonest real leaks (a legacy Supabase service-role JWT, OpenAI, Stripe, and Anthropic
+ * keys). A JWT cannot be judged by its shape alone, so JWT-shaped strings are decoded separately by
+ * `classifyJwt` and judged by their `role` claim.
  */
 export const DEFAULT_MARKERS: readonly Marker[] = [
   { id: 'supabase-secret-key', pattern: /\bsb_secret_[A-Za-z0-9_-]{10,}/g, kind: 'privileged' },
@@ -35,9 +40,39 @@ export const DEFAULT_MARKERS: readonly Marker[] = [
   { id: 'service-role-literal', pattern: /\bservice_role\b/g, kind: 'privileged' },
   { id: 'private-key-block', pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g, kind: 'privileged' },
   { id: 'aws-access-key-id', pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, kind: 'privileged' },
+  { id: 'openai-key', pattern: /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b/g, kind: 'privileged' },
+  { id: 'anthropic-key', pattern: /\bsk-ant-[A-Za-z0-9_-]{20,}\b/g, kind: 'privileged' },
+  { id: 'stripe-live-key', pattern: /\b[rs]k_live_[0-9A-Za-z]{10,}\b/g, kind: 'privileged' },
+  { id: 'google-api-key', pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g, kind: 'privileged' },
+  { id: 'github-token', pattern: /\bgh[pousr]_[A-Za-z0-9]{36,255}\b/g, kind: 'privileged' },
+  { id: 'slack-token', pattern: /\bxox[abprs]-[A-Za-z0-9-]{10,}\b/g, kind: 'privileged' },
+  { id: 'twilio-api-key', pattern: /\bSK[0-9a-fA-F]{32}\b/g, kind: 'privileged' },
+  { id: 'sendgrid-key', pattern: /\bSG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\b/g, kind: 'privileged' },
+  { id: 'resend-key', pattern: /\bre_[A-Za-z0-9_]{20,}\b/g, kind: 'privileged' },
+  { id: 'firebase-service-account', pattern: /"type"\s*:\s*"service_account"/g, kind: 'privileged' },
   { id: 'synthetic-leak-marker', pattern: /\bSYNTHETIC_PRIVILEGED_LEAK_MARKER\b/g, kind: 'privileged' },
   { id: 'supabase-publishable-key', pattern: /\bsb_publishable_[A-Za-z0-9_-]{10,}/g, kind: 'publishable' },
 ];
+
+const JWT_PATTERN = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g;
+
+/**
+ * A JWT-shaped value is judged by its `role` claim, not its shape: a Supabase anon/publishable JWT
+ * belongs in a browser and must not be reported, while a legacy service-role JWT is a containment
+ * incident. An unreadable payload is reported as privileged, because failing closed is the only safe
+ * direction for credential material.
+ */
+export function classifyJwt(value: string): 'privileged' | 'publishable' {
+  const payload = value.split('.')[1];
+  if (payload === undefined) return 'privileged';
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { role?: unknown };
+    if (decoded.role === 'anon' || decoded.role === 'publishable') return 'publishable';
+    return 'privileged';
+  } catch {
+    return 'privileged';
+  }
+}
 
 export interface AssetInventoryEntry {
   readonly path: string;
@@ -145,6 +180,27 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {})
           triage: 'unresolved',
         });
         void match;
+      }
+
+      // JWT-shaped values are judged by their decoded role claim, not their shape: the legacy
+      // Supabase service-role key is a JWT, and a shape-only rule cannot tell it from an anon key.
+      for (const match of text.match(JWT_PATTERN) ?? []) {
+        if (classifyJwt(match) === 'publishable') {
+          classifications.push({ marker: 'jwt-role-publishable', path: shown, kind: 'publishable' });
+          continue;
+        }
+        findings.push({
+          id: `client-assets:jwt-privileged-role:${shown}`,
+          tool: 'client-asset-inspection',
+          rule_id: 'jwt-privileged-role',
+          title: 'a JWT with a privileged or unreadable role claim ships to the browser',
+          severity: 'critical',
+          location: shown,
+          detail: 'the decoded payload claims a privileged role (or could not be decoded); value withheld',
+          redacted: true,
+          control_ids: ['SEC-02'],
+          triage: 'unresolved',
+        });
       }
     }
   };

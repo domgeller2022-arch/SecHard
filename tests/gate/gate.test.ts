@@ -219,6 +219,22 @@ describe('zero findings do not pass absent required scope coverage', () => {
     expect(decision.satisfied).toBe(false);
   });
 
+  it('accepts partial coverage when the check itself requires partial', () => {
+    // A tool that cannot attest file-level completeness (gitleaks reports bytes) is classified
+    // `mixed`; its coverage is partial by nature. A check that requires partial must accept it,
+    // while a check that requires complete still blocks. Without this, no mixed-method control
+    // could ever pass however clean the target.
+    const plan = planFor('pr');
+    const patched = {
+      ...plan,
+      expected_checks: plan.expected_checks.map((check, index) => (index === 0 ? { ...check, required_coverage: 'partial' as const } : check)),
+    };
+    const results = allPassing(patched).map((result, index) => (index === 0 ? { ...result, coverage: 'partial' as const } : result));
+    const decision = evaluateWith({ plan: patched, results });
+    expect(decision.reasons.some((item) => item.code === 'coverage.incomplete_pass')).toBe(false);
+    expect(decision.satisfied).toBe(true);
+  });
+
   it('accepts the same scan once the expected scope is actually examined', () => {
     const plan = planFor('pr');
     const decision = evaluateWith({ plan, results: allPassing(plan) });

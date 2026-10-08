@@ -227,6 +227,8 @@ export interface ToolRunResult {
 export interface RunToolSpec {
   readonly cwd: string;
   readonly envAllowlist?: readonly string[];
+  /** Explicit environment values, e.g. a PATH containing only reviewed binaries. */
+  readonly env?: Readonly<Record<string, string>>;
   readonly timeoutMs?: number;
   readonly maxOutputBytes?: number;
   readonly toolchain?: ToolchainRecord;
@@ -251,6 +253,7 @@ export async function runTool(name: string, args: readonly string[], spec: RunTo
     timeoutMs: 30_000,
     maxOutputBytes: 64 * 1024,
     ...(spec.envAllowlist === undefined ? {} : { envAllowlist: spec.envAllowlist }),
+    ...(spec.env === undefined ? {} : { env: spec.env }),
   };
 
   const versionOutcome = await runProcess(base);
@@ -283,6 +286,7 @@ export async function runTool(name: string, args: readonly string[], spec: RunTo
     timeoutMs: spec.timeoutMs ?? 600_000,
     maxOutputBytes: spec.maxOutputBytes ?? 8 * 1024 * 1024,
     ...(spec.envAllowlist === undefined ? {} : { envAllowlist: spec.envAllowlist }),
+    ...(spec.env === undefined ? {} : { env: spec.env }),
   });
 
   return { ran: true, outcome, availability };

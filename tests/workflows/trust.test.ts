@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
@@ -339,5 +339,66 @@ describe('CODEOWNERS names the recorded owner', () => {
     for (const handle of handles) {
       expect(handle, 'the template must not contain an invented handle').toBe('@REPLACE_WITH_REVIEWER');
     }
+  });
+});
+
+/**
+ * W3 / audit H4. A pull request used to supply its own `.hardening/` records and was judged by them.
+ * The PR workflow now checks out the base branch's records, evaluates against those, and treats a
+ * changed record set as review-required. These tests assert the shape and execute the step script.
+ */
+describe('a pull request cannot weaken its own evaluation records', () => {
+  it('checks out the base-branch records and evaluates against them', () => {
+    const workflow = load('hardening-pr.yaml');
+    const steps = workflow.jobs?.['hardening-pr']?.steps ?? [];
+    const baseCheckout = steps.find((step) => step.uses?.startsWith('actions/checkout@') && step.with?.['path'] === 'app-base');
+    expect(baseCheckout, 'the PR workflow must check out the base branch').toBeDefined();
+    expect(String(baseCheckout?.with?.['ref'] ?? '')).toContain('github.event.pull_request.base.sha');
+
+    const recordStep = steps.find((step) => step.run?.includes('BASE_RECORDS'));
+    expect(recordStep, 'a step must substitute the base records').toBeDefined();
+    expect(recordStep?.run).toContain('cp -r "$BASE_RECORDS"');
+    expect(recordStep?.['continue-on-error']).toBeUndefined();
+  });
+
+  it('executes the record step: unchanged passes, changed requires review, missing base bootstraps', () => {
+    const workflow = load('hardening-pr.yaml');
+    const recordStep = (workflow.jobs?.['hardening-pr']?.steps ?? []).find((step) => step.run?.includes('BASE_RECORDS'));
+    expect(recordStep?.run).toBeDefined();
+
+    const sandbox = mkdtempSync(join(tmpdir(), 'hardening-records-'));
+    const appRoot = join(sandbox, 'app');
+    const baseRoot = join(sandbox, 'base');
+    const write = (root: string, body: string): void => {
+      mkdirSync(join(root, '.hardening'), { recursive: true });
+      writeFileSync(join(root, '.hardening', 'app.yaml'), body);
+    };
+    const run = (): number => {
+      try {
+        execFileSync('bash', ['-c', recordStep?.run ?? ''], {
+          env: { ...process.env, APP_ROOT: appRoot, BASE_ROOT: baseRoot },
+          stdio: 'pipe',
+        });
+        return 0;
+      } catch (error) {
+        return (error as { status?: number }).status ?? 1;
+      }
+    };
+
+    // Unchanged records: pass, and the app keeps them.
+    write(appRoot, 'same');
+    write(baseRoot, 'same');
+    expect(run()).toBe(0);
+    expect(readFileSync(join(appRoot, '.hardening', 'app.yaml'), 'utf8')).toBe('same');
+
+    // Changed records: review required (nonzero), and the evaluation records are the base ones.
+    write(appRoot, 'weakened-by-pr');
+    expect(run()).not.toBe(0);
+    expect(readFileSync(join(appRoot, '.hardening', 'app.yaml'), 'utf8')).toBe('same');
+
+    // First adoption: no base records is a bootstrap, not a failure.
+    rmSync(baseRoot, { recursive: true, force: true });
+    expect(run()).toBe(0);
+    rmSync(sandbox, { recursive: true, force: true });
   });
 });

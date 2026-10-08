@@ -1,6 +1,6 @@
 # Status
 
-> Generated from `docs/implementation-progress.md` (source SHA-256 `c03e434bcc86c285a982962da39a1f7b41e13025cd0605cee3c299f8a8182213`) by
+> Generated from `docs/implementation-progress.md` (source SHA-256 `ced6d5e6f6d9598b1fff92c5bf37a72c5a12e4970223f351e13a99ba6a417a7d`) by
 > `node tools/generate-status.mjs`. Do not edit by hand: edit the progress record and regenerate.
 > A section appears here only when the record states its state; "verified" means the record's
 > stated acceptance checks ran, nothing more.
@@ -23,14 +23,18 @@
 | Step 13 — GitHub workflows and the trusted final gate (local half) | `awaiting_external_verification` |
 | Step 14 — Manual evidence and operational recipes (2026-10-08) | `verified` |
 | Batch R — Repair (remediation plan, 2026-10-08) | `verified` |
+| Batch W — Wire (remediation plan, 2026-10-08) | `verified` |
 
 ## Open findings and blockers
 
 These are not generated: the authoritative list is in `docs/implementation-progress.md` and
-`CHANGELOG.md`. The short version, as of Batch R:
+`CHANGELOG.md`. The short version, as of Batch W:
 
-- no scanner, build, or live recipe is wired into `check` yet (audit C1; Batch W);
-- a pull request still supplies its own `.hardening/` records (audit H4; Batch W3);
+- the scanner, client-asset, and live-HTTP recipes are wired (Batch W); the authorization,
+  functional, dependency-policy, agent, and release recipes are not, so no app fully passes yet;
+- the PR workflow now evaluates the base branch's records (Batch W3); its platform behaviour is
+  unverified until a real pull request runs on the private repository;
+- TLS remains manual (testssl unpinned, Batch X); ZAP is not a control recipe;
 - the local development stack is reachable from the LAN (open finding; no batch owns it yet);
 - AUTH-02 recovery isolation and genuine session expiry are untested;
 - no `LICENSE` and no security contact **by owner decision**: private, sole-maintainer, and

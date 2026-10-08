@@ -13,6 +13,68 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Batch W — the scanners are wired into `hardening check` (9 October 2026)
+
+The 2026-10-08 audit's C1: `hardening check` ran no scanners, so 32 of 33 checks came back
+"not implemented" and no application could receive an analysis. Batch W connected the adapters to
+the CLI, extended the client-secret markers (H5), and made pull requests evaluate against the base
+branch's records (H4). Checkpoint: `docs/checkpoints/batch-w.md`.
+
+**Recipes — C1**
+
+- `src/execution/recipes.ts`: a recipe registry mapping recipe id → handler. Wired and verified
+  against real targets: `gitleaks/repository`, `gitleaks/history`, `osv/lockfile`, `opengrep/rules`,
+  `zizmor/workflows`, `build/client-assets`, and `web/http-requirements` (the live HTTP checks,
+  folded in from `tools/run-live-checks.mjs`). A recipe not in the registry still reports
+  `unsupported` with its reason; a recipe that does not apply (no git worktree, no lockfile, no
+  workflows, no build output) reports `unsupported` with the specific reason, never a pass.
+- `hardening check` is now asynchronous and runs independent recipes concurrently with a bounded
+  pool; one recipe failing never stops the others, and a handler exception becomes an `error` result.
+- Raw reports are written under `<run>/raw/` and each result records the report basename and its
+  SHA-256.
+- A missing or mismatched tool yields `error` with the registry's reason; the toolchain now supports
+  an explicit child environment, and the gitleaks recipe passes a PATH containing only the reviewed
+  git binary so gitleaks' internal git lookup cannot be redirected.
+- **Acceptance, through the CLI** (`tests/scanners/recipes-cli.test.ts`): on a scratch application
+  with the vulnerable fixtures, all four scanners produce real findings — gitleaks repository and
+  history, opengrep, zizmor, and osv-scanner — and a bare application reports honest
+  `unsupported` reasons for the recipes that do not apply.
+
+**Coverage semantics**
+
+- A pass is now judged against the check's own `required_coverage`: complete is required for an
+  `automated` method, partial is acceptable for a `mixed` one. Previously any partial coverage
+  failed every pass, which made mixed-method controls impossible to satisfy.
+- `SEC-01`'s two gitleaks recipes are reclassified `mixed` (definition version 2): gitleaks reports
+  bytes, not the files it read, so per-file coverage cannot be attested; the tracked-file inventory
+  is recorded as a compensating scope and the limitation is stated on the control. This
+  deliberately invalidates SEC-01's 2026-10-07 approval — 34 of 35 approvals still resolve — and
+  Batch D re-approves the whole sheet.
+
+**Client secrets — H5**
+
+- Marker set extended to OpenAI, Anthropic, Stripe live keys, Google API keys, GitHub tokens,
+  Slack, Twilio, SendGrid, Resend, Firebase service-account JSON, and PEM blocks.
+- JWT-shaped values are decoded and judged by their `role` claim: `service_role` (or anything that
+  cannot be decoded) is a privileged finding, `anon`/`publishable` is classified as intended-public.
+  This catches the legacy Supabase service-role key the audit's probe showed was missed.
+
+**Pull-request trust — H4**
+
+- `hardening-pr.yaml` checks out the base commit's `.hardening/` records and evaluates against them.
+  A changed record set is diffed and fails the job as review-required while the evaluation still
+  runs on the base records. The first adoption (no base records) is a bootstrap and says so.
+  `docs/ci-trust.md` documents the behaviour; a harness test executes the record step against
+  unchanged, changed, and missing base records.
+
+**Not in this batch, recorded rather than implied:** TLS remains `unsupported` (testssl unpinned,
+X3), ZAP remains a standalone Step 11 tool rather than a control recipe, the authorization and
+functional-test recipes are not wired yet, and `hardening audit` (Batch U) does not exist. The
+example's quality, manual-evidence, and live-target checks still report as before.
+
+Suite at this point: **474 unit + 8 integration + 18 scanner + 5 example tests**, all passing on
+Node 24.21.0.
+
 ### Owner decisions and Batch R acceptance (9 October 2026)
 
 - **`repo-checks` passed on GitHub for `6e5cec4`**: build and test, scanner self-scan, workflow

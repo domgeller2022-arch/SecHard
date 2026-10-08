@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import type { CheckResult, ExecutionPlan, ExpectedCheck, Finding } from '../domain/types.js';
 import { redactSecrets } from '../evidence/redaction.js';
 
@@ -18,6 +19,12 @@ export interface InternalCheckOutcome {
   readonly files: readonly string[];
   readonly findings: readonly Finding[];
   readonly diagnostic?: string;
+  /** Scope routes, for a live HTTP recipe. */
+  readonly routes?: readonly string[];
+  readonly tool?: CheckResult['tool'];
+  /** Raw report, recorded as a basename within the run directory plus its digest. */
+  readonly reportPath?: string;
+  readonly reportDigest?: string;
 }
 
 export interface ConsistencyInput {
@@ -105,7 +112,7 @@ export function makeResult(
     required: check.required,
     outcome: outcome.outcome,
     coverage: outcome.coverage,
-    tool: { name: 'internal', observed_version: '1' },
+    tool: outcome.tool ?? { name: 'internal', observed_version: '1' },
     identity: {
       source_commit: sourceCommit,
       policy_commit: plan.policy_identity.commit,
@@ -117,7 +124,15 @@ export function makeResult(
     finished_at: finishedAt.toISOString(),
     duration_ms: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
     exit_code: outcome.outcome === 'pass' ? 0 : 1,
-    scope: { expected: 1, observed: outcome.observed, files: outcome.files.map((file) => redactSecrets(file)) },
+    scope: {
+      expected: 1,
+      observed: outcome.observed,
+      files: outcome.files.map((file) => redactSecrets(file)),
+      ...(outcome.routes === undefined ? {} : { routes: outcome.routes.map((route) => redactSecrets(route)) }),
+    },
+    ...(outcome.reportDigest === undefined
+      ? {}
+      : { report: { ...(outcome.reportPath === undefined ? {} : { path: basename(outcome.reportPath) }), raw_digest: outcome.reportDigest } }),
     findings: outcome.findings.map((finding) => ({
       ...finding,
       // Titles and details come from tools and application files. A title can carry a secret just as

@@ -1,6 +1,7 @@
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { definitionContentDigest, resolveApprovals } from '../domain/approval.js';
 import { buildPlan, planIdentity } from '../domain/planner.js';
+import { RECIPES } from '../execution/recipes.js';
 import { makeResult, runConsistencyCheck } from './check.js';
 import { loadDocument } from '../validation/loader.js';
 import { validateAgainstSchema } from '../validation/schema.js';
@@ -176,10 +177,10 @@ export function planCommand(
   } as PlanOutcome;
 }
 
-export function checkCommand(
+export async function checkCommand(
   paths: Paths,
-  options: { planPath: string; runId: string; now: Date },
-): CheckOutcome {
+  options: { planPath: string; runId: string; outDir?: string; now: Date },
+): Promise<CheckOutcome> {
   const planLoad = loadPlanFile(options.planPath);
   if (planLoad === undefined) {
     return { exitCode: 2, stdout: [], stderr: [`check: no usable plan at ${options.planPath}`] };
@@ -198,39 +199,18 @@ export function checkCommand(
   }
 
   const source = resolveSourceIdentity(paths.appRoot);
-  const results: CheckResult[] = [];
+  const rawDir = join(options.outDir ?? dirname(options.planPath), 'raw');
 
-  for (const check of plan.expected_checks) {
-    // A manual requirement is satisfied by an operator attestation, not by this command. Producing a
-    // result here would either fabricate evidence or mislabel the requirement as unsupported.
-    if (check.execution?.mode === 'manual') continue;
+  // Independent checks run concurrently with a bounded pool. One recipe failing never stops the
+  // others: each handler is isolated and converts its own failure into an error result.
+  const planned = plan.expected_checks.filter((check) => check.execution?.mode !== 'manual');
+  const results = await runPool(planned, 4, async (check) => {
+    const startedAt = new Date();
 
-    if (check.recipe !== 'policy/record-consistency') {
-      // Every other recipe belongs to a later batch. Reporting `unsupported` is the honest outcome;
-      // claiming a pass would be a fabricated result.
-      results.push(
-        makeResult(
-          check,
-          plan,
-          {
-            outcome: 'unsupported',
-            coverage: 'unknown',
-            observed: 0,
-            files: [],
-            findings: [],
-            diagnostic: `recipe ${check.recipe} is not implemented in this build; it is selected by the profile and will run once implemented`,
-          },
-          options.runId,
-          source.commit,
-          options.now,
-          options.now,
-        ),
-      );
-      continue;
-    }
-
-    results.push(
-      makeResult(
+    // The built-in record-consistency recipe is internal: it re-reads the policy records and
+    // confirms they still hash to what the plan recorded.
+    if (check.recipe === 'policy/record-consistency') {
+      return makeResult(
         check,
         plan,
         runConsistencyCheck({
@@ -238,18 +218,63 @@ export function checkCommand(
           plan,
           digests: {
             control_catalogue: plan.policy_identity.control_catalogue_digest,
-            observed_control_catalogue: policyOutcome.value.controlCatalogueDigest,
+            observed_control_catalogue: policyOutcome.value?.controlCatalogueDigest ?? '',
           },
           sourceCommit: source.commit,
           now: options.now,
         }),
         options.runId,
         source.commit,
-        options.now,
-        options.now,
-      ),
-    );
-  }
+        startedAt,
+        new Date(),
+      );
+    }
+
+    const handler = RECIPES[check.recipe];
+
+    if (handler === undefined) {
+      // A recipe without a handler is reported as unsupported with its reason; claiming a pass would
+      // be a fabricated result, and most of the catalogue is still unimplemented.
+      return makeResult(
+        check,
+        plan,
+        {
+          outcome: 'unsupported',
+          coverage: 'unknown',
+          observed: 0,
+          files: [],
+          findings: [],
+          diagnostic: `recipe ${check.recipe} is not implemented in this build; it is selected by the profile and will run once implemented`,
+        },
+        options.runId,
+        source.commit,
+        startedAt,
+        new Date(),
+      );
+    }
+
+    let outcome: Awaited<ReturnType<typeof handler>>;
+    try {
+      outcome = await handler({
+        appRoot: paths.appRoot,
+        policyRoot: paths.policyRoot,
+        environment: plan.environment,
+        check,
+        rawDir,
+        now: options.now,
+      });
+    } catch (error) {
+      outcome = {
+        outcome: 'error',
+        coverage: 'unknown',
+        observed: 0,
+        files: [],
+        findings: [],
+        diagnostic: `recipe ${check.recipe} threw: ${(error as Error).message}`,
+      };
+    }
+    return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date());
+  });
 
   // The CLI contract (02-implementation-plan): 0 satisfied, 1 blocked by unmet required work, 2 on
   // execution or evidence errors. `check` runs everything it safely can and still exits nonzero when
@@ -278,6 +303,25 @@ export function checkCommand(
     stderr: [],
     results,
   };
+}
+
+/**
+ * Runs tasks with a bounded pool. A rejection in one task is the task's own problem: the caller's
+ * wrapper converts it into an error result, and the remaining tasks still run.
+ */
+async function runPool<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const index = next;
+      next += 1;
+      if (index >= items.length) return;
+      results[index] = await fn(items[index] as T);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 export function gateCommand(

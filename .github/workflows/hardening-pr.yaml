@@ -47,6 +47,17 @@ jobs:
           path: app
           persist-credentials: false
 
+      - name: checkout base-branch records (trusted)
+        # The evaluation records come from the base branch, not from the pull request. A PR that
+        # turns a feature off, adds an exception, or adds a manual attestation is then judged against
+        # the records a reviewer has already accepted, instead of weakening its own assessment.
+        if: github.event.pull_request.base.sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: app-base
+          persist-credentials: false
+
       - name: checkout reviewed hardening tooling (trusted)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -69,6 +80,32 @@ jobs:
         run: |
           pnpm install --frozen-lockfile --filter sechard
           pnpm run build
+
+      # Step 13.7. A changed record set is a review-required event, not something the PR evaluates for
+      # itself: the diff is printed, the job fails so a human must look, and the evaluation below runs
+      # against the base records either way. The first adoption has no base records; that bootstrap
+      # path is allowed and stated in docs/ci-trust.md.
+      - name: use the base-branch records, and require review when they changed
+        env:
+          APP_ROOT: ${{ github.workspace }}/app/${{ inputs.app_root }}
+          BASE_ROOT: ${{ github.workspace }}/app-base/${{ inputs.app_root }}
+        run: |
+          set -eu
+          APP_RECORDS="$APP_ROOT/.hardening"
+          BASE_RECORDS="$BASE_ROOT/.hardening"
+          if [ ! -d "$BASE_RECORDS" ]; then
+            echo "hardening-pr: no base-branch records (first adoption, or a non-PR event); evaluating the proposed records"
+            exit 0
+          fi
+          changed=0
+          if ! diff -qr "$BASE_RECORDS" "$APP_RECORDS"; then changed=1; fi
+          rm -rf "$APP_RECORDS"
+          cp -r "$BASE_RECORDS" "$APP_RECORDS"
+          if [ "$changed" = "1" ]; then
+            echo "hardening-pr: the pull request changes the evaluation records; a reviewer must accept the change. The evaluation used the base records."
+            exit 1
+          fi
+          echo "hardening-pr: the base-branch records are unchanged and are what the evaluation used"
 
       - name: validate and plan
         working-directory: hardening
@@ -158,6 +195,28 @@ jobs:
         if: always()
         with:
           node-version: 24.21.0
+
+
+      - name: checkout base-branch records (trusted)
+        if: always() && github.event.pull_request.base.sha != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: app-base
+          persist-credentials: false
+
+      - name: use the base-branch records for the recomputed gate
+        if: always()
+        env:
+          APP_ROOT: ${{ github.workspace }}/app/${{ inputs.app_root }}
+          BASE_ROOT: ${{ github.workspace }}/app-base/${{ inputs.app_root }}
+        run: |
+          set -eu
+          APP_RECORDS="$APP_ROOT/.hardening"
+          BASE_RECORDS="$BASE_ROOT/.hardening"
+          if [ -d "$BASE_RECORDS" ] && [ ! -d "$APP_RECORDS" ]; then
+            cp -r "$BASE_RECORDS" "$APP_RECORDS"
+          fi
 
       - name: install hardening tooling
         if: always()

@@ -432,12 +432,18 @@ function evaluateCheck(
   }
 
   if (result.outcome === 'pass') {
-    if (result.coverage !== 'complete') {
+    // A pass is acceptable when coverage meets what this check requires. A check planned from an
+    // `automated` method requires complete coverage; a `mixed` method requires partial, because some
+    // tools (gitleaks, zymor over stdout) cannot attest file-level completeness and saying otherwise
+    // would be a claim the tool did not make.
+    const requiredCoverage = check.required_coverage ?? 'complete';
+    if (COVERAGE_ORDER[result.coverage] > COVERAGE_ORDER[requiredCoverage]) {
       reasons.push(
-        reason('coverage.incomplete_pass', `${check.check_id} claims pass with ${result.coverage} coverage`, {
-          control_ids: [controlId],
-          check_id: check.check_id,
-        }),
+        reason(
+          'coverage.incomplete_pass',
+          `${check.check_id} claims pass with ${result.coverage} coverage, but this check requires ${requiredCoverage}`,
+          { control_ids: [controlId], check_id: check.check_id },
+        ),
       );
     }
     reasons.push(...scopeReasons(check, result));

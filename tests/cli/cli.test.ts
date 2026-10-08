@@ -177,9 +177,12 @@ describe('plan, check, gate, report end to end', () => {
     }[];
     const unsupported = results.filter((item) => item.outcome === 'unsupported');
     expect(unsupported.length).toBeGreaterThan(0);
+    // Every unsupported result names a reason: either the recipe is not implemented yet, or it is
+    // implemented but does not apply to this target (no git worktree, no lockfile, no workflows).
     for (const item of unsupported) {
-      expect(item.diagnostic).toMatch(/not implemented/);
+      expect(item.diagnostic?.length ?? 0).toBeGreaterThan(0);
     }
+    expect(unsupported.some((item) => item.diagnostic?.match(/not implemented/))).toBe(true);
     expect(results.some((item) => item.check_id.includes('gitleaks'))).toBe(true);
   });
 

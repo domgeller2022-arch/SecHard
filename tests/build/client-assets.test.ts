@@ -1,5 +1,7 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { DEFAULT_MARKERS, inspectBrowserAssets } from '../../src/build/client-assets.js';
 import { packageRoot } from '../../src/validation/schema.js';
 
@@ -63,5 +65,49 @@ describe('coverage is stated, never implied', () => {
     const report = inspectBrowserAssets(join(FIXTURES, 'clean'), { maxTextFileBytes: 10 });
     expect(report.coverage).toBe('partial');
     expect(report.parseErrors.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * H5 regression from the 2026-10-08 audit: the original marker set missed the commonest real leaks.
+ * The probe values are synthetic and functional for no provider; they exist to prove detection.
+ */
+describe('the extended marker set catches the commonest real leaks', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'hardening-client-assets-'));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+  const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const jwt = (payload: Record<string, unknown>): string => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(payload)}.${'x'.repeat(20)}`;
+
+  it('flags an OpenAI, Anthropic, Stripe, and legacy service-role JWT value', () => {
+    const dir = join(scratch, 'leaks');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'bundle.js'),
+      [
+        `const openai = "${['sk', 'proj', 'A'.repeat(40)].join('-')}";`,
+        `const anthropic = "${['sk', 'ant', 'B'.repeat(40)].join('-')}";`,
+        `const stripe = "sk_live_${'C'.repeat(24)}";`,
+        `const legacy = "${jwt({ role: 'service_role', iss: 'supabase' })}";`,
+      ].join('\n'),
+    );
+
+    const report = inspectBrowserAssets(dir);
+    const rules = report.findings.map((finding) => finding.rule_id);
+    expect(rules).toContain('openai-key');
+    expect(rules).toContain('anthropic-key');
+    expect(rules).toContain('stripe-live-key');
+    expect(rules).toContain('jwt-privileged-role');
+    expect(report.coverage).toBe('complete');
+  });
+
+  it('classifies an anon-role JWT as intended-public instead of flagging it', () => {
+    const dir = join(scratch, 'anon');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'bundle.js'), `const key = "${jwt({ role: 'anon', iss: 'supabase' })}";`);
+
+    const report = inspectBrowserAssets(dir);
+    expect(report.findings).toEqual([]);
+    expect(report.classifications.map((entry) => entry.marker)).toContain('jwt-role-publishable');
   });
 });

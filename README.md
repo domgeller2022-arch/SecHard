@@ -15,10 +15,11 @@ it could not run stated as a warning, and nothing claimed that was not executed.
 
 ## Status
 
-**Batch R (repair) of the remediation plan is implemented; Batch W (wiring the scanners into the
-CLI) has not started.** The gate, evaluator, tool pinning, adapters, reference application, and live
-checks exist and are tested, but `hardening check` still runs only the built-in record-consistency
-recipe.
+**Batches R (repair) and W (wire) of the remediation plan are implemented.** `hardening check` now
+runs the secret, dependency, static-analysis, workflow, client-asset, and live-HTTP recipes through
+the reviewed toolchain; the remaining catalogue recipes (authorization, functional, agent, policy,
+and release recipes) still report `unsupported` with their reasons. Audit mode (Batch U), the quality
+section (Q), and requirement-level standards (S) are not built yet.
 
 Read before trusting anything:
 
@@ -90,8 +91,12 @@ just the commit.
 
 - The loader, planning, and pure evaluation engine (identity, freshness, scope, fixtures, approvals,
   exceptions, manual evidence).
+- **`hardening check` runs real recipes**: gitleaks (repository and history), osv-scanner,
+  opengrep, zizmor, the client-bundle secret classifier, and the guarded live HTTP checks. Each raw
+  report is stored with a digest, a missing tool is an error with the registry's reason, and a
+  recipe that does not apply is `unsupported` with its reason — never a pass.
 - Four scanner adapters with pinned, digest-verified tools, exercised against vulnerable and fixed
-  fixtures (`test:scanners`).
+  fixtures (`test:scanners`), plus a CLI-level test that proves a real detection through each recipe.
 - The reference Next.js + Supabase application: forced RLS, an authorization matrix with proven
   detection on a weakened policy, a browser suite, build/client-asset inspection, and a ZAP passive
   baseline.
@@ -103,11 +108,13 @@ just the commit.
 
 ## What does not work yet
 
-- **`hardening check` runs no scanner.** Except for the record-consistency recipe, every planned
-  check reports `unsupported`, and the gate blocks. Wiring the adapters into the CLI is Batch W
-  (audit finding C1).
-- **A pull request supplies its own `.hardening/` records**, so it can weaken its own assessment
-  until Batch W3 (audit finding H4).
+- **Most of the catalogue is still unimplemented.** The authorization matrix, functional tests,
+  dependency-policy, agent, and release recipes report `unsupported`; an application therefore
+  cannot fully pass yet, and the gate blocks honestly.
+- **TLS is still manual.** `testssl.sh` is unpinned, so a production release blocks on missing TLS
+  evidence (Batch X). ZAP remains a standalone Step 11 tool, not a control recipe.
+- **Pull requests now evaluate the base branch's records** (Batch W3): a PR that changes them fails
+  as review-required, and the first adoption has a documented bootstrap path.
 - **No audit mode.** Pointing SecHard at an arbitrary folder or URL without a manifest is Batch U.
 - **No quality section.** Duplication, complexity, dead code, test quality, and AI-authorship tells
   are Batch Q.

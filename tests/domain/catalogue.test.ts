@@ -51,9 +51,15 @@ describe('control catalogue', () => {
     const policy = loadPolicy({ appRoot: packageRoot(), policyRoot: packageRoot() });
     expect(policy.value?.approvals).toHaveLength(35);
     const states = resolveApprovals(controls, policy.value?.approvals ?? [], new Date());
-    expect(states.filter((state) => state.approved)).toHaveLength(35);
-    // Self-review, not independent assurance.
-    expect(states.every((state) => state.self_review)).toBe(true);
+    // Batch W changed SEC-01's definition (its gitleaks recipes are `mixed`, because gitleaks
+    // reports bytes rather than files). That deliberately invalidated SEC-01's approval: the
+    // reviewed content is not the content that was approved. Every other control still resolves.
+    // Batch D re-approves the whole sheet once the remediation batches stop changing definitions.
+    const unresolved = states.filter((state) => !state.approved);
+    expect(unresolved.map((state) => state.control)).toEqual(['SEC-01']);
+    expect(states.filter((state) => state.approved)).toHaveLength(34);
+    // Self-review, not independent assurance. The unresolved SEC-01 has no valid approval to label.
+    expect(states.filter((state) => state.approved).every((state) => state.self_review)).toBe(true);
   });
 
   it('gives every control at least one real method or an explicit manual recipe', () => {

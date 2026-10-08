@@ -85,8 +85,11 @@ export function parseGitleaksReport(raw: string, options: GitleaksOptions = {}):
     tool: 'gitleaks',
     findings,
     scope: {
+      // `observed` is the tracked-file inventory the scan was scoped to, not the number of findings:
+      // a clean scan over a known inventory is not an empty scope. Coverage stays partial because
+      // gitleaks reports bytes, not the files it read.
       expected: options.intendedScope?.length ?? 0,
-      observed: findings.length,
+      observed: options.intendedScope?.length ?? 0,
       ...(options.intendedScope === undefined ? {} : { files: [...options.intendedScope] }),
       notes:
         `gitleaks reported ${bytesScanned === undefined ? 'no byte count' : `${bytesScanned} bytes examined`} and ${findings.length} finding(s). ` +

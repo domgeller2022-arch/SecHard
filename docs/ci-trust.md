@@ -9,14 +9,18 @@ Batch R (2026-10-08) made both consumer workflows fail-closed. Every gate step r
 instead of trusting a dependency job's colour. `tests/workflows/trust.test.ts` executes the gate
 step's own script with a failing stub to prove the failure propagates (the audit's C2 reproduction).
 
-## Known gap: a pull request still supplies its own records
+## Pull-request records are now the base branch's (H4, fixed in Batch W3)
 
-Until Batch W3 lands, both callable workflows evaluate against the **pull request's own**
-`.hardening/app.yaml`, exceptions, and manual evidence. A pull request can therefore turn a feature
-off, add a `pass` attestation, or add an exception, and be judged by those records. This is audit
-finding H4, it is not fixed by anything in this directory, and it is why a green `hardening-pr` run
-is not yet a trust claim about the change. The fix is to evaluate against the base branch's records
-and report the PR's record changes as "requires review".
+Both consumer workflows evaluate against the **pull request's own** `.hardening/` records no longer:
+`hardening-pr.yaml` checks out the base commit's records, and those are what `validate`, `plan`,
+`check`, and `gate` use. A PR that turns a feature off, adds an exception, or adds a manual
+attestation is judged against the records a reviewer already accepted, and the changed record set is
+diffed and **fails the job as review-required** while the evaluation still runs on the base records.
+
+Bootstrap path: the first adoption has no base records. When the base checkout is absent (or the
+workflow is invoked outside a pull request), the step says so and evaluates the proposed records.
+Legitimate obligation removal and policy upgrades follow the same rule: a reviewer accepts the record
+change explicitly, and the substitution never silently adopts a PR's weaker records.
 
 ## What the local tests establish
 

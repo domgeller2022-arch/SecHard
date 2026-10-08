@@ -275,3 +275,20 @@ Batch R implemented and verified locally (`docs/checkpoints/batch-r.md`):
 - **B1 (LAN binding), B2 (AUTH-02 recovery/session), E3 (repository exposure) — still unowned by any
   batch and still open.** B3's warning stands: when X3 pins `testssl.sh`, replace the integration
   assertion that a release plan must carry an `unsupported` TLS check; do not delete it.
+
+---
+
+## Post-W status (2026-10-09)
+
+- **C1 (no scanner wired) — fixed.** Seven recipes produce real results through the CLI; the
+  audit's acceptance is a test that runs the compiled CLI against a vulnerable scratch app.
+- **H5 — fixed.** Extended markers and JWT role decoding; the audit's probe values are detected.
+- **H4 — fixed locally.** The PR workflow evaluates the base branch's records and fails
+  review-required when the PR changes them; a real PR is still needed for platform verification.
+- **W4 — done for the recipe;** the X3 exposure probes remain deferred as the plan allows.
+- **Newly surfaced and fixed in W:** the evaluator required complete coverage for every pass, which
+  made any `mixed` method impossible to satisfy; a pass is now judged against the check's own
+  `required_coverage`. SEC-01's gitleaks recipes are reclassified `mixed` (definition v2), which
+  deliberately invalidates its prior approval; Batch D re-approves.
+- **Still open:** LAN binding, AUTH-02 recovery/session, audit-mode isolation and `--url` SSRF
+  (Batch U), control-catalogue versioning for new QUAL/AI IDs, SARIF, step-13 residual clauses.

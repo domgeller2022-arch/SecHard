@@ -1535,3 +1535,68 @@ the repository is private, so the local record cannot query the Actions API with
 
 Batch W — wire Steps 09–11 into `check` (C1), extend the client-secret markers (H5), evaluate pull
 requests against the base branch's records (H4), and fold the live checks into a recipe.
+
+---
+
+## Batch W — Wire (remediation plan, 2026-10-08)
+
+**Scope.** `docs/audit/2026-10-08-remediation-plan.md` Batch W: W1 recipe dispatch (audit C1), W2
+client-secret coverage (H5), W3 pull-request trust (H4), W4 live-check recipe completion.
+
+- **State:** `verified` for W1–W4 in this environment. The PR workflow change is locally tested but
+  its platform half is unverified until a pull request runs against the private repository.
+- **Files changed:** `src/execution/recipes.ts` (new), `src/execution/registry.ts` (explicit child
+  env), `src/commands/run.ts` (async `check`, bounded pool, recipe dispatch), `src/commands/check.ts`
+  (result tool/report/route fields), `src/domain/evaluator.ts` (coverage judged against the check's
+  required coverage), `src/adapters/gitleaks.ts` (scope inventory semantics), `src/cli.ts` (await),
+  `src/build/client-assets.ts` (extended markers + JWT role decoding), `controls/controls.yaml`
+  (SEC-01 v2, recipes reclassified `mixed`), `.github/workflows/hardening-pr.yaml` (base records),
+  `docs/ci-trust.md`, `README.md`; tests: `tests/scanners/recipes-cli.test.ts` (new),
+  `tests/build/client-assets.test.ts`, `tests/workflows/trust.test.ts`, `tests/gate/gate.test.ts`,
+  `tests/cli/cli.test.ts`, `tests/domain/catalogue.test.ts`.
+- **Actual checks run, on Node 24.21.0:**
+  - `pnpm test` → **474 tests, 27 files, all passing.**
+  - `pnpm run test:integration` → **8 passing**; `pnpm run test:example` → **5 passing**;
+    `pnpm run test:scanners` → **18 passing** (including the new CLI-level recipe test).
+  - `pnpm run typecheck`, `typecheck:tools`, `lint` → clean.
+  - `hardening check` on a scratch application containing the vulnerable fixtures: real findings
+    from gitleaks (repository and history), opengrep, zizmor, and osv-scanner through the compiled
+    CLI; raw reports under `<run>/raw/` with SHA-256 digests in the results.
+- **W1 (C1).** Seven recipe handlers are wired: five scanner recipes, the client-asset classifier,
+  and the live HTTP checks (folded in from `tools/run-live-checks.mjs`). Recipes that do not apply
+  report `unsupported` with the specific reason (no git worktree, no lockfile, no workflows, no
+  build output); a missing tool reports `error` with the registry's reason. Independent recipes run
+  concurrently with a bounded pool.
+- **Coverage correction.** `evaluateCheck` judged every pass by `coverage === 'complete'`, so a
+  `mixed` method could never pass even when the stage only required partial. It now compares the
+  result's coverage against the check's `required_coverage`. SEC-01's gitleaks recipes are
+  reclassified `mixed` with a stated limitation (gitleaks reports bytes, not files); the tracked-file
+  inventory is the compensating scope. Definition version 2 invalidates SEC-01's 2026-10-07
+  approval by design; 34 of 35 approvals still resolve, and Batch D re-approves the sheet.
+- **W2 (H5).** Markers now cover OpenAI, Anthropic, Stripe live, Google API, GitHub, Slack, Twilio,
+  SendGrid, Resend, Firebase service-account JSON, and PEM blocks; JWT-shaped values are decoded and
+  judged by their `role` claim (`service_role` or undecodable → privileged; `anon`/`publishable` →
+  classified public). Tests prove the audit's probe values are detected and an anon JWT is not
+  flagged.
+- **W3 (H4).** `hardening-pr.yaml` checks out the base commit's records, evaluates against them, and
+  fails as review-required when the PR changes the record set (the diff is printed; the evaluation
+  still uses the base records). The first-adoption bootstrap is allowed and documented. A test
+  executes the record step against unchanged, changed, and missing base records.
+- **W4.** Live HTTP is a recipe (`web/http-requirements`) that reloads the approved-target inventory
+  from the application, filters by environment, and refuses to pass on partial coverage. The X3
+  exposure probes (`.env`, `.git`, source maps, debug routes) remain deferred to Batch X by the plan.
+- **Limitations and unresolved findings:**
+  - **ZAP is not a control recipe.** No control declares one; the Step 11 ZAP baseline remains a
+    standalone tool run, recorded as such in the checkpoint.
+  - **TLS remains `unsupported`** (testssl unpinned, Batch X), so a release still blocks on TLS
+    evidence.
+  - **The authorization, functional, dependency-policy, agent, and release recipes are not wired**;
+    `check` exits 1 on them by design.
+  - **Platform verification of the PR workflow** awaits a real pull request on the private
+    repository.
+  - `web/http-requirements` runs only where the profile plans it and a target inventory exists; a
+    stopped local server yields partial coverage, which cannot pass.
+- **Owner decisions or external setup still needed:** none new. `authorised_batch` stays `W`; Batch U
+  (audit mode) is the proposed next batch and needs the owner's authorisation.
+- **Next step:** owner review of `docs/checkpoints/batch-w.md`, then Batch U or the owner's chosen
+  batch.

@@ -208,7 +208,7 @@ const planPath = explicitPlan === undefined ? run.planPath : resolve(explicitPla
 
 if (command === 'check') {
   mkdirSync(runDir, { recursive: true });
-  const checked: CheckOutcome = checkCommand({ appRoot, policyRoot }, { planPath, runId: basename(runDir), now });
+  const checked: CheckOutcome = await checkCommand({ appRoot, policyRoot }, { planPath, runId: basename(runDir), outDir: runDir, now });
 
   if (checked.results !== undefined) {
     writeJson(run.resultsPath, checked.results);
