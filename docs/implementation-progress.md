@@ -733,6 +733,62 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 11 — Guarded live application recipes (2026-10-08)
+
+- **State:** `verified` for the approved-target model, the HTTP recipe, and the passive ZAP baseline
+  against a controlled local target. Deeper TLS assessment remains manual evidence, and the tool for
+  it is deliberately not claimed.
+- **Files added:** `schemas/live-targets.schema.json`, `examples/nextjs-supabase/.hardening/targets.yaml`,
+  `src/adapters/http.ts`, `tools/run-live-checks.mjs`, `tests/live/http.test.ts`,
+  `docs/live-checks.md`; the app's `next.config.ts` gained route-appropriate headers, and
+  `app/auth/callback/route.ts` was changed to stop deriving redirects from the Host header.
+- **Actual checks run:**
+  - `npx vitest run tests/live` → **17 tests pass** against a local server made to break in each of
+    the ways the recipe exists to catch.
+  - `node tools/run-live-checks.mjs … local` against the running application → **3/3 routes observed,
+    coverage complete**; the first run reported **2 findings**, both fixed or configured, and the
+    final run reports **0**.
+  - ZAP passive baseline against the controlled local target → **60 passes, 7 warnings, 0 failures**,
+    report captured with SHA-256 `b35b5784a250e49a…` (ZAP 2.17.0, image digest
+    `sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef`).
+  - An integration assertion now requires a release plan to contain a TLS transport check and that
+    check to be `unsupported`, so **production evaluation blocks while TLS evidence is missing**.
+  - Full suite: **457 unit + 8 integration tests, all passing.**
+- **Findings from running it, each handled rather than smoothed over:**
+  1. **The first live run found a real design issue.** `/auth/callback` built its redirect from
+     `new URL(request.url).origin` — the **Host header**. That is the classic host-header open
+     redirect. The route now requires a configured `APP_ORIGIN` and returns 500 if it is unset. The
+     inventory was **not** widened to make the finding disappear; the same-origin redirects that are
+     genuinely expected were then named explicitly.
+  2. **The app set no security headers at all.** The recipe would have reported them missing, so the
+     application now sets `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and
+     `Permissions-Policy`. HSTS is deliberately absent locally: claiming transport security from a
+     plain-HTTP server would be a lie the check exists to prevent.
+  3. **ZAP's image could not write its report.** The image runs as uid 1000 while `/zap/wrk` is owned
+     by root, and the macOS bind-mount share refuses the container's writes. Writing into a Docker
+     volume as root and copying the report out works; the working invocation and the reason are in
+     `docs/live-checks.md`. Four attempts were required, and the detail is recorded so nobody repeats
+     them.
+  4. **ZAP found six real gaps in the application**, recorded as unresolved: missing CSP (4
+     instances), absent anti-CSRF tokens, missing COEP/COOP/CORP headers, and `X-Powered-By`
+     disclosing server information. A CSP for this application needs script nonces; adding a broken
+     header to close a warning would be worse than the warning. The CSRF result reflects that
+     mutations are Server Actions — a design fact to assess, not a defect to fix blindly.
+- **Boundaries stated rather than implied:**
+  - Requests are **anonymous**. An authenticated requirement cannot be met by this recipe.
+  - TLS: a successful HTTPS request means Node validated the chain and expiry. Protocol versions,
+    ciphers, and configuration depth are **not** assessed; `testssl.sh` is recorded as unverified and
+    that work remains manual evidence. A production transport requirement cannot be satisfied by the
+    local plain-HTTP target.
+  - ZAP is **passive baseline only**: no active attacks, no authenticated crawling, no business-logic
+    testing. Active scanning belongs in controlled staging and is an extension point, not something
+    implemented here.
+  - **Incomplete coverage is not a pass**: an unreachable route exits non-zero and reports `partial`;
+    a run that observed nothing reports `unknown`.
+- **Limitations and unresolved findings:** the ZAP warnings above are open; no active or authenticated
+  scanning exists; `testssl.sh` is unpinned; the binding finding remains open; QUAL-01 thresholds
+  remain unconfigured.
+
 ### Step 10 — Build verification and the client secret boundary (2026-10-07)
 
 - **State:** `verified`.

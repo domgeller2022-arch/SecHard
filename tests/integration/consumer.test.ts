@@ -94,7 +94,7 @@ describe('the compiled CLI works from outside the master repository', () => {
 
   it('shows unmet manual requirements at release rather than forcing every control to pass', () => {
     const dir = consumer();
-    const { runDir } = fullFlow(dir, 'release');
+    const { runDir, gated, reported } = fullFlow(dir, 'release');
     const markdown = readFileSync(join(runDir, 'report.md'), 'utf8');
 
     expect(markdown).toContain('manual.missing');
@@ -109,6 +109,16 @@ describe('the compiled CLI works from outside the master repository', () => {
       expected_checks: { check_id: string }[];
       results: { check_id: string }[];
     };
+    // The transport requirement is planned at release and has no implemented automated recipe, so it
+    // must appear as an unmet required check rather than quietly passing. This is the plan's
+    // requirement that a production release blocks when TLS evidence is missing.
+    const results = evidence.results as { check_id: string; outcome: string }[];
+    const tlsResult = results.find((result) => result.check_id.includes('tls_check'));
+    expect(tlsResult, 'the release plan should include a TLS transport check').toBeDefined();
+    expect(tlsResult?.outcome).toBe('unsupported');
+    expect(gated.stdout).toContain('gate: blocked');
+    expect(reported.status).toBe(1);
+
     const manualChecks = evidence.expected_checks.filter((check) => check.check_id.includes('manual_attestation'));
     expect(manualChecks.length).toBeGreaterThan(0);
     for (const check of manualChecks) {

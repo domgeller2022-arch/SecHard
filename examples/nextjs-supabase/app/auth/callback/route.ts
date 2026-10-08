@@ -12,8 +12,27 @@ import { createClient } from '@/lib/supabase/server';
  */
 const ALLOWED_NEXT = new Set(['/notes', '/']);
 
+/**
+ * The origin a redirect is built from is **configured, not derived from the request**.
+ *
+ * `new URL(request.url).origin` comes from the Host header, which a proxy or an attacker-supplied
+ * header can influence. Building a redirect from it is the classic host-header open redirect: the
+ * link looks like your domain but points elsewhere. The live check flagged exactly this when the
+ * callback redirected to a host the inventory had not approved, and the fix is to stop trusting the
+ * header rather than to widen the approval list.
+ *
+ * Production must set APP_ORIGIN to its real origin; the local default exists only for development.
+ */
+function trustedOrigin(): string | undefined {
+  return process.env.APP_ORIGIN;
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const origin = trustedOrigin();
+  if (origin === undefined) {
+    return new NextResponse('server misconfigured: APP_ORIGIN is not set', { status: 500 });
+  }
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
   const requestedNext = searchParams.get('next') ?? '/notes';
   const next = ALLOWED_NEXT.has(requestedNext) ? requestedNext : '/notes';

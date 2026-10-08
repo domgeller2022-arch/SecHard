@@ -1,0 +1,74 @@
+# Approved live-check targets for the reference application.
+#
+# A target that is not listed here is not a target. Findings, tool output, and fetched pages cannot
+# add one: an inventory that anything can extend is not an inventory.
+#
+# There is no production target, because this example declares hosting disabled in its manifest and
+# is never deployed. That is why production transport evidence is not applicable here — and why a
+# production release for an application that *is* deployed would require the TLS entry below to be
+# filled in with a real host and current evidence.
+schema_version: live-targets/v1
+targets:
+  - id: local-app
+    scheme: http
+    host: 127.0.0.1
+    port: 3100
+    environment: local
+    routes:
+      - /
+      - /notes
+      - /auth/callback
+    # Same-origin redirects are approved and named explicitly. They are expected here: an anonymous
+    # request to a private route is redirected to the sign-in page, and the auth callback redirects
+    # to an error message when its code is missing or expired.
+    #
+    # The first run of this recipe flagged both, because the inventory approved nothing. That was the
+    # check working: a redirect is only acceptable when it is declared. Any other host remains a
+    # finding.
+    approved_redirect_hosts:
+      # The application's configured APP_ORIGIN. It is deliberately not `request.url`'s host: the
+      # callback now refuses to build a redirect from the Host header at all.
+      - localhost
+      - 127.0.0.1
+    response_limits:
+      max_bytes: 1048576
+      timeout_ms: 10000
+    tls:
+      # Plain local HTTP. A production transport requirement cannot be satisfied by this target, and
+      # the recipe does not pretend otherwise.
+      required: false
+    requirements:
+      - route_prefix: /
+        required_headers:
+          - { name: x-content-type-options, value_contains: nosniff }
+          - { name: x-frame-options }
+          - { name: referrer-policy }
+          - { name: permissions-policy }
+        must_not_appear:
+          - "at Object.<anonymous>"
+          - "node_modules"
+      - route_prefix: /notes
+        private: true
+        must_not_appear:
+          - "SUPABASE_SERVICE_ROLE_KEY"
+          - "sb_secret_"
+
+  # Recorded so the production requirement is visible rather than absent. A deployed application of
+  # this profile must list its real host here and provide current TLS evidence; until it does, a
+  # production release correctly blocks.
+  - id: production-placeholder
+    scheme: https
+    host: example.invalid
+    port: 443
+    environment: production
+    routes:
+      - /
+    approved_redirect_hosts: []
+    tls:
+      required: true
+      min_days_valid: 14
+    requirements:
+      - route_prefix: /
+        required_headers:
+          - { name: strict-transport-security }
+          - { name: x-content-type-options, value_contains: nosniff }

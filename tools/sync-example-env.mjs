@@ -44,11 +44,16 @@ if (!url || !publishable) {
   process.exit(2);
 }
 
+const appOrigin = process.argv[2] ?? 'http://localhost:3100';
+
 const contents = [
   '# Written by `pnpm run env:sync` from the running local Supabase stack. Gitignored.',
   '# Only the publishable key appears here. The secret key is never used by this application.',
   `NEXT_PUBLIC_SUPABASE_URL=${url}`,
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${publishable}`,
+  '',
+  '# Redirects are built from this value, not from the request Host header.',
+  `APP_ORIGIN=${appOrigin}`,
   '',
 ].join('\n');
 

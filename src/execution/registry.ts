@@ -60,7 +60,9 @@ export type UnavailableReason =
   | 'digest_missing'
   | 'digest_mismatch'
   | 'version_metadata_missing'
-  | 'not_executable';
+  | 'not_executable'
+  /** Recorded and verified, but executed through the container runtime rather than as a local binary. */
+  | 'container_executed';
 
 /**
  * Resolves a tool against reviewed toolchain data without running it.
@@ -75,6 +77,16 @@ export function resolveTool(name: string, toolchain: ToolchainRecord = loadToolc
     const declared = toolchain.security_tools?.[name];
     if (declared === undefined) {
       return { available: false, reason: 'not_recorded', message: `tool '${name}' is not recorded in the toolchain` };
+    }
+    // A tool that runs as a container image is verified through its image digest and observed
+    // version, not through this registry. Saying "unverified" here would be wrong; saying "available"
+    // would be wrong too, because this registry cannot launch it.
+    if (declared.identity === 'verified') {
+      return {
+        available: false,
+        reason: 'container_executed',
+        message: `tool '${name}' is recorded with a verified identity but runs through the container runtime, not as a local executable`,
+      };
     }
     return {
       available: false,

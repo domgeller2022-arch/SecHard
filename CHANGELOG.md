@@ -204,6 +204,31 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — guarded live recipes and a passive ZAP baseline (8 October 2026)
+
+- **Approved-target model.** `examples/nextjs-supabase/.hardening/targets.yaml` and a new schema: an
+  inventory of scheme, host, port, environment, routes, approved redirect hosts, response limits, TLS
+  requirements, and per-route requirements. Wildcards, plain HTTP outside local, and HTTPS without a
+  TLS requirement are rejected. Nothing contacts a host because a finding or a page mentioned it.
+- **`src/adapters/http.ts`** — asserts declared requirements per route (headers with values, private
+  routes that must not be publicly cacheable, content that must not appear), with bounded requests,
+  checked redirects, and honest coverage: unreachable route → `partial`, nothing observed → `unknown`.
+- **The first run found a real design issue**: `/auth/callback` built its redirect from the request's
+  **Host header** — a host-header open redirect. The route now requires a configured `APP_ORIGIN`.
+  The app also set no security headers; it now sets four, with HSTS deliberately absent locally.
+- **Passive ZAP baseline**, image pinned by digest (`sha256:781a2bda…`, ZAP 2.17.0), run against the
+  controlled local target: **60 passes, 7 warnings, 0 failures**, report captured with a SHA-256.
+  Six real gaps recorded as unresolved: missing CSP, absent anti-CSRF tokens, missing COEP/COOP/CORP,
+  and `X-Powered-By` disclosure. The image's root-owned work directory and the macOS share problem
+  are documented with the working invocation.
+- **TLS stays separate**: `testssl.sh` is recorded as unverified, and an integration assertion now
+  requires a release plan to carry a TLS check that is `unsupported`, so production evaluation blocks
+  while TLS evidence is missing.
+- `docs/live-checks.md` states every boundary: anonymous requests only, no active or authenticated
+  scanning, no cipher or protocol assessment.
+
+Suite: **457 unit + 8 integration tests, all passing.**
+
 ### Added — build verification and the client secret boundary (7 October 2026)
 
 - **`src/build/client-assets.ts`** — inspects browser-shipped output and **classifies rather than

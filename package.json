@@ -32,7 +32,8 @@
     "fetch:tools": "node tools/fetch-tools.mjs",
     "generate:agent-rules": "npm run build --silent && node tools/generate-agent-rules.ts",
     "review:changes": "node tools/review-changes.mjs",
-    "inspect:build": "node tools/inspect-build.mjs"
+    "inspect:build": "node tools/inspect-build.mjs",
+    "live:check": "node tools/run-live-checks.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

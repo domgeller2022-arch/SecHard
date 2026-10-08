@@ -31,7 +31,7 @@ describe('an unidentified tool is not executed', () => {
   // The four scanners were pinned in Step 09 and resolve when their verified binaries are present.
   // ZAP and testssl are Step 11 work and must still be refused.
   it('refuses the tools that have no verified identity', () => {
-    for (const name of ['zap_baseline', 'testssl']) {
+    for (const name of ['testssl']) {
       const availability = resolveTool(name);
       expect(availability.available, name).toBe(false);
       if (!availability.available) {
@@ -62,10 +62,14 @@ describe('an unidentified tool is not executed', () => {
     if (!availability.available) expect(availability.reason).toBe('not_recorded');
   });
 
-  it('records ZAP and testssl as unverified and the four scanners as verified', () => {
+  it('records testssl as unverified, the four scanners as verified, and ZAP as a pinned image', () => {
     const toolchain = loadToolchain(join(packageRoot(), 'policy', 'toolchain.yaml'));
-    expect(toolchain.security_tools?.zap_baseline?.identity).toBe('unverified');
     expect(toolchain.security_tools?.testssl?.identity).toBe('unverified');
+    // ZAP runs as a container image, so its identity is a digest rather than an executable path.
+    const zap = toolchain.security_tools?.zap_baseline as { identity?: string; image_digest?: string; observed_version?: string } | undefined;
+    expect(zap?.identity).toBe('verified');
+    expect(zap?.image_digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(zap?.observed_version).toBe('2.17.0');
     for (const name of ['gitleaks', 'opengrep', 'osv_scanner', 'zizmor']) {
       expect(toolchain.security_tools?.[name]?.identity, name).toBe('verified');
       const identity = toolchain.executables?.[name];
@@ -179,11 +183,14 @@ describe('running a resolved tool', () => {
     }
   });
 
-  it('refuses to run a tool with no verified identity and does not spawn it', async () => {
+  it('refuses to run an image-based tool through the executable registry', async () => {
     const result = await runTool('zap_baseline', ['--version'], { cwd: packageRoot() });
     expect(result.ran).toBe(false);
     expect(result.outcome).toBeUndefined();
-    if (!result.availability.available) expect(result.availability.reason).toBe('identity_unverified');
+    if (!result.availability.available) {
+      // Verified, but not launchable from here: it runs through the container runtime.
+      expect(result.availability.reason).toBe('container_executed');
+    }
   });
 
   it('does not pass the parent environment through', async () => {
