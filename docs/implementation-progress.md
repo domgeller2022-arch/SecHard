@@ -733,6 +733,33 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Publication and session handoff (2026-10-08)
+
+- **Published** at `https://github.com/domgeller2022-arch/SecHard` (commit `88df318`), on the owner's
+  instruction. Public for the initial external audit, then private. Push permission recorded
+  (`agent_may_push: true`).
+- **Verified after pushing:** remote `main` and local `HEAD` are the same commit; 185 files; zero
+  machine-output files; secret scan over committed content and history reports none; zizmor clean.
+- **Two failed credential attempts preceded success, both instructive:** a token without the
+  `workflow` scope (a PAT push creating `.github/workflows/**` requires it) and a fine-grained token
+  without write access to the repository (a public repository is readable without being granted,
+  which masks the missing permission until the push). The working credential is the owner's SSH key.
+
+**For the next session — read in this order:** this file, then `docs/status-report.md` (the audited
+state, nine findings, and the owner decisions outstanding), then `docs/checkpoints/batch-*.md`.
+
+- **Batches A and B are complete. Batch C is complete except Step 13's platform half**, which needs
+  the throwaway GitHub account the owner is creating at the end. **Batch D (Steps 15–16) has not
+  started.**
+- **An external audit by another tool is in progress.** Treat its findings as inputs to review, not
+  as authority: this repository's rules on precedence and evidence still apply.
+- **Next steps, in order:** Step 15 (independent consumer adoption), Step 16 (updater, scheduled
+  checks, release notes, readiness summaries at 0.1.0), then Step 13's platform half when the test
+  environment exists.
+- **Open findings** are listed in `docs/status-report.md`; the ones that matter most are the binding
+  finding (page 1), the six ZAP warnings on the example, and the unfilled owner decisions
+  (`security_contact_email` in particular, which blocks OPS-03).
+
 ### Full audit (2026-10-08)
 
 A verification pass over every claim in this record, run rather than remembered.

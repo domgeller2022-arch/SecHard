@@ -204,6 +204,21 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Published — SecHard on GitHub (8 October 2026)
+
+- **Repository published** at `github.com/domgeller2022-arch/SecHard`, commit `88df318`, 33 commits,
+  185 files. Public for the initial external audit, to be moved to private once that audit is
+  complete; the visibility decision and its reason are recorded in `01-owner-decisions.md`.
+- **`repo_name` recorded as `SecHard`.** The npm package name is `sechard` (package names must be
+  lowercase) and the CLI executable remains `hardening` per the plan.
+- **The callable workflows now name the real repository** instead of `REPLACE_WITH_HARDENING_REPOSITORY`,
+  and the consumer template keeps only the reviewed-commit placeholder. This resolved an open finding.
+- **The machine's LAN address was withheld from the progress record before publication.** The binding
+  finding and its evidence remain; only the address was removed.
+- **Verified after the push:** remote `main` equals local `HEAD` (`88df318`); 185 files on the remote;
+  **zero machine-output files** (`node_modules`, `.next`, `tools/bin`, `.env.local` are excluded as
+  intended); secret scan over committed content and history reports none.
+
 ### Fixed — audit findings (8 October 2026)
 
 A full audit of every claim in the progress record, with each check run rather than remembered,
