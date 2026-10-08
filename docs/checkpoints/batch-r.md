@@ -10,9 +10,10 @@ Batch R of `docs/audit/2026-10-08-remediation-plan.md`, worked against
   platforms pinned with archive and executable digests; no machine path remains; an unlisted
   platform is refused as `unsupported_platform`. Non-native platform versions are release-declared
   and verified by `runTool` on their first CI run, stated per entry.
-- **R2 — CI ordering and suite split (C4, M4, M5): verified locally; GitHub run pending.** Build
-  precedes `dist/` consumers; suites split; installs filtered; `pnpm test` no longer dirties the
-  tree.
+- **R2 — CI ordering and suite split (C4, M4, M5): verified locally; GitHub run
+  `awaiting_external_verification`.** Build precedes `dist/` consumers; suites split; installs
+  filtered; `pnpm test` no longer dirties the tree. The commit is pushed; the repository is private,
+  so the run is visible to the owner in the Actions tab but not over the unauthenticated API.
 - **R3 — Fail-closed workflows (C2, M2, E1): local half verified; platform half
   `awaiting_external_verification`.** `check` exits nonzero on unmet required work; workflows have no
   fail-open construct; the final job re-runs the gate against the uploaded plan and results; the

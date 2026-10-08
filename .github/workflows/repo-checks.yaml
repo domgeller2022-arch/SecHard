@@ -69,13 +69,14 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter sechard
+      - run: pnpm run build
       # The tools are fetched and digest-verified at run time rather than committed. The digest is
       # checked against the binary before it executes, so a substituted binary is refused. The token
       # is the job's own read-only token and only raises the API rate limit; it is not a privilege.
+      # `build` runs first because fetch-tools.mjs imports the compiled download path.
       - run: pnpm run fetch:tools
         env:
           GITHUB_TOKEN: ${{ github.token }}
-      - run: pnpm run build
       # `tests/scanners` runs each adapter against its vulnerable and fixed fixtures with the pinned
       # tools, and fails if a detection or the fixed negative does not behave.
       - run: pnpm run test:scanners
@@ -127,6 +128,7 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile --filter sechard
+      - run: pnpm run build
       - run: pnpm run fetch:tools
         env:
           GITHUB_TOKEN: ${{ github.token }}

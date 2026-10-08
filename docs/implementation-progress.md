@@ -1401,9 +1401,12 @@ the batch-R ones were implemented here (M5 filtered installs, C1/C3 dead policy 
 evaluator aggregation, C5 console redaction, E1 plan/results artefacts).
 
 - **State:** `verified` for R1–R6, with R3's GitHub-side acceptance and all R7 owner items pending.
-  A GitHub Actions run cannot be observed from this machine yet (no token under
-  `github_test_token_env_var`; the repository is pushed over SSH only), so "repo-checks green on
-  GitHub" is `awaiting_external_verification` rather than claimed.
+  Batch R was committed (`bc0da96`) and pushed to `origin/main` over the owner's SSH key. A GitHub
+  Actions run cannot be observed from this machine: the repository has been made **private** (as the
+  owner planned after the public audit), and the unauthenticated Actions API returns 404. No token
+  under `github_test_token_env_var` exists, so "repo-checks green on GitHub" remains
+  `awaiting_external_verification` rather than claimed. The owner can see the run in the repository's
+  Actions tab; the acceptance is a green `repo-checks` on this commit.
 - **Files changed:** `policy/toolchain.yaml` (per-platform records), `tools/fetch-tools.mjs`
   (platform-aware, reviewed-digest-first, token-aware), `src/execution/registry.ts`
   (platform resolution, `unsupported_platform`), `src/commands/io.ts`,

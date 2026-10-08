@@ -244,6 +244,22 @@ describe('CI provisioning is split and build-ordered', () => {
     expect(indexOf('pnpm run typecheck'), 'plain typecheck must run after build').toBeGreaterThan(build);
   });
 
+  it('builds before fetching tools or running any tool that imports dist', () => {
+    // fetch-tools.mjs imports the compiled download path from dist/, so every job that fetches or
+    // invokes a tool must build first. This was a real defect in the first CI rewrite.
+    for (const file of workflowFiles) {
+      const workflow = load(file);
+      for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
+        const steps = job.steps ?? [];
+        const build = steps.findIndex((step) => step.run?.includes('pnpm run build'));
+        const needsDist = steps.findIndex((step) => step.run?.includes('fetch:tools') || step.run?.includes('review-changes.mjs'));
+        if (needsDist === -1) continue;
+        expect(build, `${file} ${jobName}: must build before the step that imports dist`).toBeGreaterThanOrEqual(0);
+        expect(build, `${file} ${jobName}: build must precede the dist-importing step`).toBeLessThan(needsDist);
+      }
+    }
+  });
+
   it('splits the suites so each job provisions only what its suite needs', () => {
     const packageJson = JSON.parse(readFileSync(join(packageRoot(), 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
