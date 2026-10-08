@@ -733,6 +733,40 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Full audit (2026-10-08)
+
+A verification pass over every claim in this record, run rather than remembered.
+
+- **Repository:** 30 commits, tree clean, no uncommitted work.
+- **Executable checks:** `typecheck` 0 errors; `build` succeeds; `lint` clean; **465 unit + 8
+  integration tests pass**; scanner adapter suite 15 tests; live HTTP suite 17; client-asset suite 12;
+  example application `next build` succeeds.
+- **CLI:** `validate` passes on the consumer fixture (2 profiles, 35 controls, 2 assessments,
+  1 exception); `approvals` reports 35 approved; a release gate **blocks** with 55 reasons —
+  the behaviour is unchanged and correct.
+- **Tool identities:** gitleaks, opengrep, osv-scanner, and zizmor all resolve with digests matching
+  the binaries on disk; testssl is refused as unverified; ZAP is refused by the executable registry
+  as `container_executed` (it is pinned as an image and run through the container runtime).
+- **Generated artifacts:** `controls/matrix.md` and `agent-rules/generated/*` are current;
+  regeneration produces no diff.
+- **Self-scans:** zizmor over the workflows → 0 findings. Gitleaks in **git mode** (committed content
+  and history) → **0 findings**.
+- **Unfinished-work markers:** no TODO/FIXME/XXX/HACK in `src`, `controls`, `policy`, `profiles`,
+  `schemas`, `agent-rules/core`, or `runbooks`.
+- **Two findings from the audit itself, both fixed:**
+  1. **The product secret scan was scoped by `dir`, so it scanned build output and local files.** A
+     `dir` scan reported 14 findings: `examples/nextjs-supabase/.next/**` build artifacts,
+     `.env.local` (gitignored, carrying the intended-publishable key), and **`tests/fixtures/build/`** —
+     the fixture that deliberately contains a publishable key so the client-asset classifier can be
+     shown to accept it. Those paths are not repository content, and findings nobody can act on are
+     how a scanner stops being read. The product scan is now defined as **`gitleaks git`** (committed
+     content and history), and the build fixture was added to the reviewed exclusion list alongside
+     the scanner fixtures. Re-run: **0 findings**, while adapter verification still detects every
+     fixture it is supposed to. The configuration now says which mode is the product scan and why.
+  2. **`gitleaks dir` accepts a single path.** My first attempt passed several paths and silently
+     scanned the whole tree instead, which is how the misleading counts appeared. Corrected usage
+     verified: `dir src` → 0 findings.
+
 ### Step 14 — Manual evidence and operational recipes (2026-10-08)
 
 - **State:** `verified` for the freshness rules, the exception rules, the local restore drill, and the

@@ -1,15 +1,20 @@
 # Gitleaks configuration for repository and pull-request scans.
 #
-# The deliberately vulnerable fixtures under tests/fixtures are excluded here so a normal product
-# scan does not report them as live leaks. They are scanned explicitly by the adapter verification,
-# which does not use this file, so the exclusions narrow the product scan without hiding the fixture
-# from the check that is supposed to detect it.
+# **Scope: use `gitleaks git`, not `gitleaks dir`.** The product scan covers committed content and
+# history. Build output (`.next/`), local environment files (`.env.local`), and other untracked
+# artifacts are not repository content, and scanning them produces findings nobody can act on —
+# which is how a scanner's output stops being read. Adapter verification scans explicit fixture paths
+# with `dir` and does not use this file.
 #
-# The exclusion is deliberately narrow: it names the fixture directory, not a pattern that could
-# swallow real source.
+# The deliberately vulnerable fixtures under `tests/fixtures/` are excluded here so a normal product
+# scan does not report them as live leaks: they contain synthetic credentials on purpose, and the
+# build fixture contains a *publishable* key that is intended to be public. Both are scanned
+# explicitly by the checks that are supposed to find them.
+#
+# Each exclusion names a directory. Nothing here is a pattern that could swallow real source.
 [extend]
 useDefault = true
 
 [[allowlists]]
 description = "Deliberately vulnerable fixture material, reviewed and non-functional"
-paths = ['''tests/fixtures/scanners/''', '''tools/bin/''']
+paths = ['''tests/fixtures/scanners/''', '''tests/fixtures/build/''', '''tools/bin/''']

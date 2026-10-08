@@ -204,6 +204,26 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Fixed — audit findings (8 October 2026)
+
+A full audit of every claim in the progress record, with each check run rather than remembered,
+found two problems in the secret-scan scope:
+
+- **The product scan was defined by `dir`, so it scanned build output and local files.** A `dir` scan
+  over the working tree reported 14 findings: the example's `.next/**` artifacts, its gitignored
+  `.env.local`, and — the real one — **`tests/fixtures/build/`**, the fixture that deliberately
+  contains a publishable key so the client-asset classifier can be shown to accept it. None of those
+  is repository content, and this is how a secret scanner's output stops being read. The product scan
+  is now **`gitleaks git`** (committed content and history), and the build fixture is in the reviewed
+  exclusion list with the scanner fixtures. Re-run: **0 findings**, with adapter verification still
+  detecting every fixture.
+- **`gitleaks dir` takes a single path.** Passing several silently scanned the whole tree, which is
+  how the misleading counts appeared in the first place. Corrected usage verified.
+
+Audit result otherwise: typecheck, build, and lint clean; 465 unit + 8 integration tests; CLI
+validate/approvals/gate behave as recorded; all four scanner digests still match their binaries;
+generated artifacts current; zizmor 0 findings; no unfinished-work markers in engineered files.
+
 ### Added — manual evidence rules, a restore drill, and runbooks (8 October 2026)
 
 - **Per-control freshness intervals are now enforced.** 90 days for restore/response exercises and
