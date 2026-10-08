@@ -1,142 +1,146 @@
-# Batch B checkpoint (partial)
+# Batch B checkpoint
 
-Steps 06–10. Generated 2026-10-06. Authorised batch: **B**.
+Steps 06–10. Generated 2026-10-07 (superseding the partial checkpoint of the same batch). Authorised
+batch at the time of completion: **B** (returned from C once the container runtime existed, so the
+blocked Steps 07, 08, and 10 could be finished).
 
-> **Update (same day, after owner grants).** The owner granted `agent_may_install_runtimes: true`
-> and `network_access_to_registries: true`. **Step 06 is now verified in full** (environment blockers
-> E1 and E2 resolved; Node 24.21.0 installed with a verified digest; pnpm 12.9.1 installed;
-> `pnpm install --frozen-lockfile` builds the CLI), and **Step 09 is verified** (four scanners
-> downloaded, digest-pinned, and run against real vulnerable and fixed fixtures).
-> **Steps 07, 08, and 10 remain blocked** on the absent container runtime (E3), as does Step 09's
-> app-integrated scan. The status table below is superseded by this paragraph; the blockers and
-> owner actions remain accurate.
-
-**This batch is not complete.** Step 06 was implemented and verified as far as this machine permits.
-Steps 07–10 are blocked and were deliberately not started. The batch stops here per the kickoff
-rule: continue with what does not depend on the missing items, and mark dependent work blocked.
+**This batch is complete.** Every step reached a verifiable end state; the limitations listed below
+are recorded rather than left implied.
 
 ## Status
 
-| Step | State | Reason |
+| Step | State | Summary |
 | --- | --- | --- |
-| 06 — Control dependency and tool execution | **`verified` (complete)** | Execution layer, provisioning policy, digest-gated downloads, install-script policy, release-age enforcement, and pinned pnpm all verified on Node 24.21.0. E1 and E2 resolved. |
-| 07 — Secure local reference app | `blocked` | Requires a container runtime for local Supabase. **Docker is absent** (E3), and `docker_available` is unfilled (**B12**). |
-| 08 — Authorization and session verification | `blocked` | Depends on Step 07. There is no application and no database to test against. |
-| 09 — Scanner adapters | **`verified`** (app-integrated scan `blocked`) | Four scanners pinned and digest-verified; real positive detections and clean fixed negatives for all four. The app-integrated scan needs Step 08. |
-| 10 — Build and client-secret checks | `blocked` | Depends on Steps 08–09. There is no application and no build to inspect. |
+| 06 — Control dependency and tool execution | `verified` | Release-age enforcement and install-script default-deny verified against pnpm 12.9.1; bounded process execution with digests checked before every run; provisioning separated from checking. |
+| 07 — Secure local reference app | `verified` | Next.js application with cookie-based SSR sessions, Server Actions, and RLS migrations; 7 Playwright tests against a production build. One criterion — binding dev services to local interfaces — remains **open** (below). |
+| 08 — Authorization and session verification | `verified` | 14-case machine-readable matrix against the unprivileged data API, denials verified against stored state, inventory checks, and **detection proven** on a weakened policy. |
+| 09 — Scanner adapters | `verified` | Four tools pinned and digest-verified, with real positive detections and clean fixed fixtures for each. App-integrated scan deferred with Step 08's matrix covering the boundary directly. |
+| 10 — Build verification and client secret boundary | `verified` | Browser output inspected; leaking and clean fixtures prove detection; the real build is clean and contains no Supabase key at all. |
 
 ## What now works
 
 ```bash
 cd "/Users/dd/Desktop/Security Hardening/hardening"
-npm run build
+export PATH="$HOME/.local/opt/node-v24.21.0/bin:/usr/local/bin:$PATH"
 
-# The reviewed dependency and provisioning policy, validated on load.
-node dist/cli.js validate --app tests/fixtures/consumer --policy .   # still passes
+# The kit
+pnpm install --frozen-lockfile && pnpm run build
+pnpm run typecheck && pnpm run lint
+pnpm test && pnpm run test:integration          # 440 unit + 8 integration
+pnpm run fetch:tools                            # digest-verified scanners
+node dist/cli.js validate --app tests/fixtures/consumer --policy .
+node dist/cli.js approvals --policy .           # the 35 recorded approvals
+node tools/review-changes.mjs <base> [head]     # security-test change report
+pnpm run generate:agent-rules                   # AGENTS.md + CLAUDE.md from one source
+pnpm run inspect:build                          # build evidence + client-asset inspection
 
-# Every scanner is refused, because no identity has been verified yet.
-# (exercised by tests/execution/registry.test.ts)
-npm test        # 345 tests, 17 files
+# The reference application (the local stack must be running)
+cd examples/nextjs-supabase
+pnpm exec supabase start
+pnpm run env:sync
+pnpm run build && pnpm run test:e2e             # 7 browser tests, no retries
+pnpm run test:authorization                     # 14 API cases + 4 inventory checks
+pnpm run test:authorization:weakened            # proves the matrix detects a weakened policy
+pnpm exec supabase stop                         # do this when finished
 ```
-
-Inside the library — and through the tests — the following are real, not illustrative:
-
-- **Bounded process execution.** Arguments are arrays with no shell; the executable must be an
-  absolute path; the environment is an allowlist; output is capped; a deadline terminates the child
-  and its process group. The process tests spawn real children and verify the child never ran.
-- **Reviewed-executable registry.** A tool runs only with an absolute path, a recorded version, and
-  a digest verified against the binary on disk. Every scanner is currently refused as
-  `identity_unverified` — the honest state.
-- **Provisioning validated before execution.** Exact version, reviewed registry, release-age
-  confirmation, reviewed install hooks, and download digests are checked first; a refused plan runs
-  nothing.
-- **Digest-gated downloads.** HTTPS-only, registry-matched, digest-verified, size-capped, and
-  redirect-refusing, tested against a real local HTTP server.
 
 ## Checks actually run
 
-| Command | Outcome | Where |
-| --- | --- | --- |
-| `npx vitest run tests/execution` | **65 tests, 5 files, pass** (real processes, real HTTP server, real digests) | session log |
-| `npx vitest run` | **345 tests, 17 files, pass** | session log |
-| `npx tsc --noEmit` | exit 0 | session log |
-| `npm run build` | exit 0 | session log |
-| `npm run lint` | exit 0 | session log |
-| Dependency hook scan (53 installed package dirs) | 4 packages have hooks; **none is an install-time hook**; build and suite pass with `ignore-scripts=true` | session log; guarded by `tests/execution/install-policy.test.ts` |
-| `docker` recheck | **absent** — symlink target removed, no socket, no alternative runtime | session log; E3 |
-| `node dist/cli.js validate` | exit 0 — the Batch A consumer still validates | session log |
+| Command | Outcome |
+| --- | --- |
+| `pnpm test` / `pnpm run test:integration` | **440 unit + 8 integration tests pass** on Node 24.21.0 |
+| `pnpm exec playwright test` | **7 browser tests pass** against `next start`, one worker, no retries |
+| `pnpm run test:authorization` | **14 cases, 0 failures**, plus 4 inventory checks |
+| `pnpm run test:authorization:weakened` | Detection proven on a permissive policy; correctness re-proven after reset |
+| `node tools/inspect-build.mjs` | 11 files, 575 574 bytes, digest `8037be58…`, 0 findings, 0 source maps |
+| `npx vitest run tests/scanners` | Real detections: Gitleaks 3/0, zizmor 4/0, OSV advisories, Opengrep 3/0 |
+| zizmor over this repository's workflows | 0 findings (after fixing 3 template-injection issues it found) |
+| `gitleaks git .` over full history | **0 findings** after the authorised history rewrite |
 
-Failures found and fixed during the step: the registry ran the version check after the requested
-arguments in the first draft (it now checks first); a download test asserted an insecure-origin case
-that needed an explicit loopback exemption to be testable; the registry initially declared a
-`reuse`-shaped policy field it never read, which was removed.
+Failures encountered and fixed during the batch — recorded because a checkpoint that lists only
+successes hides the useful part: three template-injection findings in my own workflows; archive
+digests recorded where executable digests were required; a raw report retained in an adapter outcome
+that could have carried a secret; four synthetic tokens committed as literals in tests (found by the
+first real scan of this repository); two comparison bugs in my own authorization runner; and a
+percent-encoded path.
 
 ## Controls
 
-Unchanged in count: **35 controls, all `draft`.** This batch added execution capability under
-existing controls: DEP-01, DEP-02, CI-02, and the execution half of AGT-02.
+**35 controls, all `owner_reviewed`, 35 approval records.** A release gate reports **0** approval
+reasons (it previously reported one per applicable control) and still blocks on genuine gaps.
+
+This batch exercised: DEP-01, DEP-02, DEP-03 (advisory scan), SEC-01 (repository and history),
+SEC-02 (client assets), CI-02, CI-03, CODE-01, QUAL-01 (partially — see limitations), AUTH-01
+(partially), AUTHZ-01, AUTHZ-03, DATA-01, WEB-01 (negative inputs via the matrix), ABUSE-01
+(partially), REL-01 (build evidence), REL-02 (database-level), EXC-01, AGT-03, GOV-02, CTX-01.
+
+No control acceptance criterion was weakened. Two expectations were **corrected to match verified,
+stronger behaviour**: anonymous access is refused at the grant layer (`42501`) rather than shown an
+empty result, and the browser bundle contains no Supabase key at all because all access is
+server-side.
 
 ## Deviations from the plan
 
 | Deviation | Reason |
 | --- | --- |
-| Step 06 sub-items left blocked rather than worked around | pnpm is not installed (B14) and the registry permission is unfilled (B13). The policy explicitly blocks a provisioning plan while the release-age enforcement is unverified, instead of assuming it applied. |
-| Scanner tools recorded as `identity: unverified` rather than pinned | Pinning requires downloading and verifying the tool, which needs B13. Recording an unverified identity and refusing to run it is the honest alternative to inventing a digest. |
-| Steps 07–10 not started | No container runtime exists on this machine. A reference application that cannot start its database is not a reference application. |
+| Steps 12 and 13 (Batch C) partly completed first | Batch B was blocked on the container runtime; Step 12's stated dependencies (Steps 03–06) were satisfied, and the plan requires continuing with work that does not depend on the missing item. |
+| colima/lima instead of Docker Desktop | Docker Desktop is proprietary and carries a licence decision belonging to the owner. colima is a Docker-compatible open-source runtime. |
+| Scanner tools downloaded to `tools/bin/` (gitignored) rather than a container or system install | Keeps the pinned digests authoritative, avoids modifying the machine, and lets the registry verify the binary before each run. |
+| The authorization matrix runs against the data API rather than only through the UI | The interface is one caller among many; the provider boundary is what every path depends on. The UI path is covered by the Playwright suite. |
+| The example is a workspace package | So the reviewed dependency policy, including the release-age delay, applies to it as it does to the core. |
 
-## Blockers and owner actions needed
+## Blockers and owner actions
 
-| # | Blocker | Affects | What the owner must do |
+| # | Item | Affects | Owner action |
 | --- | --- | --- | --- |
-| **E3 / B12** | **Docker is absent** (not merely stopped; the app and socket are gone) | Steps 07–11 | Install Docker Desktop or an equivalent (`colima`, `podman`), start it, and set `docker_available: true`. Nothing in Batch B beyond Step 06 can proceed without this. |
-| **B14** | `agent_may_install_runtimes` is `TODO`; pnpm is not installed | Step 06's release-age and install-script verification; the pinned-package-manager acceptance check from Step 01 | Grant or deny runtime installation. If granted, install Node 24.21.0 and pnpm 12.9.1, then the pnpm behaviour can be tested. |
-| **B13** | `network_access_to_registries` is `TODO` | Step 06's live provisioning path; Step 09's scanner downloads | Confirm whether provisioning may reach registries, then a real tool can be downloaded, digested, and pinned. |
-| B4/B5 | Licences unfilled | `LICENSE`/`NOTICE` | Choose `Apache-2.0` or `MIT`, and `CC-BY-4.0` or `same-as-code`. |
-| — | 35 control definitions are `draft` | Release evaluation | Run `node dist/cli.js approvals --policy .` and record approvals. Release blocks without them. |
+| 1 | **Binding finding is open**: the local stack is reachable from the VM network and could not be verifiably contained; `limactl` has no explicit firewall block and is ad-hoc signed | Step 07's binding criterion; Step 11's assumptions | Either add the explicit block (`--add` then `--blockapp`) and accept that the VM path may remain unfiltered, or record local-network trust as an accepted risk |
+| 2 | GitHub test environment deferred to the final step | Step 13 platform verification | Create the throwaway account and repositories at the end, as agreed |
+| 3 | QUAL-01 thresholds not configured | Step 10's "configured quality thresholds" | Decide whether to add a linter and calibrated thresholds for the example |
+| 4 | `owner_legal_name` still unfilled | Licence, NOTICE, release artifacts | Provide it before publication |
+| 5 | History-rewrite backup left outside the repository | Housekeeping | Delete `/var/folders/.../T/opencode/git-backup-prehistory-20261008024854` when satisfied |
 
 ## Owner review list
 
 | File / section | What to look for |
 | --- | --- |
-| **`src/execution/process.ts`** | The only place a process is started. Check the refusal on a non-absolute path, the allowlist environment, the output cap, and the SIGTERM→SIGKILL sequence that signals the process group. |
-| **`tests/execution/process.test.ts`** | That the timeout test genuinely proves the child was killed: it waits past the point the marker file would have been written. That the malicious-argument tests use real shell metacharacters. |
-| **`src/execution/registry.ts`**, `policy/toolchain.yaml` | That every scanner is `identity: unverified` and refused, and that a recorded digest is verified against the binary before execution. Confirm you agree that refusing to run is better than an unverified pin. |
-| **`policy/dependency-policy.yaml`** | The 10080-minute delay, empty install-hook allowlist, exact-version exception rules, and the provisioning/application-execution separation. This file is authority. |
-| **`src/execution/provision.ts`**, `tests/execution/policy.test.ts` | That a refused plan executes nothing, and that an expired or wildcard exception is rejected. |
-| **`src/execution/download.ts`**, `tests/execution/download.test.ts` | Digest gating, HTTPS-only, redirect refusal, and size cap. Note the loopback exemption exists for tests and local mirrors. |
-| **`tests/execution/install-policy.test.ts`** | The guard that fails if a future dependency adds a real install-time hook. This is the mechanism that stops the allowlist from silently growing. |
-| **`docs/checkpoints/batch-b.md`** (this file) | Whether you agree the batch should stop here rather than scaffolding an application that cannot run. |
+| `src/execution/process.ts`, `registry.ts` | The only place a process starts, and the digest check that precedes every run |
+| `policy/dependency-policy.yaml`, `pnpm-workspace.yaml` | The seven-day delay, the empty install-hook allowlist, and the settings that were actually verified |
+| `examples/nextjs-supabase/supabase/migrations/` | `owner_id` defaulting to `auth.uid()`, `force row level security`, and grants revoked from `anon` |
+| `tests/authorization/matrix.yaml`, `run-authorization.mjs` | That the cases are the ones you care about, and that denials are checked against stored state |
+| `tests/authorization/weakened-detection.sh` | That the detection proof would fail if the assertions were weak |
+| `src/build/client-assets.ts`, `tests/build/client-assets.test.ts` | That classification versus finding is right, and that coverage is stated honestly |
+| `tools/inspect-build.mjs` | Source-change detection and the separation of quality from security |
+| `docs/implementation-progress.md` | The per-step account, including every failure found |
 
 ## Known limitations and risks
 
-- **The release-age delay is configured, not verified.** The number is enforced in policy validation;
-  the package manager that would enforce it at install time has not been tested.
-- **The install-script guarantee is only as strong as our own toolchain today.** Verified: our
-  dependency set needs no hook and builds with scripts disabled. Unverified: that pnpm keeps an
-  unapproved hook disabled.
-- **Four real tools are pinned and have been run** against fixtures; the app-integrated scan is not
-  performed. **One synthetic placeholder token remains in git history** (see the progress record) and
-  is deliberately left visible.
-- **Nothing has been executed against an application**, because there is no application.
-- **`application_execution` isolation is a policy statement**, not an enforced environment.
-- **All 35 controls remain `draft`** with zero approvals, and no scanner coverage exists, so release
-  evaluation blocks for multiple independent reasons.
+- **The binding finding is open.** Development services are reachable beyond loopback; the operating
+  rule is to run the stack only while testing and stop it afterwards.
+- **Recovery isolation (AUTH-02) is untested**; it needs the email flow and belongs with Step 14.
+- **Genuine session expiry is untested**; only a malformed token is.
+- **QUAL-01 thresholds are unconfigured.**
+- **No live HTTP, TLS, or ZAP coverage yet** — Step 11, which needs a target; the manifest currently
+  declares hosting disabled, so production evidence is not applicable to this example.
+- **Scanner coverage is syntactic** (Opengrep) and advisory-only (OSV); neither establishes runtime
+  behaviour.
+- **No independent review.** Every approval in this repository is self-review by a sole maintainer,
+  recorded as such.
+- **No platform verification**: required checks, CODEOWNERS resolution, forks, and merge queues are
+  unverified until the test environment exists.
 
 ## Proposed next batch
 
-**Finish Step 07 first.** Once a container runtime is installed and `docker_available` is true:
+**Batch C remainder, then D.** In order:
 
-1. **Step 07** — the Next.js + Supabase reference app: sign-in/out, recovery, private notes with
-   owner IDs and RLS migrations, explicit feature declarations, and a minimal UI.
-2. **Step 08** — the authorization matrix: anonymous, owner A, unrelated B, direct-provider access,
-   denied writes verified against stored state, owner-field tampering, and positive cases.
-3. **Step 09** — the four scanner adapters with real positive and negative fixtures, downloaded and
-   digest-pinned tools (requires **B13**).
-4. **Step 10** — production build, client-asset inspection, and a synthetic privileged-credential
-   leak fixture.
+1. **Step 11** — guarded live recipes: route-appropriate HTTP checks, separate TLS verification, and
+   a guarded passive ZAP adapter with bounded crawling. Needs an explicit approved target inventory;
+   for the local example that means `http://127.0.0.1` staging routes, with production evidence
+   correctly blocked because hosting is disabled.
+2. **Step 12 remainder** — complete the tool-compatibility record for Claude Code and Codex alongside
+   opencode; optionally add QUAL-01 thresholds.
+3. **Step 13 platform half** — real pull requests, forks, and queue behaviour once the owner supplies
+   the test environment.
+4. **Step 14** — manual evidence intervals, restore and response exercises, credential lifecycle.
 
-**What the owner must prepare:** install and start a container runtime and set `docker_available:
-true` (the only remaining environment blocker); optionally approve the 35 control definitions
-(`node dist/cli.js approvals --policy .` prints the digests); and decide what to do about the one
-synthetic placeholder token still present in this repository's **git history** (left visible rather
-than allowlisted — either rewrite the local history or accept a narrow documented allowlist).
+**What the owner must prepare:** nothing blocks local work. The GitHub test environment is needed for
+Step 13's platform half and has been deferred to the final step by agreement.
