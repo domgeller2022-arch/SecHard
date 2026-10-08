@@ -65,12 +65,16 @@ definitions the runner uses, so it cannot drift from what actually gates.
 
 **No mapping has been reviewed against a pinned source edition.** No mapping in this file has been reviewed against a pinned source edition. Every entry is related_risk or unverified_reference. Do not present these as conformance.
 
-- OWASP-ASVS 5.0.0 (stable) — https://github.com/OWASP/ASVS
+- OWASP-ASVS 5.0.0 (5.0.1 next target) (stable) — https://github.com/OWASP/ASVS
 - OWASP-Top-10 2025 (published) — https://top10.owasp.org/2025/
 - OWASP-API-Security 2023 (published) — https://api-security.owasp.org/editions/2023/en/0x11-t10/
+- OWASP-Cheat-Sheets living documents, cited per page (published) — https://cheatsheetseries.owasp.org/
+- OWASP-WSTG 4.2 (published) — https://wstg.owasp.org/v4.2/
 - NIST-SSDF 1.1 (final) — https://csrc.nist.gov/pubs/sp/800/218/final
 - OpenSSF-OSPS v2026.08.28 (published) — https://baseline.openssf.org/versions/2026-08-28
-- MVSP 1.0 (published) — https://www.mvsp.dev/mvsp.en/
+- MVSP current site edition (published) — https://www.mvsp.dev/mvsp.en/
+- RFC-9700 RFC 9700 (published) — https://www.rfc-editor.org/rfc/rfc9700
+- ASD-SBD current (published) — https://www.cyber.gov.au/business-government/secure-design/secure-by-design/secure-by-design-foundations
 
 ## Reviewed patterns
 
@@ -97,4 +101,38 @@ is false until the fixture or recipe actually exists and has run.
 
 ## Upstream sources
 
+- `gitleaks` (invoking, MIT) — verified; notice: none recorded
+- `opengrep` (invoking, LGPL-2.1) — verified; notice: none recorded
+- `osv-scanner` (invoking, Apache-2.0) — verified; notice: none recorded
+- `zizmor` (invoking, MIT) — verified; notice: none recorded
+- `colima` (invoking, MIT) — verified; notice: none recorded
+- `owasp-asvs` (linking, CC-BY-SA-4.0) — verified; notice: none recorded
+- `owasp-top-10` (linking, CC-BY-SA-4.0) — verified; notice: none recorded
+- `owasp-api-security` (linking, CC-BY-SA-4.0) — verified; notice: none recorded
+- `owasp-cheat-sheets` (linking, CC-BY-SA-4.0) — verified; notice: none recorded
+- `owasp-wstg` (linking, CC-BY-SA-4.0) — verified; notice: none recorded
+- `nist-ssdf` (linking, US Government work (public domain, not copyrightable in the US)) — verified; notice: none recorded
+- `openssf-osps` (linking, CC-BY-4.0 (project content)) — verified; notice: none recorded
+- `mvsp` (linking, CC-BY-4.0 (project content)) — verified; notice: none recorded
+- `rfc-9700` (linking, IETF Trust Legal Provisions (RFC text)) — verified; notice: none recorded
+- `asd-secure-by-design` (linking, Australian Government material (site terms)) — verified; notice: none recorded
+- `slsa` (linking, CC-BY-4.0 (specification text)) — planned; notice: none recorded
+- `owasp-aisvs` (linking, CC-BY-SA-4.0) — unsupported; notice: none recorded
+- `owasp-llm-top-10` (linking, CC-BY-SA-4.0 (OWASP GenAI project content)) — unsupported; notice: none recorded
+- `owasp-agentic-top-10` (linking, CC-BY-SA-4.0 (OWASP GenAI project content)) — unsupported; notice: none recorded
+- `owasp-mcp-top-10` (linking, CC-BY-NC-SA-4.0 (per the project page; non-commercial)) — unsupported; notice: none recorded
+- `owasp-masvs` (linking, CC-BY-SA-4.0) — unsupported; notice: none recorded
+- `electron-security` (linking, MIT (documentation)) — unsupported; notice: none recorded
+- `project-codeguard` (linking, CC-BY-4.0) — planned; notice: none recorded
+- `openssf-ai-instructions-guide` (linking, CC-BY-4.0 (OpenSSF Best Practices content)) — planned; notice: none recorded
+- `owasp-secure-coding-with-ai` (linking, CC-BY-SA-4.0) — planned; notice: none recorded
+- `trufflehog` (linking, AGPL-3.0) — planned; notice: none recorded
+- `codeql` (linking, MIT) — planned; notice: none recorded
+- `harden-runner` (linking, Apache-2.0) — planned; notice: none recorded
+- `scorecard` (linking, Apache-2.0) — planned; notice: none recorded
+- `syft` (linking, Apache-2.0) — planned; notice: none recorded
+- `grype` (linking, Apache-2.0) — planned; notice: none recorded
+- `checkov` (linking, Apache-2.0) — planned; notice: none recorded
+- `claude-code-security-review` (linking, MIT) — planned; notice: none recorded
+- `true-positive-checklists` (linking, MIT) — planned; notice: none recorded
 - `vibe-security-skill` (adapting, MIT) — verified; notice: upstream/notices/vibe-security-skill.LICENSE

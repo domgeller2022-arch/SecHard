@@ -21,13 +21,31 @@ review_note: >-
   No mapping in this file has been reviewed against a pinned source edition. Every entry is
   related_risk or unverified_reference. Do not present these as conformance.
 
+# Every framework named in a control mapping must appear here, with a pinned edition and a source
+# URL. `npm test` enforces that, so a mapping cannot cite a standard this repository has not
+# recorded. Full source records, including licences and review dates, are in upstream/sources.yaml.
 editions:
-  OWASP-ASVS: { edition: "5.0.0", status: stable, source: "https://github.com/OWASP/ASVS" }
-  OWASP-Top-10: { edition: "2025", status: published, source: "https://top10.owasp.org/2025/" }
-  OWASP-API-Security: { edition: "2023", status: published, source: "https://api-security.owasp.org/editions/2023/en/0x11-t10/" }
-  NIST-SSDF: { edition: "1.1", status: final, source: "https://csrc.nist.gov/pubs/sp/800/218/final" }
-  OpenSSF-OSPS: { edition: "v2026.08.28", status: published, source: "https://baseline.openssf.org/versions/2026-08-28" }
-  MVSP: { edition: "1.0", status: published, source: "https://www.mvsp.dev/mvsp.en/" }
+  OWASP-ASVS: { edition: "5.0.0 (5.0.1 next target)", status: stable, source: "https://github.com/OWASP/ASVS", source_id: owasp-asvs }
+  OWASP-Top-10: { edition: "2025", status: published, source: "https://top10.owasp.org/2025/", source_id: owasp-top-10 }
+  OWASP-API-Security: { edition: "2023", status: published, source: "https://api-security.owasp.org/editions/2023/en/0x11-t10/", source_id: owasp-api-security }
+  OWASP-Cheat-Sheets: { edition: "living documents, cited per page", status: published, source: "https://cheatsheetseries.owasp.org/", source_id: owasp-cheat-sheets }
+  OWASP-WSTG: { edition: "4.2", status: published, source: "https://wstg.owasp.org/v4.2/", source_id: owasp-wstg }
+  NIST-SSDF: { edition: "1.1", status: final, source: "https://csrc.nist.gov/pubs/sp/800/218/final", source_id: nist-ssdf }
+  OpenSSF-OSPS: { edition: "v2026.08.28", status: published, source: "https://baseline.openssf.org/versions/2026-08-28", source_id: openssf-osps }
+  MVSP: { edition: "current site edition", status: published, source: "https://www.mvsp.dev/mvsp.en/", source_id: mvsp }
+  RFC-9700: { edition: "RFC 9700", status: published, source: "https://www.rfc-editor.org/rfc/rfc9700", source_id: rfc-9700 }
+  ASD-SBD: { edition: "current", status: published, source: "https://www.cyber.gov.au/business-government/secure-design/secure-by-design/secure-by-design-foundations", source_id: asd-secure-by-design }
+
+# Standards recorded as sources but deliberately not mapped to any v1 control. Keeping them visible
+# here is the point: the gap is stated rather than implied by their absence.
+not_referenced:
+  - { source_id: slsa, reason: "Roadmap reference. v1 records source/build identity; it does not claim a SLSA level." }
+  - { source_id: owasp-aisvs, reason: "Runtime AI is excluded from the v1 profiles, so no v1 control maps to it." }
+  - { source_id: owasp-llm-top-10, reason: "Runtime-AI taxonomy; outside v1 scope." }
+  - { source_id: owasp-agentic-top-10, reason: "Agentic-application taxonomy; outside v1 scope." }
+  - { source_id: owasp-mcp-top-10, reason: "MCP taxonomy, beta, and non-commercial share-alike; outside v1 scope and not reusable in commercial output." }
+  - { source_id: owasp-masvs, reason: "Mobile profile; no mobile support is claimed." }
+  - { source_id: electron-security, reason: "Desktop profile; no desktop support is claimed." }
 
 controls:
   CTX-01:

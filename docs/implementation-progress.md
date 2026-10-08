@@ -733,6 +733,81 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Standards and upstream resources incorporated (2026-10-07)
+
+- **State:** `verified` for the records and the consistency tests.
+- **What the blueprint says, and how that was applied.** Blueprint section 3 states plainly that its
+  standards and tools tables are **research background, not tasks**, and the plan fixes a small v1
+  toolchain ("Do not build a general security platform or adopt every available scanner"). So
+  incorporation was done as: every standard and candidate tool recorded with a canonical URL,
+  edition, licence, support status, and review date; every framework cited by a control mapping
+  pinned to a recorded edition; and everything not adopted recorded **with a reason** rather than
+  left absent.
+- **Files changed:** `upstream/sources.yaml` (4 → 35 records), `controls/mappings/standards.yaml`
+  (6 → 10 editions and a `not_referenced` list), `docs/standards.md` (new),
+  `tests/domain/standards.test.ts` (new), `schemas/source.schema.json` (two integrity-method values
+  added), `src/domain/definitions.ts`, `controls/matrix.md` (regenerated).
+- **Actual checks run:**
+  - Fetched and checked **20 standard and guidance URLs** on 2026-10-07: each returned HTTP 200 with
+    a title confirming the edition (for example "OWASP Top 10:2025", "SP 800-218 … Version 1.1",
+    "SLSA specification", "WSTG - v4.2", "RFC 9700: Best Current Practice for OAuth 2.0 Security").
+  - Checked **15 repository licences via the GitHub API**, including CodeGuard's, whose `LICENSE.md`
+    was fetched directly and confirms **CC-BY-4.0** exactly as the blueprint states.
+  - `npx vitest run tests/domain` → **91 tests pass**, including the new standards suite which asserts
+    that every cited framework has a recorded edition and source, that no mapping claims
+    `verified_coverage`, that the out-of-scope standards carry a reason, and that only tools the
+    toolchain actually invokes may claim `invoking` + `verified`.
+  - Full suite: **428 unit + 8 integration tests, all passing.**
+- **Findings recorded honestly rather than smoothed over:**
+  - **ASVS uses a moving `latest` release tag** (published 2026-09-03), so the numbered edition from
+    the blueprint (5.0.0) is recorded as *intended* and not re-verified against a tag. The entry says
+    so, and the plan's rule — leave unreviewed mappings visibly unverified — is applied.
+  - **AISVS has no published release**, so no stable edition can be pinned; it is recorded as
+    `unsupported` for v1 because runtime AI is excluded.
+  - **MCP Top 10 is non-commercial share-alike**; only a link is recorded and nothing is adapted, with
+    the constraint stated in the entry.
+  - **TruffleHog is AGPL-3.0**, which is materially different from invoking a permissive tool, so it
+    is recorded as a candidate needing its own review rather than adopted.
+  - **No mapping claims `verified_coverage`.** No application has been assessed against ASVS or any
+    other standard, so the catalogue describes intended coverage only. This is asserted by a test.
+- **Deliberately not adopted, with reasons in `controls/mappings/standards.yaml`:** SLSA 1.2,
+  AISVS, LLM Top 10, Agentic Top 10, MCP Top 10, MASVS, Electron security. Candidate tools recorded
+  as reviewed-but-not-adopted: TruffleHog, CodeQL, harden-runner, Scorecard, Syft, Grype, Checkov,
+  Claude Code security review, and the comparison checklists.
+
+### Firewall verification — the LAN finding is narrowed, not closed (2026-10-07)
+
+The owner enabled the macOS application firewall. Verified state:
+
+- `--getglobalstate` → **enabled**; `--getstealthmode` → **on**. Both applied successfully.
+- `--getappblocked /usr/local/opt/lima/bin/limactl` → **"Incoming connection … is permitted"**: the
+  explicit block rule did not take effect. `limactl` is only **ad-hoc signed** (`codesign` reports
+  `flags=0x2(adhoc)`), so it is not covered by the "allow signed software" policy and relies on the
+  firewall's default treatment.
+- **Tested from a genuinely separate host**: the colima VM. With the stack running, a request from
+  inside the VM to the host's forwarded port returned **200**, both via the host's LAN address and
+  via the VM-network gateway. The macOS firewall does not filter traffic arriving over the VM's
+  network interface.
+- **Therefore:** the exposure is narrowed for traffic arriving on the physical interface (default
+  block for an ad-hoc-signed listener), but it is **not verifiably contained**, and I cannot test the
+  physical LAN without a second physical device. Step 07's "bind to appropriate local interfaces"
+  criterion remains **not verifiably met**; it is recorded as such rather than marked fixed.
+- **Corrected commands for the owner** (the third command needs the application added first):
+  `sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add /usr/local/opt/lima/bin/limactl` then
+  `--blockapp /usr/local/opt/lima/bin/limactl`; verify with `--getappblocked`, which should report
+  blocked. Even then, the VM-network path may remain unfiltered, which is why the practical operating
+  rule is: **the stack runs only while developing and is stopped afterwards** (it is stopped now, and
+  the ports are closed).
+- **For the final report:** this remains an open finding with two honest options — contain it further
+  (firewall rule plus possibly a pf rule) or record local-network trust as an explicit accepted risk.
+
+### GitHub test environment deferred to the final step (2026-10-07)
+
+The owner will create the throwaway account and repositories and provide them at the end. Both
+`github_test_owner` and `github_test_repos` carry that instruction in `01-owner-decisions.md`.
+Step 13's platform verification stays `awaiting_external_verification` until then. Exact setup steps
+are recorded in `docs/ci-trust.md`.
+
 ### Step 07/08 — reference application: records and row-level security (2026-10-07)
 
 - **State:** `in_progress`. The database layer of Steps 07 and 08 is implemented and **verified by

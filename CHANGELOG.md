@@ -204,6 +204,38 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — standards and upstream resources incorporated (7 October 2026)
+
+- **`upstream/sources.yaml`: 4 → 35 records.** Every standard and candidate tool from the blueprint's
+  "Standards and upstream resources" section now has a canonical URL, edition, licence, support
+  status, and review date. Twenty URLs were fetched and their titles checked on 2026-10-07; fifteen
+  repository licences were checked via the GitHub API, and CodeGuard's `LICENSE.md` was fetched
+  directly, confirming CC-BY-4.0.
+- **`controls/mappings/standards.yaml`**: editions expanded from 6 to 10, each traceable to a source
+  record, plus a `not_referenced` list giving a reason for every standard deliberately outside v1
+  (SLSA, AISVS, LLM/Agentic/MCP Top 10, MASVS, Electron).
+- **`docs/standards.md`**: what each standard is used for, the `related_risk` versus
+  `verified_coverage` distinction, and why candidate tools such as TruffleHog (AGPL-3.0), CodeQL,
+  Scorecard, and Syft/Grype/Checkov are recorded but not adopted.
+- **`tests/domain/standards.test.ts`**: enforces that no mapping cites an unrecorded standard, that
+  nothing claims `verified_coverage`, that out-of-scope standards carry reasons, and that only tools
+  the toolchain actually invokes may claim `invoking` + `verified`.
+
+Honest findings recorded rather than smoothed over: ASVS uses a moving `latest` tag so the numbered
+edition is recorded as intended, not re-verified; AISVS has no release; MCP Top 10 is
+non-commercial; and no mapping claims conformance because no application has been assessed.
+
+**Firewall verification:** the owner enabled the firewall and stealth mode, both confirmed. But the
+explicit `limactl` block did **not** take effect, and a test from the colima VM — a separate host —
+still reached the forwarded ports with 200. The macOS firewall does not filter VM-network traffic.
+The LAN finding is **narrowed, not closed**, and is recorded as an open finding with the corrected
+commands and the operating rule (stack stopped when idle; it is stopped now).
+
+**GitHub test environment deferred to the final step** at the owner's request; Step 13's platform
+verification stays `awaiting_external_verification`.
+
+Suite: **428 unit + 8 integration tests, all passing.**
+
 ### Added — reference application database layer with verified RLS (7 October 2026)
 
 - `examples/nextjs-supabase/.hardening/app.yaml` — the application's manifest, with every feature

@@ -87,7 +87,9 @@ export interface Mappings {
   readonly mappings_version: number;
   readonly reviewed: boolean;
   readonly review_note?: string;
-  readonly editions: Readonly<Record<string, { edition: string; status: string; source: string }>>;
+  readonly editions: Readonly<Record<string, { edition: string; status: string; source: string; source_id?: string }>>;
+  /** Standards recorded as sources but deliberately not mapped to any control, with a reason. */
+  readonly not_referenced?: readonly { readonly source_id: string; readonly reason: string }[];
   readonly controls: Readonly<Record<string, readonly StandardMapping[]>>;
 }
 

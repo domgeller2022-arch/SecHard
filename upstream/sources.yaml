@@ -8,13 +8,491 @@
 # that is not present in this repository. They identify the reviewed files, and they were not
 # independently recomputed here. Verify the intended upstream release or commit before distributing
 # adapted material.
+# Upstream sources this repository links, cites, or reuses.
+#
+# Blueprint section 3 lists two families: standards (used for requirements and risk taxonomies) and
+# tools/reference projects (candidates for the toolchain). Both are recorded here so that every
+# external claim this repository makes has a source, an edition, and a licence behind it.
+#
+# Support status:
+#   verified     the edition and licence were checked against the source on the date recorded
+#   planned      selected for a later step, or a blueprint candidate not adopted in v1
+#   unsupported  deliberately out of v1 scope
+#
+# `use_type` follows the plan: linking (cited by URL), invoking (run by the toolchain), adapting
+# (wording or examples rewritten from it).
 schema: hardening/sources/v1
 sources:
+  # ----- Tools the v1 toolchain actually invokes ------------------------------------------------
+  - schema_version: source/v1
+    id: gitleaks
+    canonical_url: https://github.com/gitleaks/gitleaks
+    component: "Gitleaks"
+    licence: "MIT"
+    use_type: invoking
+    reviewed_release:
+      kind: version
+      value: "8.30.1"
+      verified_at: "2026-10-06T00:00:00Z"
+      integrity_method: github_release_asset_digest
+    support_status: verified
+    update_policy: "Pinned; upgraded deliberately with its digest re-verified and its fixtures re-run."
+    last_reviewed: "2026-10-06T00:00:00Z"
+    notes: "Invoked by the repository and history secret-scanning recipes. Digest cross-checked against the publisher checksums file."
+
+  - schema_version: source/v1
+    id: opengrep
+    canonical_url: https://github.com/opengrep/opengrep
+    component: "Opengrep"
+    licence: "LGPL-2.1"
+    use_type: invoking
+    reviewed_release:
+      kind: version
+      value: "1.30.0"
+      verified_at: "2026-10-06T00:00:00Z"
+      integrity_method: github_release_asset_digest
+    support_status: verified
+    update_policy: "Pinned. Rule pack is local and reviewed, so a rules change is a repository change."
+    last_reviewed: "2026-10-06T00:00:00Z"
+    notes: >-
+      Invoked with a reviewed local rule pack in ci/configs/opengrep-rules. Scope is syntactic;
+      --taint-intrafile is not used. A cosign .sig/.cert pair ships with the release and is not
+      verified here.
+
+  - schema_version: source/v1
+    id: osv-scanner
+    canonical_url: https://github.com/google/osv-scanner
+    component: "OSV-Scanner"
+    licence: "Apache-2.0"
+    use_type: invoking
+    reviewed_release:
+      kind: version
+      value: "2.6.0"
+      verified_at: "2026-10-06T00:00:00Z"
+      integrity_method: github_release_asset_digest
+    support_status: verified
+    update_policy: "Pinned; the advisory data it queries is separate and freshness-gated by policy."
+    last_reviewed: "2026-10-06T00:00:00Z"
+    notes: "Advisory coverage only; not a check for malicious or compromised packages."
+
+  - schema_version: source/v1
+    id: zizmor
+    canonical_url: https://github.com/zizmorcore/zizmor
+    component: "zizmor"
+    licence: "MIT"
+    use_type: invoking
+    reviewed_release:
+      kind: version
+      value: "1.30.1"
+      verified_at: "2026-10-06T00:00:00Z"
+      integrity_method: github_release_asset_digest
+    support_status: verified
+    update_policy: "Pinned; upgraded deliberately with its fixtures re-run."
+    last_reviewed: "2026-10-06T00:00:00Z"
+    notes: "Analyse this repository's own workflows and vulnerable workflow fixtures."
+
+  - schema_version: source/v1
+    id: colima
+    canonical_url: https://github.com/abiosoft/colima
+    component: "colima (with lima and the docker CLI)"
+    licence: "MIT"
+    use_type: invoking
+    reviewed_release:
+      kind: version
+      value: "0.10.3"
+      verified_at: "2026-10-07T00:00:00Z"
+    support_status: verified
+    update_policy: "Installed via Homebrew, which verifies bottle checksums; upgraded deliberately."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Container runtime for the local reference stack. Chosen over Docker Desktop because the latter
+      is proprietary and carries a licence decision that belongs to the owner. lima 2.2.1
+      (Apache-2.0) and docker CLI 29.8.2 (Apache-2.0) accompany it.
+
+  # ----- Standards used for requirements and risk taxonomies ------------------------------------
+  - schema_version: source/v1
+    id: owasp-asvs
+    canonical_url: https://github.com/OWASP/ASVS
+    component: "OWASP Application Security Verification Standard"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release:
+      kind: version
+      value: "5.0.0 (5.0.1 next target, per the blueprint)"
+      verified_at: "2026-10-07T00:00:00Z"
+    support_status: verified
+    update_policy: "Requirement IDs are re-checked against the pinned edition before publication."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Licence verified via the GitHub API on 2026-10-07. The repository's "latest" release is a
+      moving tag (published 2026-09-03), so a numbered edition must be pinned when mappings are
+      reviewed; the blueprint's 5.0.0 is recorded as the intended edition and is not re-verified
+      here. No v1 control claims ASVS coverage: every mapping is related_risk.
+
+  - schema_version: source/v1
+    id: owasp-top-10
+    canonical_url: https://top10.owasp.org/2025/
+    component: "OWASP Top 10 (2025)"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "2025", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Awareness taxonomy. Re-checked when a new edition is published."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"OWASP Top 10:2025\" on 2026-10-07. Used for risk labels, never as completion criteria."
+
+  - schema_version: source/v1
+    id: owasp-api-security
+    canonical_url: https://api-security.owasp.org/editions/2023/en/0x11-t10/
+    component: "OWASP API Security Top 10 (2023)"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "2023", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Awareness taxonomy."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled on 2026-10-07. Source of the authorization and resource-consumption risk labels."
+
+  - schema_version: source/v1
+    id: owasp-cheat-sheets
+    canonical_url: https://cheatsheetseries.owasp.org/
+    component: "OWASP Cheat Sheet Series (implementation and verification recipes)"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "living document", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Each cited page's version and applicability is reviewed when used as a recipe."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Living documents, so an individual page is cited with its own review date rather than treating
+      the collection as a fixed edition. Reachable on 2026-10-07.
+
+  - schema_version: source/v1
+    id: owasp-wstg
+    canonical_url: https://wstg.owasp.org/v4.2/4-Web_Application_Security_Testing/10-Business_Logic_Testing/
+    component: "OWASP Web Security Testing Guide v4.2 (business logic testing)"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "4.2", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Cited by section; re-reviewed if a new edition replaces 4.2."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"WSTG - v4.2\" on 2026-10-07."
+
+  - schema_version: source/v1
+    id: nist-ssdf
+    canonical_url: https://csrc.nist.gov/pubs/sp/800/218/final
+    component: "NIST SP 800-218, Secure Software Development Framework 1.1"
+    licence: "US Government work (public domain, not copyrightable in the US)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "1.1 (final); 1.2 is an initial public draft", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "The 1.2 draft is tracked but not called a final baseline until it is one."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable; the page title states \"Version 1.1\" on 2026-10-07."
+
+  - schema_version: source/v1
+    id: openssf-osps
+    canonical_url: https://baseline.openssf.org/versions/2026-08-28
+    component: "Open Source Project Security (OSPS) Baseline v2026.08.28"
+    licence: "CC-BY-4.0 (project content)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "v2026.08.28", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Versioned editions; a new edition is a review trigger for repository-posture controls."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Reachable and titled "Open Source Project Security Baseline" on 2026-10-07. OSPS itself warns
+      that its mappings are not guaranteed to be equivalent, which is the same distinction this
+      repository makes between related_risk and demonstrated coverage.
+
+  - schema_version: source/v1
+    id: mvsp
+    canonical_url: https://www.mvsp.dev/mvsp.en/
+    component: "Minimum Viable Secure Product"
+    licence: "CC-BY-4.0 (project content)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "current site edition", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Business and operational baseline; re-reviewed when the site's controls change."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"Minimum Viable Secure Product - Controls\" on 2026-10-07. Source of the operational and recovery control framing in OPS-* and PRIV-01."
+
+  - schema_version: source/v1
+    id: rfc-9700
+    canonical_url: https://www.rfc-editor.org/rfc/rfc9700
+    component: "RFC 9700, Best Current Practice for OAuth 2.0 Security"
+    licence: "IETF Trust Legal Provisions (RFC text)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "RFC 9700", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Followed when an application uses OAuth or OIDC; re-checked against the selected provider's supported flows."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"RFC 9700: Best Current Practice for OAuth 2.0 Security\" on 2026-10-07."
+
+  - schema_version: source/v1
+    id: asd-secure-by-design
+    canonical_url: https://www.cyber.gov.au/business-government/secure-design/secure-by-design/secure-by-design-foundations
+    component: "ASD Secure by Design Foundations"
+    licence: "Australian Government material (site terms)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "current", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: verified
+    update_policy: "Lifecycle responsibilities; re-reviewed when the guidance changes."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"Secure by Design foundations\" on 2026-10-07. Relevant to Australian procurement and customers."
+
+  - schema_version: source/v1
+    id: slsa
+    canonical_url: https://slsa.dev/spec/v1.2/
+    component: "SLSA specification v1.2"
+    licence: "CC-BY-4.0 (specification text)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "1.2", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Roadmap for source and build integrity. Adoption is a later release, not v1."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Reachable and titled "SLSA specification" on 2026-10-07. Recorded as a roadmap reference: v1
+      produces digests and identity records, and a signed artifact would not by itself establish a
+      SLSA level.
+
+  - schema_version: source/v1
+    id: owasp-aisvs
+    canonical_url: https://github.com/OWASP/AISVS
+    component: "OWASP AI Security Verification Standard"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "development material; no tagged release", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: unsupported
+    update_policy: "Re-assessed if runtime AI is ever supported by a profile."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Licence verified via the GitHub API on 2026-10-07; the repository has no published release, so
+      no stable edition can be pinned. Runtime AI is excluded from the v1 profiles, which is why no
+      v1 control references this standard.
+
+  - schema_version: source/v1
+    id: owasp-llm-top-10
+    canonical_url: https://genai.owasp.org/llm-top-10/
+    component: "OWASP Top 10 for LLM Applications"
+    licence: "CC-BY-SA-4.0 (OWASP GenAI project content)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "current edition (page now archives prior lists)", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: unsupported
+    update_policy: "Conditional taxonomy for runtime-AI applications, outside v1 scope."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable on 2026-10-07. Recorded for the future runtime-AI profile; v1 excludes runtime AI."
+
+  - schema_version: source/v1
+    id: owasp-agentic-top-10
+    canonical_url: https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/
+    component: "OWASP Top 10 for Agentic Applications (2026)"
+    licence: "CC-BY-SA-4.0 (OWASP GenAI project content)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "2026", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: unsupported
+    update_policy: "Conditional taxonomy for agentic applications, outside v1 scope."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"OWASP Top 10 for Agentic Applications for 2026\" on 2026-10-07."
+
+  - schema_version: source/v1
+    id: owasp-mcp-top-10
+    canonical_url: https://owasp.org/projects/mcp-top-10
+    component: "OWASP MCP Top 10 (beta)"
+    licence: "CC-BY-NC-SA-4.0 (per the project page; non-commercial)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "beta", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: unsupported
+    update_policy: >-
+      The non-commercial share-alike licence means its text must not be copied into commercially
+      reusable output. Only a link is recorded. Out of v1 scope.
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled \"OWASP MCP Top 10\" on 2026-10-07. Licence recorded from the project page as stated in the blueprint; the NC term is why nothing is adapted from it."
+
+  - schema_version: source/v1
+    id: owasp-masvs
+    canonical_url: https://mas.owasp.org/MASVS/
+    component: "OWASP Mobile Application Security Verification Standard"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "current", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: unsupported
+    update_policy: "Future mobile profile with platform-specific tests and explicit support boundaries."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable on 2026-10-07. No mobile support is claimed."
+
+  - schema_version: source/v1
+    id: electron-security
+    canonical_url: https://www.electronjs.org/docs/latest/tutorial/security
+    component: "Electron security guidance"
+    licence: "MIT (documentation)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "current", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: unsupported
+    update_policy: "Future desktop profile."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable on 2026-10-07. No desktop support is claimed."
+
+  # ----- Candidate tools and guidance from the blueprint's tools table ---------------------------
+  - schema_version: source/v1
+    id: project-codeguard
+    canonical_url: https://github.com/cosai-oasis/project-codeguard
+    component: "Project CodeGuard (agent security guidance)"
+    licence: "CC-BY-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Reviewed before any wording is adapted; attribution and licence preserved."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      Licence verified from the repository's LICENSE.md on 2026-10-07 ("Attribution 4.0
+      International - CC-BY-4.0"), matching the blueprint. Not adapted in v1: the rules source is
+      original wording. Recorded so a future adaptation starts from a verified licence.
+
+  - schema_version: source/v1
+    id: openssf-ai-instructions-guide
+    canonical_url: https://best.openssf.org/Security-Focused-Guide-for-AI-Code-Assistant-Instructions
+    component: "OpenSSF Security-Focused Guide for AI Code Assistant Instructions"
+    licence: "CC-BY-4.0 (OpenSSF Best Practices content)"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "The guide's sample wording that permits simulated scans is exactly what this repository's rules forbid; adaptation would require curation."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled on 2026-10-07. Recorded as a reviewed candidate; the generated rules state the prohibition explicitly rather than importing wording."
+
+  - schema_version: source/v1
+    id: owasp-secure-coding-with-ai
+    canonical_url: https://cheatsheetseries.owasp.org/cheatsheets/Secure_Coding_with_AI_Cheat_Sheet.html
+    component: "OWASP Cheat Sheet, Secure Coding with AI"
+    licence: "CC-BY-SA-4.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "cited, not adapted", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Read before reviewing security-test changes; its list of failure modes is what the change report is built around."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Reachable and titled on 2026-10-07. Source of the review emphasis on deleted tests, weakened assertions, and mocks that hide failures."
+
+  - schema_version: source/v1
+    id: trufflehog
+    canonical_url: https://github.com/trufflesecurity/trufflehog
+    component: "TruffleHog (deeper secret scanning)"
+    licence: "AGPL-3.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: >-
+      AGPL-3.0 is a copyleft licence with network-use terms, so invoking it is materially different
+      from linking a permissive library and needs its own review before adoption.
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. Recorded as the optional deeper/history scanner named in the blueprint; v1 uses Gitleaks."
+
+  - schema_version: source/v1
+    id: codeql
+    canonical_url: https://github.com/github/codeql
+    component: "CodeQL (alternative static analysis)"
+    licence: "MIT"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Alternative to Opengrep; adopting it means publishing tested language/rule coverage and its cloud dependency."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. The blueprint names it as an alternative, not an addition."
+
+  - schema_version: source/v1
+    id: harden-runner
+    canonical_url: https://github.com/step-security/harden-runner
+    component: "Harden-Runner (CI egress monitoring)"
+    licence: "Apache-2.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Evaluate with the CI hardening work if egress restriction becomes a requirement."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. Supplementary to workflow analysis, not a substitute."
+
+  - schema_version: source/v1
+    id: scorecard
+    canonical_url: https://github.com/ossf/scorecard
+    component: "OpenSSF Scorecard"
+    licence: "Apache-2.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "An ongoing repository-posture signal, supplemented by inspection of the actual protections."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. A score is a signal; it is not evidence that a setting is enforced."
+
+  - schema_version: source/v1
+    id: syft
+    canonical_url: https://github.com/anchore/syft
+    component: "Syft (SBOM generation)"
+    licence: "Apache-2.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "later-release artifact work", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Adopted only for a supported deployment type that produces an artifact worth inventorying."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. v1 records source/build identity instead of an artifact inventory."
+
+  - schema_version: source/v1
+    id: grype
+    canonical_url: https://github.com/anchore/grype
+    component: "Grype (artifact vulnerability scanning)"
+    licence: "Apache-2.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "later-release artifact work", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Paired with an artifact inventory when one exists."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07."
+
+  - schema_version: source/v1
+    id: checkov
+    canonical_url: https://github.com/bridgecrewio/checkov
+    component: "Checkov (IaC misconfiguration scanning)"
+    licence: "Apache-2.0"
+    use_type: linking
+    reviewed_release: { kind: version, value: "later-release IaC work", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Requires a supported IaC deployment type before adoption."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. Container and IaC support is explicitly later work."
+
+  - schema_version: source/v1
+    id: claude-code-security-review
+    canonical_url: https://github.com/anthropics/claude-code-security-review
+    component: "Claude Code security review (optional AI review)"
+    licence: "MIT"
+    use_type: linking
+    reviewed_release: { kind: version, value: "not adopted in v1", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "An option with documented access, cost, data handling, coverage, and error behaviour; never evidence on its own."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: "Licence verified via the GitHub API on 2026-10-07. AI review is a review candidate generator; it cannot satisfy a check."
+
+  - schema_version: source/v1
+    id: true-positive-checklists
+    canonical_url: https://github.com/gorrion-io/production-readiness-checklist
+    component: "Comparison checklists (production-readiness-checklist and similar)"
+    licence: "MIT"
+    use_type: linking
+    reviewed_release: { kind: version, value: "comparison material only", verified_at: "2026-10-07T00:00:00Z" }
+    support_status: planned
+    update_policy: "Read for comparison before adding anything of our own; ideas are reviewed, text is not copied."
+    last_reviewed: "2026-10-07T00:00:00Z"
+    notes: >-
+      This entry stands for the blueprint's list of checklist projects (vibe-check, vibe-security,
+      preflight-checks, production-readiness-checklist). One representative licence was verified via
+      the GitHub API on 2026-10-07; each project's own licence is checked before any of its material
+      is used, and none of their text is included here. The existence of a checklist is not evidence
+      of verified coverage.
   - schema_version: source/v1
     id: vibe-security-skill
     canonical_url: https://github.com/raroque/vibe-security-skill
-    component: Vibe Security skill (agent guidance and reference documents)
-    licence: MIT
+    component: "Vibe Security skill (agent guidance and reference documents)"
+    licence: "MIT"
     use_type: adapting
     attribution: >-
       Original author identified as Chris Raroque, with a 2025 MIT copyright notice. Adapted patterns

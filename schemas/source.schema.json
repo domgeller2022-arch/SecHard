@@ -37,7 +37,15 @@
         "value": { "type": "string", "minLength": 1, "maxLength": 512 },
         "verified_at": { "$ref": "#/$defs/timestamp" },
         "integrity_method": {
-          "enum": ["registry_dist_integrity", "sha256_digest", "image_digest", "signature", "none"]
+          "enum": [
+            "registry_dist_integrity",
+            "sha256_digest",
+            "image_digest",
+            "signature",
+            "github_release_asset_digest",
+            "publisher_checksums_file",
+            "none"
+          ]
         }
       },
       "allOf": [
