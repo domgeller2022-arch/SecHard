@@ -204,6 +204,26 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — build verification and the client secret boundary (7 October 2026)
+
+- **`src/build/client-assets.ts`** — inspects browser-shipped output and **classifies rather than
+  flags**: a publishable key is recorded as intended-public, while `sb_secret_`, service-role
+  literals, private-key blocks, AWS key IDs, and browser-shipped source maps are findings. Coverage
+  states exactly what was inspected and what was not.
+- **Fixtures with proven detection** — a clean output with a publishable key passes; a leaking output
+  with a synthetic privileged marker and a source map fails with critical and medium findings. The
+  real production build reports **11 files, zero findings, zero source maps**.
+- **`tools/inspect-build.mjs`** — connects assessed source, pinned policy, artifact digest, and
+  inspection result into one evidence record, and **fails if the source identity changes during the
+  run**. Quality information (file counts, sizes) is reported separately with no threshold applied.
+- Verified: the browser bundle contains **no Supabase key at all**, because all access is server-side
+  — stronger than the classified-publishable-key outcome the check was built to accept.
+
+Outstanding and recorded: QUAL-01's configured thresholds, and server-side/deployment coverage, which
+belongs to Steps 11 and 14.
+
+Suite: **440 unit + 8 integration tests, all passing.**
+
 ### Added — authorization matrix with proven detection (7 October 2026)
 
 - **`tests/authorization/matrix.yaml`** — 14 cases as machine-readable data: anonymous, owner A, and

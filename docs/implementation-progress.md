@@ -733,6 +733,51 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 10 — Build verification and the client secret boundary (2026-10-07)
+
+- **State:** `verified`.
+- **Files added:** `src/build/client-assets.ts`, `tests/build/client-assets.test.ts`,
+  `tests/fixtures/build/{clean,leaking}/**`, `tools/inspect-build.mjs`, root `package.json` script
+  `inspect:build`; `.gitignore` entry for generated build evidence.
+- **Actual checks run:**
+  - `npx vitest run tests/build` → **12 tests pass.**
+  - `node tools/inspect-build.mjs` against the real production build → **11 files, 575 574 bytes,
+    inventory digest `8037be58…`, zero findings, zero source maps, coverage `complete`**, exit 0.
+  - The application's build runs clean: `next build` succeeds, `tsc --noEmit` passes, and the
+    browser bundle contains **no Supabase key of any kind**.
+  - Full suite: **440 unit + 8 integration tests, all passing.**
+- **What the inspection establishes, and how:**
+  - **The fixture proves detection.** A clean fixture containing a publishable key passes and the key
+    is *classified*, not flagged; a leaking fixture containing a synthetic privileged marker and a
+    browser source map **fails** with a critical and a medium finding respectively. A check that
+    cannot see its own fixture has never been shown to work.
+  - **The real build is clean**: no privileged marker, no `sb_secret_`, no service-role literal, no
+    private key, no source map.
+  - **Stronger than expected:** the publishable key does not appear in the browser bundle at all,
+    because every Supabase operation in this application is server-side. That is verified rather than
+    assumed, and the classification path is still exercised by the clean fixture.
+  - **Coverage is stated, never implied**: the report names the directory inspected and says in the
+    same sentence that server output, deployment configuration, and other artifacts are outside the
+    scan. A test asserts the scope statement contains both halves, and another asserts that no
+    `server/` file appears in the inventory.
+  - **Identity is connected**: `tools/inspect-build.mjs` records source commit and dirtiness, policy
+    commit and catalogue digest, the artifact inventory digest, and the inspection result in one
+    record; it **re-reads the source identity after inspection and fails the run if the source moved
+    underneath it**, because evidence for a source that no longer exists is not evidence.
+  - **Quality is reported separately from security**: file counts, total bytes, and the largest files
+    are recorded as quality information with **no threshold applied**, because a bundle-size limit
+    that fails a build is a policy decision nobody has made yet.
+- **Limitations and unresolved findings:**
+  - **QUAL-01's configured thresholds are still outstanding.** The plan's Step 10 asks for "configured
+    quality thresholds"; none are configured. `next build` type-checks, root `lint` checks hygiene,
+    and bundle size is reported without a limit. Recorded rather than implied.
+  - **The inspection covers browser output only.** Server output, source maps in server builds,
+    deployment configuration, and environment separation are not inspected here; Step 11's live
+    recipes and Step 14's operational evidence cover the deployed side.
+  - An **artifact digest exists for the inspected inventory only.** There is no packaged artifact for
+    a source deployment, so no single digest is presented as covering the deployment.
+  - The **binding finding** remains open.
+
 ### Step 08 — authorization matrix verified, with detection proven (2026-10-07)
 
 - **State:** `verified` for the matrix, the provider-path cases, the inventory checks, and the

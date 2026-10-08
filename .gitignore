@@ -9,6 +9,10 @@ coverage/
 # immediately make a committed copy stale. tests/global-setup.ts regenerates it before each run.
 tests/fixtures/consumer/
 
+# Generated build evidence. Local paths and machine-specific digests; a real release writes evidence
+# into its run directory rather than the repository root.
+build-evidence.json
+
 # Generated run directories and reports. A run directory holds raw tool output, which may contain
 # material that must not be committed. Evidence *references* and digests belong in version control.
 .hardening/runs/
