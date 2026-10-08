@@ -204,6 +204,29 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — manual evidence rules, a restore drill, and runbooks (8 October 2026)
+
+- **Per-control freshness intervals are now enforced.** 90 days for restore/response exercises and
+  data review, 30 for access, credential, and configuration evidence, taken from each control's own
+  declaration. A 60-day-old drill is current for OPS-02 and stale for SEC-03, asserted both ways.
+- **Scope-bound reuse.** A manual record observed at a different source is reusable only when it also
+  pins the configuration fingerprint — an operational fact survives an unrelated code change but not
+  a storage migration. Without the fingerprint it is refused with `manual.reuse_without_scope`.
+- **Profile `never` now means never.** An exception for a control a profile marks not-exceptable no
+  longer applies; the profile list was previously data nothing enforced.
+- **Exceptions are invalidated by a definition change**, via a recorded `control_definition_version`.
+- **Disposable restore drill** (`tests/operations/restore-exercise.sh`): backup, destroy, restore, and
+  verification of row count, per-owner distribution, and a run-specific marker. **It found a real
+  defect in my own procedure** — a data-only dump loaded without replacing the target's rows is an
+  append, not a restore; it failed with a duplicate key and the procedure was corrected. Schema,
+  grants, and policies are deliberately not in the backup, because they come from versioned
+  migrations.
+- **Runbooks** for restore/rollback, credential rotation, incident response, and logging/alerting,
+  each naming its controls and the evidence to record. Operator confirmations remain `pending` until
+  performed; the local drill is never evidence for the hosted environment.
+
+Suite: **465 unit + 8 integration tests, all passing.**
+
 ### Added — guarded live recipes and a passive ZAP baseline (8 October 2026)
 
 - **Approved-target model.** `examples/nextjs-supabase/.hardening/targets.yaml` and a new schema: an

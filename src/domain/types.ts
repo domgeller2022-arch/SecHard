@@ -284,6 +284,7 @@ export interface ExceptionRecord {
   readonly status: 'active' | 'expired' | 'revoked' | 'pending_approval';
   readonly scope: {
     readonly control?: string;
+    readonly control_definition_version?: number;
     readonly check_id?: string;
     readonly finding_id?: string;
     readonly rule_id?: string;

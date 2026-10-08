@@ -317,7 +317,11 @@ export function gateCommand(
       id: control.id,
       definition_version: control.definition_version,
       applicability: control.applicability as ApplicabilityRule,
+      // Per-control intervals come from the control's own evidence requirements; the policy default
+      // is only a fallback for a control that declines to state one.
+      ...manualInterval(control),
     })),
+    exceptionPolicy: exceptionPolicyFrom(selectedProfiles),
     plan,
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
@@ -354,6 +358,32 @@ export function gateCommand(
  * Exported so it can be exercised directly: reference integrity and version conflicts are the kind
  * of check that silently stops working if it is only tested through the CLI.
  */
+export /** The manual-evidence interval a control declares for itself, if it declares one. */
+function manualInterval(control: {
+  readonly evidence_requirements: readonly { readonly kind: string; readonly max_age_days?: number }[];
+}): { readonly manual_max_age_days?: number } {
+  const requirement = control.evidence_requirements.find(
+    (entry) => entry.kind === 'manual_evidence' && entry.max_age_days !== undefined,
+  );
+  return requirement?.max_age_days === undefined ? {} : { manual_max_age_days: requirement.max_age_days };
+}
+
+/** What the selected profiles permit. `never` wins wherever any profile says so. */
+function exceptionPolicyFrom(
+  profiles: readonly {
+    readonly permitted_exceptions: readonly { readonly control: string; readonly policy: 'permitted' | 'never' }[];
+  }[],
+): Record<string, 'permitted' | 'never'> {
+  const policy: Record<string, 'permitted' | 'never'> = {};
+  for (const profile of profiles) {
+    for (const entry of profile.permitted_exceptions) {
+      if (policy[entry.control] === 'never') continue;
+      policy[entry.control] = entry.policy;
+    }
+  }
+  return policy;
+}
+
 export function crossCheck(
   policy: LoadedPolicy,
   manifest: ManifestRecord,

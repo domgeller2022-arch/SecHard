@@ -28,7 +28,14 @@ export interface EvaluationInput {
     readonly id: string;
     readonly definition_version: number;
     readonly applicability: ApplicabilityRule;
+    /** Per-control manual-evidence interval, from the control's own evidence requirements. */
+    readonly manual_max_age_days?: number;
   }[];
+  /**
+   * What the selected profiles permit. An exception for a control a profile marks `never` does not
+   * apply, however well formed the record is: the profile is the authority on what may be excepted.
+   */
+  readonly exceptionPolicy?: Readonly<Record<string, 'permitted' | 'never'>>;
   readonly plan: ExecutionPlan;
   readonly results: readonly CheckResult[];
   readonly manualEvidence: readonly ManualEvidence[];
@@ -109,7 +116,12 @@ export function evaluate(input: EvaluationInput): GateDecision {
   ];
 
   const resultsByCheck = groupBy(input.results, (result) => result.check_id);
-  const usableExceptions = resolveExceptions(input.exceptions, input.now);
+  const controlVersions: Record<string, number> = {};
+  for (const control of input.controls) controlVersions[control.id] = control.definition_version;
+  const usableExceptions = resolveExceptions(input.exceptions, input.now, {
+    ...(input.exceptionPolicy === undefined ? {} : { exceptionPolicy: input.exceptionPolicy }),
+    controlVersions,
+  });
   const manualByControl = groupBy(input.manualEvidence, (record) => record.control);
   const controlsById = new Map(input.controls.map((control) => [control.id, control]));
 
@@ -149,7 +161,12 @@ export function evaluate(input: EvaluationInput): GateDecision {
     }
   }
 
-  reasons.push(...rejectUnusableExceptions(input.exceptions, input.now, usableExceptions));
+  reasons.push(
+    ...rejectUnusableExceptions(input.exceptions, input.now, usableExceptions, {
+      ...(input.exceptionPolicy === undefined ? {} : { exceptionPolicy: input.exceptionPolicy }),
+      controlVersions,
+    }),
+  );
   reasons.push(...assessmentContradictions(input));
   const gaps = featureGaps(input);
   for (const gap of gaps) {
@@ -371,23 +388,56 @@ function evaluateCheck(
  */
 function evaluateManualCheck(
   check: ExpectedCheck,
-  definition: { readonly definition_version: number },
+  definition: { readonly definition_version: number; readonly manual_max_age_days?: number },
   controlId: string,
   existingReasons: readonly Reason[],
   context: CheckContext,
 ): ControlEvaluation {
   const reasons: Reason[] = [...existingReasons];
   const forRecipe = context.manual.filter((record) => record.recipe === check.recipe);
-  const maxAgeDays = context.policy.freshness.manual_evidence_default_max_age_days;
 
+  // The interval is the control's own when it declares one; otherwise the policy default, with the
+  // longer exercise interval for restore and response drills. Per-control intervals are the point:
+  // a credential inventory ages differently from a restore drill.
+  const isExercise = /exercise|restore|rollback/i.test(check.recipe);
+  const maxAgeDays =
+    definition.manual_max_age_days ??
+    (isExercise
+      ? context.policy.freshness.manual_evidence_exercise_max_age_days
+      : context.policy.freshness.manual_evidence_default_max_age_days);
+
+  const staleReasons: Reason[] = [];
   const current = forRecipe.filter((record) => {
     const expires = Date.parse(record.expires_at);
     const observed = Date.parse(record.observed_at);
     if (Number.isNaN(expires) || Number.isNaN(observed)) return false;
     if (expires <= context.now.getTime()) return false;
     const ageDays = (context.now.getTime() - observed) / 86_400_000;
-    return ageDays <= maxAgeDays && observed <= context.now.getTime() + (context.policy.freshness.max_clock_skew_minutes ?? 0) * 60_000;
+    if (ageDays > maxAgeDays) return false;
+    if (observed > context.now.getTime() + (context.policy.freshness.max_clock_skew_minutes ?? 0) * 60_000) return false;
+
+    // Reuse across a source change is allowed only when the record also pins the external
+    // configuration it was observed against. An operational fact stays true across unrelated code
+    // changes; it does not stay true across a storage migration, and the fingerprint is how that is
+    // distinguished without demanding a fresh drill for every commit.
+    if (record.source_commit !== undefined && record.source_commit !== check.identity.source_commit) {
+      if (record.target.configuration_fingerprint === undefined) {
+        staleReasons.push(
+          reason(
+            'manual.reuse_without_scope',
+            `manual evidence ${record.id} was observed at a different source and records no configuration fingerprint, so its continuing validity cannot be shown`,
+            { control_ids: [controlId], check_id: check.check_id },
+          ),
+        );
+        return false;
+      }
+    }
+    return true;
   });
+
+  if (current.length === 0 && staleReasons.length > 0) {
+    return build(controlId, definition, 'unmet', 'unknown', [], [...reasons, ...staleReasons], []);
+  }
 
   const passing = current.filter((record) => record.outcome === 'pass');
   if (passing.length > 0) {
@@ -688,7 +738,16 @@ function findException(finding: Finding, exceptions: ReadonlyMap<string, Excepti
  * an exception over an execution error: an error means no answer was produced, which is different
  * from an accepted risk.
  */
-function resolveExceptions(exceptions: readonly ExceptionRecord[], now: Date): Map<string, ExceptionRecord> {
+interface ExceptionContext {
+  readonly exceptionPolicy?: Readonly<Record<string, 'permitted' | 'never'>>;
+  readonly controlVersions: Readonly<Record<string, number>>;
+}
+
+function resolveExceptions(
+  exceptions: readonly ExceptionRecord[],
+  now: Date,
+  context: ExceptionContext,
+): Map<string, ExceptionRecord> {
   const usable = new Map<string, ExceptionRecord>();
   for (const exception of exceptions) {
     if (exception.status !== 'active') continue;
@@ -696,10 +755,35 @@ function resolveExceptions(exceptions: readonly ExceptionRecord[], now: Date): M
     const expires = Date.parse(exception.expires_at);
     if (Number.isNaN(expires) || expires <= now.getTime()) continue;
     if (!isPreciselyScoped(exception)) continue;
+    if (exceptionBlockedBy(context, exception) !== undefined) continue;
 
     usable.set(exception.id, exception);
   }
   return usable;
+}
+
+/**
+ * Returns why an exception may not be applied at all, ignoring its own contents.
+ *
+ * Two cases: a profile that marks the control `never` exceptable has already decided, and an
+ * exception granted against an older definition version does not survive the definition changing —
+ * the acceptance criteria it accepted are not the ones now in force.
+ */
+function exceptionBlockedBy(context: ExceptionContext, exception: ExceptionRecord): string | undefined {
+  const control = exception.scope.control;
+  if (control === undefined) return undefined;
+
+  if (context.exceptionPolicy?.[control] === 'never') {
+    return `profile policy marks ${control} as not exceptable`;
+  }
+
+  const grantedAgainst = exception.scope.control_definition_version;
+  const current = context.controlVersions[control];
+  if (grantedAgainst !== undefined && current !== undefined && grantedAgainst !== current) {
+    return `granted against definition version ${grantedAgainst}, but the catalogue defines version ${current}`;
+  }
+
+  return undefined;
 }
 
 function isPreciselyScoped(exception: ExceptionRecord): boolean {
@@ -717,13 +801,17 @@ function rejectUnusableExceptions(
   exceptions: readonly ExceptionRecord[],
   now: Date,
   usable: ReadonlyMap<string, ExceptionRecord>,
+  context: ExceptionContext,
 ): Reason[] {
   return exceptions
     .filter((exception) => !usable.has(exception.id))
     .map((exception) => {
       let why: string;
+      const blocked = exceptionBlockedBy(context, exception);
       if (exception.status !== 'active') {
         why = `status is '${exception.status}'`;
+      } else if (blocked !== undefined) {
+        why = blocked;
       } else {
         const expires = Date.parse(exception.expires_at);
         why = Number.isNaN(expires) || expires <= now.getTime() ? 'expired' : 'scope is not precise enough to apply';

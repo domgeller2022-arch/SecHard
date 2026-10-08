@@ -5,7 +5,9 @@ import {
   catalogue,
   coreProfile,
   evaluateWith,
+  exceptionFor,
   manifest,
+  manualEvidence,
   policy,
   planFor,
   referenceProfile,
@@ -394,3 +396,142 @@ function evaluateInputFor(plan: ExecutionPlan): Parameters<typeof evaluate>[0] {
     excludedFeatures: referenceProfile.excluded_features ?? [],
   };
 }
+
+describe('manual evidence intervals are per control, not one global number', () => {
+  // OPS-02 declares 90 days for its restore exercise; the policy default is 30. A drill performed
+  // 60 days ago is therefore current for that control and stale for one that declares 30.
+  it('accepts a 60-day-old restore drill because the control allows 90 days', () => {
+    const plan = planFor('release');
+    const record = manualEvidence({
+      id: 'ME-RESTORE',
+      control: 'OPS-02',
+      recipe: 'ops/restore-exercise',
+      observed_at: '2026-08-08T12:00:00Z',
+      expires_at: '2026-12-01T00:00:00Z',
+      target: { environment: 'production' },
+    });
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [record], stage: 'release', environment: 'production' });
+    const outcome = decision.control_outcomes.find((item) => item.control === 'OPS-02');
+    expect(outcome?.outcome).toBe('satisfied');
+  });
+
+  it('treats the same age as stale for a control that declares 30 days', () => {
+    const plan = planFor('release');
+    const record = manualEvidence({
+      id: 'ME-CREDENTIALS',
+      control: 'SEC-03',
+      recipe: 'credentials/inventory',
+      observed_at: '2026-08-08T12:00:00Z',
+      expires_at: '2026-12-01T00:00:00Z',
+      target: { environment: 'production' },
+    });
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [record], stage: 'release', environment: 'production' });
+    const outcome = decision.control_outcomes.find((item) => item.control === 'SEC-03');
+    expect(outcome?.outcome).toBe('unmet');
+    expect(outcome?.reasons.some((item) => item.code === 'manual.stale')).toBe(true);
+  });
+
+  it('is stale beyond the control interval even when the record has not expired', () => {
+    const plan = planFor('release');
+    const record = manualEvidence({
+      id: 'ME-OLD-DRILL',
+      control: 'OPS-02',
+      recipe: 'ops/restore-exercise',
+      observed_at: '2026-01-01T12:00:00Z',
+      expires_at: '2027-01-01T00:00:00Z',
+      target: { environment: 'production' },
+    });
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [record], stage: 'release', environment: 'production' });
+    expect(decision.reasons.some((item) => item.code === 'manual.stale')).toBe(true);
+  });
+});
+
+describe('reuse across a source change requires the scope to be pinned', () => {
+  it('accepts a record from an older commit that records its configuration fingerprint', () => {
+    const plan = planFor('release');
+    const record = manualEvidence({
+      id: 'ME-CONFIG',
+      control: 'DEPLOY-01',
+      recipe: 'deploy/production-access',
+      observed_at: '2026-10-01T00:00:00Z',
+      expires_at: '2026-11-01T00:00:00Z',
+      source_commit: 'b'.repeat(40),
+      target: { environment: 'production', configuration_fingerprint: 'config-fp-2026-10-01' },
+    });
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [record], stage: 'release', environment: 'production' });
+    const outcome = decision.control_outcomes.find((item) => item.control === 'DEPLOY-01');
+    expect(outcome?.outcome).toBe('satisfied');
+  });
+
+  it('refuses the same record when it does not say what configuration it observed', () => {
+    const plan = planFor('release');
+    const record = manualEvidence({
+      id: 'ME-NOSCOPE',
+      control: 'DEPLOY-01',
+      recipe: 'deploy/production-access',
+      observed_at: '2026-10-01T00:00:00Z',
+      expires_at: '2026-11-01T00:00:00Z',
+      source_commit: 'b'.repeat(40),
+      target: { environment: 'production' },
+    });
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: [record], stage: 'release', environment: 'production' });
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'manual.reuse_without_scope')).toBe(true);
+  });
+});
+
+describe('an exception cannot override a profile that forbids it', () => {
+  it('rejects an exception for a never-exceptable control', () => {
+    const plan = planFor('release');
+    const decision = evaluateWith({
+      plan,
+      results: allPassing(plan),
+      stage: 'release',
+      environment: 'production',
+      exceptions: [
+        exceptionFor({
+          id: 'EXC-9001',
+          scope: { control: 'AUTHZ-01', finding_id: 'f1', environment: 'production' },
+        }),
+      ],
+    });
+    const reason = decision.reasons.find((item) => item.code === 'exception.invalid');
+    expect(reason?.message).toMatch(/not exceptable/);
+  });
+
+  it('rejects an exception granted against a different definition version', () => {
+    const plan = planFor('release');
+    const decision = evaluateWith({
+      plan,
+      results: allPassing(plan),
+      stage: 'release',
+      environment: 'production',
+      exceptions: [
+        exceptionFor({
+          id: 'EXC-9002',
+          scope: { control: 'WEB-01', finding_id: 'f1', environment: 'production', control_definition_version: 0 },
+        }),
+      ],
+    });
+    const reason = decision.reasons.find((item) => item.code === 'exception.invalid');
+    expect(reason?.message).toMatch(/definition version/);
+  });
+
+  it('reports a valid exception as a waiver rather than as a pass', () => {
+    const plan = planFor('release');
+    const results = allPassing(plan).map((result, index) =>
+      index === 0 ? { ...result, findings: [{ id: 'f-waive', tool: 'manual', rule_id: 'x', severity: 'medium' as const }] } : result,
+    );
+    const decision = evaluateWith({
+      plan,
+      results,
+      stage: 'release',
+      environment: 'production',
+      exceptions: [exceptionFor({ id: 'EXC-9003', scope: { control: 'WEB-01', finding_id: 'f-waive', environment: 'production' } })],
+    });
+    const waived = decision.control_outcomes.find((item) => item.waiver_refs.length > 0);
+    expect(waived?.outcome).toBe('waived');
+    // And it is reported as a waiver, with the self-review recorded rather than hidden.
+    expect(waived?.reasons.some((item) => item.message.includes('remains visible'))).toBe(true);
+  });
+});

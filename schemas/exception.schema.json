@@ -28,6 +28,11 @@
       "minProperties": 1,
       "properties": {
         "control": { "type": "string", "pattern": "^(CTX|GOV|AGT|DEP|SEC|CI|CODE|QUAL|AUTH|AUTHZ|DATA|WEB|ABUSE|BIZ|DEPLOY|OPS|PRIV|REL|EXC)-[0-9]{2}$" },
+        "control_definition_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The definition version the exception was granted against. When the definition changes, the exception no longer applies, even if nobody remembers to revoke it."
+        },
         "check_id": { "type": "string", "maxLength": 200 },
         "finding_id": { "type": "string", "maxLength": 200 },
         "rule_id": { "type": "string", "maxLength": 200 },

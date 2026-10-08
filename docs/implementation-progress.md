@@ -733,6 +733,58 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 14 — Manual evidence and operational recipes (2026-10-08)
+
+- **State:** `verified` for the freshness rules, the exception rules, the local restore drill, and the
+  runbooks. Hosted operational evidence remains `pending` by definition — it is a person's job to
+  perform, and the records say so.
+- **Files changed:** `src/domain/evaluator.ts`, `src/domain/types.ts`, `src/commands/run.ts`,
+  `schemas/exception.schema.json`, `tests/failure-modes/failure-modes.test.ts`,
+  `examples/nextjs-supabase/tests/operations/restore-exercise.sh`, `runbooks/**`.
+- **Actual checks run:**
+  - `npx vitest run tests/failure-modes` → **28 tests pass**, 8 of them new for this step.
+  - `bash tests/operations/restore-exercise.sh` → **PASS**: backup, loss, restore, and verification
+    of row count, per-owner distribution, and a run-specific marker row.
+  - Full suite: **465 unit + 8 integration tests, all passing.**
+- **Rules implemented, each with a test:**
+  - **Per-control freshness.** The interval is the control's own where it declares one
+    (`max_age_days` on its manual evidence requirement): 90 days for restore and response exercises
+    and data review, 30 for access, credential, and configuration evidence. A 60-day-old restore
+    drill is current for OPS-02 and **stale** for SEC-03 — asserted both ways. Policy defaults remain
+    the fallback, with the longer exercise interval for restore/rollback recipes.
+  - **Scope-bound reuse across source changes.** An operational fact survives an unrelated code
+    change but not a storage migration. A record observed at a different source is reusable only when
+    it also pins the configuration fingerprint; otherwise it is refused with
+    `manual.reuse_without_scope`, rather than silently carried forward or demanding a fresh drill for
+    every commit.
+  - **Profile-permitted exceptions.** An exception for a control a profile marks `never` no longer
+    applies — previously the profile's `permitted_exceptions` list was data nothing enforced. Now
+    asserted, using AUTHZ-01 as the case.
+  - **Definition-version invalidation.** An exception records the definition version it was granted
+    against, and stops applying when the definition changes — the acceptance criteria it accepted are
+    not the ones in force.
+  - **Waivers are reported separately**, with the self-review flag preserved, never as a pass.
+- **The restore drill found a real defect in my own procedure.** The first version loaded a data-only
+  dump without replacing the target's rows and failed with a duplicate key: a data-only dump appended
+  to existing data is an **append, not a restore**, and an operator following it would corrupt the
+  database. The corrected procedure truncates first. The schema, grants, and policies are deliberately
+  not in the backup: they come from versioned migrations, so a restore cannot silently reintroduce a
+  drifted schema. The exercise also fails if the simulated loss did not actually remove the data,
+  because a restore that proved nothing is worse than no exercise.
+- **Runbooks written** for restore/rollback, credential rotation and revocation, incident response,
+  and logging/alerting. Each names its controls, the steps, and the manual-evidence record to
+  produce, and each states that a runbook is a procedure rather than evidence.
+- **Limitations and unresolved findings:**
+  - **Hosted operational evidence is `pending`**, as it must be: no deployment exists, and five
+    controls (OPS-01, OPS-02, OPS-03, SEC-03, PRIV-01) cannot pass until a person performs and
+    records the work.
+  - **OPS-03 is blocked by an unfilled owner decision**: there is no security contact, so there is no
+    report channel. Recorded rather than worked around.
+  - The local recovery time (under a second) is meaningless as a recovery target; only the hosted
+    measurement counts.
+  - **Exception scope precision** still requires either a check, finding, rule, or a control plus an
+    environment. That is unchanged and deliberate.
+
 ### Step 11 — Guarded live application recipes (2026-10-08)
 
 - **State:** `verified` for the approved-target model, the HTTP recipe, and the passive ZAP baseline

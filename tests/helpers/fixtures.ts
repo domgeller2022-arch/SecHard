@@ -170,11 +170,18 @@ export function evaluateWith(input: {
     stage,
     environment,
     manifest: input.manifest ?? manifest(),
-    controls: catalogue.map((control) => ({
-      id: control.id,
-      definition_version: control.definition_version,
-      applicability: control.applicability as ApplicabilityRule,
-    })),
+    controls: catalogue.map((control) => {
+      const interval = manualInterval(control);
+      return {
+        id: control.id,
+        definition_version: control.definition_version,
+        applicability: control.applicability as ApplicabilityRule,
+        ...(interval === undefined ? {} : { manual_max_age_days: interval }),
+      };
+    }),
+    exceptionPolicy: Object.fromEntries(
+      profiles.flatMap((profile) => profile.permitted_exceptions.map((entry) => [entry.control, entry.policy])),
+    ) as Record<string, 'permitted' | 'never'>,
     plan: input.plan,
     results: input.results,
     manualEvidence: input.manualEvidence ?? [],
@@ -187,6 +194,11 @@ export function evaluateWith(input: {
     ...(input.expectedPlanIdentity === undefined ? {} : { expectedPlanIdentity: input.expectedPlanIdentity }),
     excludedFeatures: profiles.flatMap((profile) => profile.excluded_features ?? []),
   });
+}
+
+function manualInterval(control: (typeof catalogue)[number]): number | undefined {
+  return control.evidence_requirements.find((entry) => entry.kind === 'manual_evidence' && entry.max_age_days !== undefined)
+    ?.max_age_days;
 }
 
 export const manualEvidence = (overrides: Partial<ManualEvidence> = {}): ManualEvidence => ({
