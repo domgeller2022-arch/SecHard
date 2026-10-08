@@ -76,7 +76,7 @@ several silently scanned the whole tree and produced the misleading counts in th
 | 3 | **QUAL-01 quality thresholds unconfigured** for the example | Low | Open. `next build` type-checks and the root lint checks hygiene; no linter or duplication threshold exists |
 | 4 | **Recovery isolation (AUTH-02) and genuine session expiry untested**; only a malformed token is covered | Medium | Open. Recovery needs the email flow |
 | 5 | **OPS-03 has no security contact**, so there is no vulnerability report channel | High for a public repository | Blocked on `security_contact_email` |
-| 6 | **The two callable workflows contain `REPLACE_WITH_HARDENING_REPOSITORY`** and are not runnable as shipped | Low | Blocked on `repo_name` and `github_owner` |
+| 6 | ~~Callable workflows held a repository placeholder~~ | Low | **Fixed 2026-10-08.** `repo_name` recorded as `SecHard`; both callable workflows now name `domgeller2022-arch/SecHard`, and the consumer template keeps only the reviewed-commit placeholder |
 | 7 | **`LICENSE` absent.** `code_licence`, `docs_licence`, and `owner_legal_name` are unfilled | Blocker for publication | Blocked on owner decisions |
 | 8 | **Deeper TLS assessment is manual.** `testssl.sh` is unpinned; Node's TLS validation covers chain and expiry only | Medium | Open by design; a production release blocks without TLS evidence |
 | 9 | **The history-rewrite backup remains in the temp directory** | Housekeeping | Owner may delete `/var/folders/.../T/opencode/git-backup-prehistory-20261008024854` |
@@ -88,7 +88,7 @@ several silently scanned the whole tree and produced the misleading counts in th
 | `security_contact_email` | `SECURITY.md`, OPS-03, public visibility | Highest priority of the unfilled fields |
 | `owner_legal_name` | `LICENSE`, `NOTICE`, release artifacts | Recommended to be the same as `github_owner` unless a company holds the copyright |
 | `code_licence`, `docs_licence` | `LICENSE`, publication | Apache-2.0 or MIT; CC-BY-4.0 or same-as-code |
-| `repo_name` | Package name, the two callable workflows, distribution | |
+| ~~`repo_name`~~ | ~~Package name, callable workflows~~ | **Filled 2026-10-08: `SecHard`.** The npm package name is `sechard` (lowercase, ecosystem requirement) and the CLI stays `hardening` |
 | `owner_handle` | README attribution, CODEOWNERS display | |
 | `build_os` | Support statements, Step 16 readiness | |
 | `github_test_owner`, `github_test_repos` | Step 13 platform verification | **Deferred by the owner to the final step** |

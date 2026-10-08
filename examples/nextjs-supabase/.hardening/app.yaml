@@ -55,9 +55,9 @@ profiles:
 # pins a released commit instead and re-locks deliberately.
 policy_lock:
   repository: local-checkout
-  commit: "41620dfe6de53d275521bf4e5e284fe54cf0c87d"
+  commit: "3e220e97f60ef830594649b8e51c0f6a140fbd86"
   policy_digest: "076e216ce8657bc669dd095b4fa897e7798f22e8188c2efdb9460360cdc930c7"
-  locked_at: "2026-10-08T13:06:52.657Z"
+  locked_at: "2026-10-08T13:31:05.608Z"
 
 maintainer:
   name: repository-owner

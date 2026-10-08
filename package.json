@@ -1,5 +1,5 @@
 {
-  "name": "hardening-repo",
+  "name": "sechard",
   "version": "0.1.0-dev.0",
   "private": true,
   "description": "Versioned control catalogue, verification checks, and honest release evidence for applications built with AI coding tools",
