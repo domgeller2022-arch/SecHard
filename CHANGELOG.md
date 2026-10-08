@@ -13,6 +13,22 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Owner decisions and Batch R acceptance (9 October 2026)
+
+- **`repo-checks` passed on GitHub for `6e5cec4`**: build and test, scanner self-scan, workflow
+  analysis, and hardening-gate all successful (the pull-request-only change report skipped by
+  design). Batch R's platform acceptance is closed; the R1 Linux-x64 assets and the R2 ordering were
+  exercised on a real runner.
+- **R4 H2 review accepted.** The owner reviewed the never-exceptable floor and the two waiver rules
+  in `policy/gate-policy.yaml`; the implemented behaviour stands.
+- **No licence, deliberately (`release_scope: private-sole-maintainer`).** The repository is private,
+  maintained and used by the owner alone, and not distributed; the package stays `private` and
+  `UNLICENSED`, and the R7 licence item is a decision rather than a blocker.
+- **Security contact not applicable while private.** OPS-03's release obligation remains unmet;
+  release evaluation correctly blocks while no release is planned.
+- **Repository visibility is `private`** (public only for the external audit; may be made public
+  temporarily for testing).
+
 ### Batch R — repair, from the external audit (8 October 2026)
 
 The 2026-10-08 external audit (`docs/audit/2026-10-08-external-audit.md`) found that the gate could

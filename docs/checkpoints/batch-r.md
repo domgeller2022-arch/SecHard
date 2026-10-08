@@ -29,6 +29,15 @@ Batch R of `docs/audit/2026-10-08-remediation-plan.md`, worked against
 - **R7 — Owner hygiene: partially done, owner items pending.** Review sheet marked; history-rewrite
   backup removed. `LICENSE`, `NOTICE`, and the security contact need owner decisions.
 
+## Post-checkpoint update (2026-10-09)
+
+- `repo-checks` on `6e5cec4` passed: build and test, scanner self-scan, workflow analysis, and
+  hardening-gate all successful; the pull-request-only review job skipped as designed. R2/R3 platform
+  acceptance is closed.
+- The owner accepted the R4 H2 rules and the never-exceptable floor.
+- Owner decisions: no licence (`release_scope: private-sole-maintainer`), no security contact while
+  private, repository private. R7's owner items are decisions rather than blockers.
+
 ## What now works
 
 Exact commands, all run on Node 24.21.0:

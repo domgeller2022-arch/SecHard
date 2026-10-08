@@ -70,7 +70,7 @@ const lines = [
   '- a pull request still supplies its own `.hardening/` records (audit H4; Batch W3);',
   '- the local development stack is reachable from the LAN (open finding; no batch owns it yet);',
   '- AUTH-02 recovery isolation and genuine session expiry are untested;',
-  '- no `LICENSE` and no security contact: owner decisions, blocking publication;',
+  '- no `LICENSE` and no security contact **by owner decision**: private, sole-maintainer, and\n  undistributed; OPS-03 stays unmet and release evaluation blocks, which is correct while no release\n  is planned;',
   '- platform verification (Step 13) awaits the owner\'s throwaway GitHub account;',
   '- audit-mode isolation for executing untrusted application code is undefined (Batch U).',
   '',

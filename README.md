@@ -115,8 +115,10 @@ just the commit.
   Batch S.
 - **Platform verification has not been performed.** Required checks, CODEOWNERS resolution, forks,
   and merge queues are unverified until the owner's throwaway GitHub account exists.
-- **No licence and no security contact.** `code_licence`, `docs_licence`, `owner_legal_name`, and
-  `security_contact_email` are unfilled owner decisions; the package is private and `UNLICENSED`.
+- **No licence and no security contact, by decision.** The repository is private, maintained and
+  used by one person, and not released (`release_scope: private-sole-maintainer` in
+  `01-owner-decisions.md`). The package is `private` and `UNLICENSED`; OPS-03 stays unmet and a
+  release evaluation blocks, which is correct while no release is planned.
 
 ## Adoption and audit mode
 
@@ -134,6 +136,7 @@ the runtime restrictions an operator has to configure.
 
 ## Licence
 
-**Unresolved.** `docs_licence` and `code_licence` in `01-owner-decisions.md` are `TODO`, so there is
-no `LICENSE` file and the package is marked `private` and `UNLICENSED`. Copied or adapted upstream
-material keeps its own licence and notice. See `docs/supported-versions.md`.
+**None, deliberately.** The owner's decision of 2026-10-09: this repository is private, maintained
+and used by the owner alone, and not distributed, so no `LICENSE` file exists and the package is
+marked `private` and `UNLICENSED` to prevent accidental publication under a default licence. Copied
+or adapted upstream material keeps its own licence and notice. See `docs/supported-versions.md`.

@@ -1489,3 +1489,49 @@ evaluator aggregation, C5 console redaction, E1 plan/results artefacts).
   platform verification; the R4 H2 decision is recorded and awaits owner review.
 - **Next step:** Batch W (wire Steps 09–11 into `check`; finish Step 13's PR trust), after the owner
   reviews the Batch R checkpoint at `docs/checkpoints/batch-r.md`.
+
+---
+
+## Remediation close-out and owner decisions (2026-10-09)
+
+- **State:** `verified`. Batch R is closed with the platform acceptance observed, and the owner
+  answered the licensing/visibility questions.
+
+### Batch R platform acceptance, observed on GitHub
+
+The pushed commit `6e5cec4` ran `repo-checks` and **all required jobs passed**:
+
+| Job | Result |
+| --- | --- |
+| build and test | successful (44s) |
+| scanner self-scan | successful (38s) |
+| workflow analysis | successful (23s) |
+| hardening-gate | successful (3s) |
+| security-test and sensitive-path change report | skipped (push event; the job is pull-request-only by design) |
+
+This closes the Batch R acceptance that `repo-checks` passes on GitHub, and confirms the R1
+Linux-x64 toolchain assets and the R2 ordering on a real runner. The owner reported the run;
+the repository is private, so the local record cannot query the Actions API without a token.
+
+### Owner decisions (2026-10-09)
+
+- **R4 H2 review: accepted.** The owner reviewed the two rules in `policy/gate-policy.yaml`
+  (`critical_findings_never_waivable`, `high_findings_require_non_self_approver_at_release`) and the
+  never-exceptable floor, and directed Batch W to proceed. The rules remain as implemented; the
+  regression tests in `tests/gate/exceptions.test.ts` pin the behaviour.
+- **Licensing: none, deliberately.** `release_scope: private-sole-maintainer` recorded. The
+  repository is private, maintained and used by the owner alone, and not distributed, so no
+  `LICENSE` exists and the package stays `private`/`UNLICENSED`. The R7 "no licence" item is
+  therefore a decision, not a blocker.
+- **Security contact: not applicable while private.** `security_contact_email:
+  not-applicable-private`. OPS-03's release obligation remains unmet and release evaluation blocks,
+  which is correct while no release is planned.
+- **Visibility: private.** Set to public only during the external audit, now private again; may be
+  set public temporarily for testing, then private again.
+- **History-rewrite backup:** deleted from the temporary directory in Batch R.
+- `authorised_batch` set to `W`.
+
+### Next step
+
+Batch W — wire Steps 09–11 into `check` (C1), extend the client-secret markers (H5), evaluate pull
+requests against the base branch's records (H4), and fold the live checks into a recipe.

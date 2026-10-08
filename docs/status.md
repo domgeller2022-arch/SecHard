@@ -1,6 +1,6 @@
 # Status
 
-> Generated from `docs/implementation-progress.md` (source SHA-256 `2f6501180aa63904f9a362e2c753608ecd694aac756872b5e097dc92afcc52ee`) by
+> Generated from `docs/implementation-progress.md` (source SHA-256 `c03e434bcc86c285a982962da39a1f7b41e13025cd0605cee3c299f8a8182213`) by
 > `node tools/generate-status.mjs`. Do not edit by hand: edit the progress record and regenerate.
 > A section appears here only when the record states its state; "verified" means the record's
 > stated acceptance checks ran, nothing more.
@@ -33,7 +33,9 @@ These are not generated: the authoritative list is in `docs/implementation-progr
 - a pull request still supplies its own `.hardening/` records (audit H4; Batch W3);
 - the local development stack is reachable from the LAN (open finding; no batch owns it yet);
 - AUTH-02 recovery isolation and genuine session expiry are untested;
-- no `LICENSE` and no security contact: owner decisions, blocking publication;
+- no `LICENSE` and no security contact **by owner decision**: private, sole-maintainer, and
+  undistributed; OPS-03 stays unmet and release evaluation blocks, which is correct while no release
+  is planned;
 - platform verification (Step 13) awaits the owner's throwaway GitHub account;
 - audit-mode isolation for executing untrusted application code is undefined (Batch U).
 
