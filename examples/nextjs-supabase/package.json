@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "supabase": "supabase",
     "env:sync": "node ../../tools/sync-example-env.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:authorization": "node tests/authorization/run-authorization.mjs",
+    "test:authorization:weakened": "bash tests/authorization/weakened-detection.sh"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

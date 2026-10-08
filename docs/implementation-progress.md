@@ -733,6 +733,54 @@ the blocked verification was completed. **This also resolves E1 and E2 from Batc
   colima` makes it survive a reboot, at the owner's discretion.
 - **Effect:** Steps 07, 08, 10, 11, and 14 are no longer blocked on the environment.
 
+### Step 08 — authorization matrix verified, with detection proven (2026-10-07)
+
+- **State:** `verified` for the matrix, the provider-path cases, the inventory checks, and the
+  mutation test. Recovery isolation and genuine session expiry remain outstanding (below).
+- **Files added:** `examples/nextjs-supabase/tests/authorization/matrix.yaml`,
+  `.../run-authorization.mjs`, `.../weakened-detection.sh`; example `package.json` scripts;
+  example `README.md` section.
+- **Actual checks run — all against the real stack, none mocked:**
+  - `pnpm run test:authorization` → **14 cases executed, 0 failed**, plus **4 inventory checks**.
+  - `pnpm run test:authorization:weakened` → **detection proven**: with one extra permissive SELECT
+    policy the matrix reported failures; after `supabase db reset` the same matrix passed again.
+  - Full suite unaffected: **428 unit + 8 integration tests**; lint green.
+- **What the matrix covers** (machine-readable data, not code): anonymous, owner A, and unrelated
+  user B; list, read, create, update, and delete; a manipulated identifier (reading and writing a row
+  by another user's ID); owner-field injection on both create and update; and an invalid session.
+  Positive cases are included — a policy that denies everybody would fail them.
+- **Denials are verified against stored state**, read afterwards through a privileged `psql`
+  channel: the stored title, owner, and existence of the target row are asserted unchanged or absent
+  as appropriate. This is the plan's requirement that an HTTP denial alone is not evidence.
+- **Findings from running it, recorded rather than smoothed over:**
+  1. **Anonymous is refused at the grant layer, not given an empty result.** The request returns
+     HTTP 401 with PostgREST code **42501 (insufficient_privilege)**, because the migration revokes
+     all grants from `anon`. My first expectation was "0 rows"; the actual behaviour is stronger, and
+     the matrix now records the verified behaviour with the reason.
+  2. **An invalid token is refused with PGRST301**, distinct from anonymous — so a malformed session
+     is not silently downgraded to unauthenticated.
+  3. **Owner-field injection fails with 42501 on both create and update** — a client cannot write as
+     another user, and cannot move an existing note to another owner.
+  4. **The inventory check caught my own comparison bug**: `pg_class` booleans concatenate as
+     `true/true`, not `t/t`. Fixed; the check now asserts RLS is both **enabled and forced**, exactly
+     one policy exists, it targets `authenticated` only, and `anon` holds no table grant.
+  5. A URL-encoding bug in my runner (`URL.pathname` percent-encodes spaces) was fixed to
+     `fileURLToPath`.
+- **Case counting is enforced:** the runner exits non-zero if the number of executed cases differs
+  from the number declared, so a case that silently stops running is a failure rather than an
+  absence of failure.
+- **Limitations and unresolved findings:**
+  - **Recovery isolation (AUTH-02) is not tested.** It needs the email flow; it belongs with the
+    operational recipes in Step 14.
+  - **Genuine session expiry is not tested** — only a malformed token. Expiry needs a short-lived
+    token or a clock we control; the provider's revocation behaviour is also unverified.
+  - **The app-path matrix is the Playwright suite**, which covers ownership, sign-out, and cross-user
+    cache separation through the interface; the direct-API matrix covers the provider path. Role and
+    tenancy cases do not apply: both features are disabled in the manifest, and AUTHZ-02 is recorded
+    as such rather than marked satisfied.
+  - **QUAL-01's configured thresholds remain outstanding** for the example.
+  - The **binding finding** remains open; the stack was started only for these checks and is stopped.
+
 ### Step 07 — reference application built and verified end to end (2026-10-07)
 
 - **State:** `verified` for the application and its functional behaviour, with the binding finding

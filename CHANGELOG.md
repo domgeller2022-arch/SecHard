@@ -204,6 +204,28 @@ naming a display name would match nobody while looking like protection.
 
 Suite: **413 unit + 8 integration tests, all passing.**
 
+### Added — authorization matrix with proven detection (7 October 2026)
+
+- **`tests/authorization/matrix.yaml`** — 14 cases as machine-readable data: anonymous, owner A, and
+  unrelated user B against list, read, create, update, and delete, plus a manipulated identifier and
+  owner-field injection on create and update.
+- **`run-authorization.mjs`** — executes the matrix against the unprivileged data API with each
+  actor's own session, verifies every denial against stored state through a separate privileged
+  channel, inspects the provider's policy and grant inventory, and **fails if the number of executed
+  cases differs from the number declared**.
+- **`weakened-detection.sh`** — adds one permissive SELECT policy, requires the matrix to **detect**
+  it, resets the database, and requires the same matrix to pass again. Detection is proven, not
+  assumed.
+- **Results:** 14 cases executed, 0 failed, plus 4 inventory checks. Anonymous is refused at the grant
+  layer with PostgREST **42501**; an invalid token with **PGRST301**; owner-field injection fails on
+  both create and update; RLS is verified **enabled and forced**, with exactly one policy targeting
+  `authenticated` and no grant held by `anon`.
+- Two of my own bugs were caught by the checks and fixed: a boolean comparison (`true/true`, not
+  `t/t`) and a percent-encoded path.
+
+Outstanding and recorded: recovery isolation (AUTH-02), genuine session expiry, and QUAL-01's
+configured thresholds for the example.
+
 ### Added — reference application verified end to end (7 October 2026)
 
 The Next.js application is built and its session and authorization behaviour is verified in a real

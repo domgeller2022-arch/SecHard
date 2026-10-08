@@ -52,6 +52,23 @@ pnpm exec supabase stop
 them, and on the reference machine they came up unhealthy and caused `supabase start` to tear the
 whole stack down. Re-enabling one means investigating its health first, not just flipping the flag.
 
+## Authorization verification
+
+```bash
+# The matrix: actors, resources, operations, and expected outcomes, executed against the
+# unprivileged data API with each actor's own session.
+pnpm run test:authorization
+
+# Detection proof: weaken the policy, require the matrix to fail, restore, require it to pass.
+# Resets the local database; touches nothing but this development stack.
+pnpm run test:authorization:weakened
+```
+
+The matrix lives in `tests/authorization/matrix.yaml`. A denied write is verified against stored
+state afterwards through a separate privileged channel, because an HTTP status alone is not evidence
+that nothing changed. The runner also asserts that every case actually executed: a runner that
+silently skips cases reports success for tests it never ran.
+
 ## What is here
 
 - `supabase/config.toml` — local stack configuration.

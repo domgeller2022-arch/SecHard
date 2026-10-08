@@ -1,0 +1,152 @@
+schema: hardening/authorization-matrix/v1
+description: >-
+  Actors, resources, operations, and expected outcomes for the reference application. Executed
+  directly against the unprivileged Supabase data API with each actor's own session, so the
+  boundary under test is the provider's, not the application's. A denial is verified against stored
+  state afterwards through a separate privileged channel.
+
+actors:
+  anonymous:
+    token_source: none
+    notes: No session at all; uses the publishable key only.
+  owner_a:
+    person: User A
+    email: user-a@example.invalid
+  other_b:
+    person: User B (unrelated normal user)
+    email: user-b@example.invalid
+
+resources:
+  note_a:
+    id: aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa
+    owner: owner_a
+  note_b:
+    id: bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb
+    owner: other_b
+  note_by_a:
+    id: cccccccc-3333-4333-8333-cccccccccccc
+    owner: owner_a
+    created_by_case: create-own
+
+# `expect.rows` is the number of rows returned; `expect.affected` is the number of rows written.
+# `expect.denied` means the request must fail or affect nothing; both are accepted because PostgREST
+# reports a policy violation for an insert but simply an empty result for a filtered update.
+cases:
+  # Verified behaviour, not an assumption: the request is refused outright with HTTP 401 and
+  # PostgREST code 42501 (insufficient_privilege), because the migration revoked all grants from
+  # `anon`. A refusal is stronger than an empty result, and this matrix records which one actually
+  # happens rather than the gentler outcome that was expected first.
+  - id: anon-list
+    actor: anonymous
+    operation: list_notes
+    expect: { denied: true }
+    proves: An unauthenticated caller is refused at the grant layer, not merely shown nothing.
+
+  - id: anon-read-own-shape
+    actor: anonymous
+    operation: read_note
+    target: note_a
+    expect: { denied: true }
+    proves: An unauthenticated caller cannot read a known resource even with its identifier.
+
+  - id: owner-a-lists
+    actor: owner_a
+    operation: list_notes
+    expect: { rows_at_least: 1 }
+    proves: A positive case — a policy that denies everybody would fail here.
+
+  - id: owner-a-reads-own
+    actor: owner_a
+    operation: read_note
+    target: note_a
+    expect: { rows: 1 }
+    proves: An owner can read their own resource.
+
+  - id: owner-a-cannot-read-b
+    actor: owner_a
+    operation: read_note
+    target: note_b
+    expect: { rows: 0 }
+    proves: A second user cannot read another user's resource by identifier.
+
+  - id: owner-a-cannot-update-b
+    actor: owner_a
+    operation: update_note
+    target: note_b
+    payload: { title: hijacked by A }
+    expect: { denied: true, affected: 0 }
+    stored_state:
+      resource: note_b
+      title: "User B private note"
+    proves: A denied update affects no rows and leaves the stored row unchanged.
+
+  - id: owner-a-cannot-delete-b
+    actor: owner_a
+    operation: delete_note
+    target: note_b
+    expect: { denied: true, affected: 0 }
+    stored_state:
+      resource: note_b
+      exists: true
+    proves: A denied delete does not remove another user's row.
+
+  - id: owner-a-cannot-claim-b-ownership
+    actor: owner_a
+    operation: create_note
+    payload: { title: "written as B", owner_id: B_PLACEHOLDER }
+    claim_owner: other_b
+    expect: { denied: true }
+    proves: A client-supplied owner field cannot be used to write as another user.
+
+  - id: owner-a-cannot-move-own-note-to-b
+    actor: owner_a
+    operation: update_note
+    target: note_a
+    payload: { owner_id: B_PLACEHOLDER }
+    claim_owner: other_b
+    expect: { denied: true }
+    stored_state:
+      resource: note_a
+      owner: owner_a
+    proves: Ownership cannot be reassigned through an update, so a note cannot be pushed to or taken from another user.
+
+  - id: owner-a-creates-own
+    actor: owner_a
+    operation: create_note
+    payload: { id: cccccccc-3333-4333-8333-cccccccccccc, title: "Note created by A" }
+    expect: { allowed: true }
+    stored_state:
+      resource: note_by_a
+      owner: owner_a
+    proves: The owner's own write succeeds and is recorded against them.
+
+  - id: owner-a-updates-own
+    actor: owner_a
+    operation: update_note
+    target: note_by_a
+    payload: { title: "Note created by A (renamed)" }
+    expect: { affected: 1 }
+    proves: An owner can update their own resource.
+
+  - id: owner-b-cannot-see-a-created-note
+    actor: other_b
+    operation: read_note
+    target: note_by_a
+    expect: { rows: 0 }
+    proves: A resource created by one user is invisible to another.
+
+  - id: owner-a-deletes-own
+    actor: owner_a
+    operation: delete_note
+    target: note_by_a
+    expect: { affected: 1 }
+    stored_state:
+      resource: note_by_a
+      exists: false
+    proves: An owner can delete their own resource, and the deletion is real.
+
+  - id: invalid-token-is-rejected
+    actor: invalid_token
+    operation: list_notes
+    expect: { denied: true }
+    proves: A malformed or expired session is refused rather than treated as anonymous.
