@@ -106,7 +106,22 @@ function url(target: LiveTarget, route: string): string {
   return `${target.scheme}://${target.host}${port}${route}`;
 }
 
-/** Reads a response body without allowing it to exceed the limit. */
+/**
+ * The full text of a fetch failure. Node's fetch wraps the socket error as `cause`, so the TLS
+ * classification lives on `error.cause.message` ("unable to verify the first certificate") while
+ * `error.message` is only "fetch failed". Reading only the outer message misclassifies a TLS
+ * failure as a generic unreachable route — found by the audit live-target test, not by reading.
+ */
+function fetchErrorText(error: unknown): string {
+  const outer = error as { message?: string; cause?: unknown };
+  const cause = outer.cause as { message?: string; cause?: unknown } | undefined;
+  const nested = cause?.cause as { message?: string } | undefined;
+  return [outer.message, cause?.message, nested?.message].filter((part) => typeof part === 'string' && part.length > 0).join(': ');
+}
+
+/**
+ * Reads a response body without allowing it to exceed the limit.
+ */
 async function boundedBody(response: Response, maxBytes: number): Promise<string> {
   const reader = response.body?.getReader();
   if (reader === undefined) return '';
@@ -154,7 +169,7 @@ export async function runHttpChecks(
           headers: { 'user-agent': 'hardening-live-check' },
         });
       } catch (error) {
-        const message = (error as Error).message;
+        const message = fetchErrorText(error);
         const tlsFailure = /certificate|self[- ]signed|unable to verify|ERR_TLS/i.test(message);
         findings.push({
           id: `http:${target.id}:${route}:unreachable`,

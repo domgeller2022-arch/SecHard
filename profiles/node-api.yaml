@@ -1,0 +1,128 @@
+schema_version: profile/v1
+id: node-api
+definition_version: 1
+review_status: draft
+title: Node.js API service (composable stack profile)
+extends: [core]
+description: >-
+  An Express/Fastify/Hono-style HTTP service. There is no browser bundle to inspect; the live
+  surface is the API itself, so live HTTP is required when a target exists and client-asset
+  inspection is not.
+controls:
+  - { control: CTX-01 }
+  - { control: GOV-01 }
+  - { control: GOV-02 }
+  - { control: AGT-01 }
+  - { control: AGT-02 }
+  - { control: AGT-03 }
+  - { control: DEP-01 }
+  - { control: DEP-02 }
+  - { control: DEP-03 }
+  - { control: SEC-01 }
+  - { control: SEC-02 }
+  - { control: SEC-03 }
+  - { control: CI-01 }
+  - { control: CI-02 }
+  - { control: CI-03 }
+  - { control: CODE-01 }
+  - { control: QUAL-01 }
+  - { control: AUTH-01 }
+  - { control: AUTH-02 }
+  - { control: AUTHZ-01 }
+  - { control: AUTHZ-02 }
+  - { control: AUTHZ-03 }
+  - { control: DATA-01 }
+  - { control: WEB-01 }
+  - { control: WEB-02 }
+  - { control: ABUSE-01 }
+  - { control: BIZ-01 }
+  - { control: DEPLOY-01 }
+  - { control: OPS-01 }
+  - { control: OPS-02 }
+  - { control: OPS-03 }
+  - { control: PRIV-01 }
+  - { control: REL-01 }
+  - { control: REL-02 }
+  - { control: EXC-01 }
+excluded_features:
+  - payments
+  - webhooks
+  - uploads
+  - tenancy
+  - runtime_ai
+stage_requirements:
+  pr:
+    required_methods:
+      - schema_validation
+      - policy_consistency
+      - secret_scan
+      - dependency_scan
+      - static_analysis
+      - workflow_analysis
+      - authorization_test
+      - functional_test
+      - live_http_check
+  release:
+    required_methods:
+      - schema_validation
+      - policy_consistency
+      - secret_scan
+      - dependency_scan
+      - static_analysis
+      - workflow_analysis
+      - authorization_test
+      - functional_test
+      - live_http_check
+      - tls_check
+      - manual_attestation
+    require_clean_source: true
+    require_actual_tool_origin: true
+  operations:
+    required_methods:
+      - policy_consistency
+      - dependency_scan
+      - manual_attestation
+    require_actual_tool_origin: false
+
+support_constraints:
+  platforms: [linux-ci]
+  notes: >-
+    build_check and client_asset_inspection do not apply: there is no browser artifact to verify.
+    Authorization obligations apply when the service guards private resources.
+permitted_exceptions:
+  - { control: CTX-01, policy: permitted, max_duration_days: 90 }
+  - { control: GOV-01, policy: permitted, max_duration_days: 30 }
+  - { control: GOV-02, policy: never }
+  - { control: AGT-01, policy: permitted, max_duration_days: 30 }
+  - { control: AGT-02, policy: permitted, max_duration_days: 90 }
+  - { control: AGT-03, policy: never }
+  - { control: DEP-01, policy: permitted, max_duration_days: 14 }
+  - { control: DEP-02, policy: permitted, max_duration_days: 90 }
+  - { control: DEP-03, policy: permitted, max_duration_days: 30 }
+  - { control: SEC-01, policy: permitted, max_duration_days: 14 }
+  - { control: SEC-02, policy: permitted, max_duration_days: 7 }
+  - { control: SEC-03, policy: permitted, max_duration_days: 30 }
+  - { control: CI-01, policy: never }
+  - { control: CI-02, policy: permitted, max_duration_days: 30 }
+  - { control: CI-03, policy: never }
+  - { control: CODE-01, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-01, policy: permitted, max_duration_days: 30 }
+  - { control: AUTH-01, policy: never }
+  - { control: AUTH-02, policy: permitted, max_duration_days: 30 }
+  - { control: AUTHZ-01, policy: never }
+  - { control: AUTHZ-02, policy: never }
+  - { control: AUTHZ-03, policy: never }
+  - { control: DATA-01, policy: permitted, max_duration_days: 14 }
+  - { control: WEB-01, policy: permitted, max_duration_days: 60 }
+  - { control: WEB-02, policy: permitted, max_duration_days: 30 }
+  - { control: ABUSE-01, policy: permitted, max_duration_days: 60 }
+  - { control: BIZ-01, policy: permitted, max_duration_days: 30 }
+  - { control: DEPLOY-01, policy: permitted, max_duration_days: 30 }
+  - { control: OPS-01, policy: permitted, max_duration_days: 30 }
+  - { control: OPS-02, policy: permitted, max_duration_days: 90 }
+  - { control: OPS-03, policy: permitted, max_duration_days: 90 }
+  - { control: PRIV-01, policy: permitted, max_duration_days: 90 }
+  - { control: REL-01, policy: never }
+  - { control: REL-02, policy: permitted, max_duration_days: 90 }
+  - { control: EXC-01, policy: never }
+

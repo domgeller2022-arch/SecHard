@@ -13,6 +13,92 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Batch U — `hardening audit`: point it at any folder and get a report (9 October 2026)
+
+The remediation plan's audit-mode batch (renamed U by the gap analysis, D11). `hardening audit PATH`
+runs with no manifest, no setup, and no modification of the audited project: it detects the stack
+and features from recorded evidence, composes the profile set, generates an ephemeral manifest
+outside the target, and drives the existing plan/check/gate machinery. Checkpoint:
+`docs/checkpoints/batch-u.md`; contract: `docs/audit-mode.md`.
+
+**The command — A1 plus gap items D1, D2, D6, D8, D9**
+
+- `hardening audit PATH [--url ORIGIN] [--out DIR] [--depth quick|standard|deep] [--allow-local]`;
+  `--policy` defaults to the shipped policy root. Output goes to `--out` (default
+  `sechard-audit-<timestamp>/` in the working directory), which **must live outside the target** —
+  refused otherwise. The acceptance test checksums the target tree before and after each audit and
+  requires byte-identical results: audit mode never writes to the audited project (D9).
+- **No recipe executes application code** (D1): every wired recipe reads files or makes bounded
+  requests to an operator-approved target. `quick` is the fast static set; `standard` adds the
+  git-history scan, client-bundle inspection, and live checks; `deep` states in the report that it
+  adds nothing in this build because deeper work needs an isolation model that does not exist yet —
+  it is refused, not faked (D8, each level's behaviour tested).
+- **The `--url` guard (D6)** refuses loopback, link-local (cloud metadata), RFC1918, unique-local,
+  and mapped-IPv6 targets, credential URLs, non-HTTP(S) schemes, and deep paths — resolving the
+  hostname and checking every resolved address, which is recorded in the report. `--allow-local`
+  is the explicit local-development opt-in. The generated target inventory is validated by the
+  recipe's own loader before anything runs.
+- **The Git-URL claim is dropped rather than faked (D2)**: audit takes a local folder; the trust
+  rules for cloning untrusted repositories are recorded as not built. Clone it yourself, then
+  audit.
+
+**Detection and profiles — A2, A4**
+
+- Detection (`src/audit/detect.ts`) is a bounded, read-only walk with per-detection evidence
+  (file + pattern). Stacks: Next.js, Vite/React SPA, SvelteKit, Node API, Python web, Go, Expo,
+  React Native, Flutter, Electron, unknown. Features: payments, runtime AI, uploads, webhooks,
+  persistent storage, accounts, outbound requests. Undetectable features stay `unknown`, never
+  `disabled`. Unsupported stacks produce a gap banner in the report while the generic checks
+  (secrets, dependency advisories, workflows) still run — an Expo fixture proves the banner, not a
+  clean report.
+- Six composable profiles (`nextjs`, `react-spa`, `node-api`, `python-web`, `supabase`,
+  `payments`), all `draft`, loaded from `profiles/` by directory so a shipped-but-unloaded profile
+  cannot exist. Audit mode composes them from detection; gate mode keeps explicit selection.
+  `nextjs-supabase` is kept (not replaced) so the example's records keep resolving. The `quality`
+  profile waits for Batch Q's controls; firebase/uploads/runtime-ai/multi-tenant have no controls
+  or recipes to select yet, so detection states them as gaps instead.
+
+**The report — A3 plus gap item D5**
+
+- `report.md`, a self-contained `report.html`, `report.json`, and schema-valid `report.sarif`, all
+  from one evaluation. Two scores with plain verdicts (quality honestly "not assessed in this
+  build" — Batch Q), "Fix these first" ordered by severity × deployed-surface exposure, and a
+  "What we could not check" box that lists every unsupported, errored, and depth-excluded check
+  with its reason.
+- Every finding carries: what it is, where, why it matters in plain English, how to fix it, effort
+  (S/M/L), confidence (confirmed/likely/signal — a heuristic is never presented as proof), control
+  and standards references, and a ready-to-paste prompt for the owner's AI assistant. Untrusted
+  text is redacted and structurally escaped in Markdown and HTML.
+- `report.sarif` validates against the vendored OASIS SARIF 2.1.0 schema (provenance and the
+  OASIS-licence review note in `upstream/sources.yaml`), carries no snippets, and emits only
+  relative or remote artifact URIs (D5).
+
+**Defects found and fixed in this batch**
+
+1. **The control matrix classified every all-`mixed` control as `manual_only`** — contradicting
+   that word's own definition ("a scan result can never satisfy these") after Batch W introduced
+   `required_coverage`. Eight controls were listed wrong; Batch W had also edited SEC-01 to v2
+   without regenerating the matrix, hiding the drift. The classifier is fixed, a regression test
+   pins SEC-01 as `mixed`, and the matrix and review sheet are regenerated.
+2. **The live HTTP adapter misread an unverified TLS connection as a generic unreachable route**:
+   Node's fetch nests the socket error in `error.cause`, and the adapter read only the outer
+   "fetch failed" message. Found by the audit live-target acceptance test; fixed with a
+   cause-chain regression test.
+3. A test-harness defect is recorded for the same reason code defects are: the first live
+   acceptance test hosted its HTTPS server in the vitest process while the CLI helper blocked that
+   event loop, producing a timeout that looked like an unreachable route. The server now runs as an
+   independent child process.
+
+**Not in this batch, recorded rather than implied:** local-folder only (Git-URL audit not built);
+`deep` equals `standard` pending the isolation model; Python static analysis not run (the rule
+pack is JS/TS only); the audit live path is proven against `--allow-local` https targets, not a
+real deployed origin; the authorization, functional, dependency-policy, agent, and release
+recipes remain unwired; TLS remains `unsupported` (Batch X); LAN binding and AUTH-02 recovery/
+session remain unowned; the SARIF schema's OASIS licence needs review before any distribution.
+
+Suite at this point: **510 unit + 8 integration + 27 scanner + 5 example tests**, all passing on
+Node 24.21.0.
+
 ### Batch W — the scanners are wired into `hardening check` (9 October 2026)
 
 The 2026-10-08 audit's C1: `hardening check` ran no scanners, so 32 of 33 checks came back

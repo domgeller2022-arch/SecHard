@@ -155,6 +155,25 @@ describe('redirects and reachability', () => {
     expect(outcome.scope.observed).toBe(0);
   });
 
+  it('classifies a TLS failure even when fetch nests the real error in cause', async () => {
+    // Node's fetch reports certificate failures as "fetch failed" with the socket error on
+    // `.cause`. Reading only the outer message classified a broken TLS target as a generic
+    // unreachable route — found by the audit live-target acceptance, fixed with a regression test.
+    const nested = new Error('unable to verify the first certificate');
+    const wrapped = Object.assign(new Error('fetch failed'), { cause: nested });
+    const outcome = await runHttpChecks(
+      inventory([target({ scheme: 'https', environment: 'production', tls: { required: true }, routes: ['/'] })]),
+      {
+        environment: 'production',
+        fetchImpl: (() => {
+          throw wrapped;
+        }) as typeof fetch,
+      },
+    );
+    expect(outcome.findings[0]?.rule_id).toBe('tls-invalid');
+    expect(outcome.findings[0]?.severity).toBe('critical');
+  });
+
   it('claims unknown coverage when no route was declared for the environment', async () => {
     const outcome = await runHttpChecks(inventory([target({ environment: 'production' })]), { environment: 'local' });
     expect(outcome.coverage).toBe('unknown');

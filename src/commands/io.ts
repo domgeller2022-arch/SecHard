@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ValidationIssue } from '../validation/errors.js';
 import { loadDocument } from '../validation/loader.js';
@@ -18,7 +18,15 @@ export interface Paths {
   readonly policyRoot: string;
   readonly runDir?: string;
   readonly planPath?: string;
+  /**
+   * Where consumer records (`.hardening/`) are read from. Defaults to the application root, which is
+   * the gate-mode contract. Audit mode sets it to its ephemeral records directory so the audited
+   * tree is never written to and never supplies its own manifest.
+   */
+  readonly recordsRoot?: string;
 }
+
+export const recordsRootFor = (paths: Paths): string => paths.recordsRoot ?? paths.appRoot;
 
 export interface LoadedPolicy {
   readonly policy: GatePolicy;
@@ -82,13 +90,23 @@ export function loadPolicy(paths: Paths): LoadOutcome<LoadedPolicy> {
 
   const profiles: Profile[] = [];
   const profileDigests: Record<string, string> = {};
-  for (const id of ['core', 'nextjs-supabase']) {
-    const file = join(policyRoot, 'profiles', `${id}.yaml`);
+  // Every reviewed profile file in `profiles/` is loaded: a shipped-but-unloaded profile would be
+  // dead policy. Sorted for deterministic digest ordering.
+  let profileFiles: string[] = [];
+  try {
+    profileFiles = readdirSync(join(policyRoot, 'profiles')).filter((name) => name.endsWith('.yaml') || name.endsWith('.yml')).sort();
+  } catch {
+    profileFiles = [];
+  }
+  for (const name of profileFiles) {
+    const id = name.replace(/\.ya?ml$/, '');
+    const file = join(policyRoot, 'profiles', name);
     const loaded = loadDocument<Profile>(file);
     issues.push(...loaded.issues);
     if (loaded.data === undefined) continue;
     const result = validateAgainstSchema('profile', loaded.data, file);
     issues.push(...result.issues);
+    if (!result.valid) continue;
     profiles.push(loaded.data);
     profileDigests[id] = loaded.rawDigest;
   }
@@ -149,7 +167,8 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
   let manifest: ManifestRecord | undefined;
   let manifestDigest: string | undefined;
 
-  const manifestFile = join(paths.appRoot, CONSUMER_FILES.manifest);
+  const recordsRoot = recordsRootFor(paths);
+  const manifestFile = join(recordsRoot, CONSUMER_FILES.manifest);
   const loadedManifest = loadDocument(manifestFile);
   if (loadedManifest.issues.length > 0) {
     // A missing or unparsable manifest is reported on its own. Continuing would produce a wall of
@@ -171,7 +190,7 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
   }
 
   const exceptions: ExceptionRecord[] = [];
-  const exceptionsFile = join(paths.appRoot, CONSUMER_FILES.exceptions);
+  const exceptionsFile = join(recordsRoot, CONSUMER_FILES.exceptions);
   const loadedExceptions = loadDocument<{ exceptions?: ExceptionRecord[] }>(exceptionsFile);
   if (loadedExceptions.issues.length === 0 && loadedExceptions.data?.exceptions !== undefined) {
     for (const record of loadedExceptions.data.exceptions) {
@@ -183,7 +202,7 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
   }
 
   const manualEvidence: ManualEvidence[] = [];
-  const manualFile = join(paths.appRoot, CONSUMER_FILES.manualEvidence);
+  const manualFile = join(recordsRoot, CONSUMER_FILES.manualEvidence);
   const loadedManual = loadDocument<{ records?: ManualEvidence[] }>(manualFile);
   if (loadedManual.issues.length === 0 && loadedManual.data?.records !== undefined) {
     for (const record of loadedManual.data.records) {
@@ -196,7 +215,7 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
 
   const assessments: AssessmentRecord[] = [];
   const warnings: string[] = [];
-  const assessmentsFile = join(paths.appRoot, CONSUMER_FILES.assessments);
+  const assessmentsFile = join(recordsRoot, CONSUMER_FILES.assessments);
   const loadedAssessments = loadDocument<{ assessments?: AssessmentRecord[] }>(assessmentsFile);
   if (loadedAssessments.issues.length > 0) {
     issues.push(...loadedAssessments.issues.filter((item) => item.code !== 'input.not_found'));

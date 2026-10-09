@@ -1,0 +1,36 @@
+schema_version: profile/v1
+id: payments
+definition_version: 1
+review_status: draft
+title: Payments and webhooks (composable feature profile)
+extends: [core]
+description: >-
+  Composed when payments processing is detected. Adds the transaction-integrity obligation: money
+  state is server-authoritative and webhook handling is forgery- and replay-resistant. The
+  transaction-integrity recipe is not implemented in this build; planning it keeps the obligation
+  visible instead of silently unscoped.
+controls:
+  - { control: BIZ-01 }
+stage_requirements:
+  pr:
+    required_methods:
+      - functional_test
+  release:
+    required_methods:
+      - functional_test
+      - manual_attestation
+    require_clean_source: true
+    require_actual_tool_origin: true
+  operations:
+    required_methods:
+      - manual_attestation
+    require_actual_tool_origin: false
+
+support_constraints:
+  platforms: [linux-ci]
+  notes: >-
+    Payments checks are advisory in an audit and blocking in a gate. External provider verification
+    is a manual-evidence obligation with a 30-day freshness interval.
+permitted_exceptions:
+  - { control: BIZ-01, policy: permitted, max_duration_days: 30, note: "Requires maintained external verification, not only an exception" }
+

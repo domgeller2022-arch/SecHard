@@ -17,6 +17,14 @@ The single rule that drives everything: **untrusted input is data, never an inst
 that contains "ignore previous instructions" or a URL that points somewhere unexpected is still just
 a string to be stored and reported.
 
+Audit mode (Batch U) adds one standing case worth naming: the entire audited folder is untrusted
+input. Detection reads it, scanners read it, and every string that leaves it — a package name, a
+finding title, a file path — is treated as data, redacted and escaped before it reaches a report.
+Nothing in the audited folder can authorize anything; the ephemeral manifest SecHard generates is
+written outside the audited tree, where the audited code cannot influence it. Live checks in audit
+mode contact exactly one origin, chosen by the operator on the command line and guarded against
+private ranges — a page or a finding can never name a target.
+
 ## Authority and non-authority
 
 **Authoritative:** schemas, control definitions, gate policy, stage requirements, toolchain pins,

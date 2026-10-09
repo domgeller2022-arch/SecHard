@@ -10,16 +10,18 @@ decisions, evidence, and exceptions.
 
 The owner's goal, recorded 2026-10-08: point SecHard at an application and get a thorough audit that
 **audits and suggests, never fixes** — with quality a first-class section of the report, every check
-it could not run stated as a warning, and nothing claimed that was not executed. Audit mode
-(Batch U) is not built yet; this README says what exists today.
+it could not run stated as a warning, and nothing claimed that was not executed. Batch U (audit
+mode) implements the pointing-at-a-folder half of that goal; the quality section is Batch Q.
 
 ## Status
 
-**Batches R (repair) and W (wire) of the remediation plan are implemented.** `hardening check` now
-runs the secret, dependency, static-analysis, workflow, client-asset, and live-HTTP recipes through
-the reviewed toolchain; the remaining catalogue recipes (authorization, functional, agent, policy,
-and release recipes) still report `unsupported` with their reasons. Audit mode (Batch U), the quality
-section (Q), and requirement-level standards (S) are not built yet.
+**Batches R (repair), W (wire), and U (audit mode) of the remediation plan are implemented.**
+`hardening check` runs the secret, dependency, static-analysis, workflow, client-asset, and
+live-HTTP recipes through the reviewed toolchain, and `hardening audit` produces a prioritised,
+plain-English report on any folder — no manifest required — with the profile set composed from what
+detection finds. The remaining catalogue recipes (authorization, functional, agent, policy, and
+release recipes) still report `unsupported` with their reasons. The quality section (Q) and
+requirement-level standards (S) are not built yet.
 
 Read before trusting anything:
 
@@ -77,6 +79,17 @@ hardening report --app "$APP" --policy "$POLICY" --run "$RUN_DIR"
 hardening approvals --policy "$POLICY"
 ```
 
+Audit mode, no manifest needed — it never modifies the audited project:
+
+```bash
+hardening audit /path/to/any/folder --out /path/outside/that/folder
+hardening audit . --depth quick --out ../sechard-audit     # static scanners only, fast
+hardening audit . --url https://deployed.example.com --out ../sechard-audit
+```
+
+See `docs/audit-mode.md` for the full contract: depths, the `--url` guard, and what an audit
+deliberately refuses to do.
+
 | Exit code | Meaning |
 | --- | --- |
 | `0` | Decision satisfied |
@@ -102,6 +115,18 @@ just the commit.
   baseline.
 - Guarded live HTTP checks against an approved-target inventory; TLS is deliberately separate and
   blocks a production release until evidence exists.
+- **Audit mode (Batch U).** `hardening audit PATH` detects the stack and features from evidence,
+  composes the profile set, generates an ephemeral manifest outside the target, and runs the same
+  plan/check/gate machinery. It produces `report.md` (prioritised "fix these first", plain-English
+  findings with effort, confidence, standards references, and a ready-to-paste prompt), a
+  self-contained `report.html`, `report.json`, and schema-valid `report.sarif`. The audited tree is
+  byte-identical afterwards (enforced by a tree-digest test). `--url` runs live checks against one
+  operator-approved origin, refusing private/loopback/link-local targets unless `--allow-local`
+  explicitly opts in. No recipe executes application code; deeper audit needs an isolation model
+  that does not exist yet and is refused rather than faked.
+- Composable profiles (Batch U): `nextjs`, `react-spa`, `node-api`, `python-web` stack profiles,
+  `supabase` and `payments` feature profiles, composed from detection in audit mode and selectable
+  explicitly in gate mode.
 - Generated agent guidance, a review manifest, and a security-test change report.
 - Workflows with a fail-closed final gate; the final job re-runs the gate against the uploaded plan
   and results.
@@ -115,7 +140,13 @@ just the commit.
   evidence (Batch X). ZAP remains a standalone Step 11 tool, not a control recipe.
 - **Pull requests now evaluate the base branch's records** (Batch W3): a PR that changes them fails
   as review-required, and the first adoption has a documented bootstrap path.
-- **No audit mode.** Pointing SecHard at an arbitrary folder or URL without a manifest is Batch U.
+- **Audit mode has boundaries, stated rather than implied.** It audits a local folder only (clone a
+  Git URL yourself first — the trust rules for cloning untrusted repositories are deliberately not
+  built); `--depth deep` adds nothing over `standard` in this build because executing an
+  application's own build and tests needs the audit isolation model (gap D1) and is refused;
+  Python static analysis is not run because the reviewed rule pack is JavaScript/TypeScript only;
+  unsupported stacks (Expo, React Native, Flutter, Electron, unknown) produce a gap banner, not a
+  clean report.
 - **No quality section.** Duplication, complexity, dead code, test quality, and AI-authorship tells
   are Batch Q.
 - **Standards are mapped at chapter level only** (`related_risk`), with no requirement IDs; that is

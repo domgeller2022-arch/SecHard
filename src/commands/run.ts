@@ -7,7 +7,7 @@ import { loadDocument } from '../validation/loader.js';
 import { validateAgainstSchema } from '../validation/schema.js';
 import { ValidationError, type ValidationIssue } from '../validation/errors.js';
 import { evaluate } from '../domain/evaluator.js';
-import { loadConsumer, loadPolicy, resolveSourceIdentity, type LoadedPolicy, type Paths } from './io.js';
+import { loadConsumer, loadPolicy, recordsRootFor, resolveSourceIdentity, type LoadedPolicy, type Paths } from './io.js';
 import { buildReport } from './report.js';
 import { escapeMarkdown, redactSecrets } from '../evidence/redaction.js';
 import type { ApplicabilityRule } from '../domain/applicability.js';
@@ -179,7 +179,7 @@ export function planCommand(
 
 export async function checkCommand(
   paths: Paths,
-  options: { planPath: string; runId: string; outDir?: string; now: Date },
+  options: { planPath: string; runId: string; outDir?: string; now: Date; skipRecipes?: readonly string[]; skipReason?: string },
 ): Promise<CheckOutcome> {
   const planLoad = loadPlanFile(options.planPath);
   if (planLoad === undefined) {
@@ -232,6 +232,27 @@ export async function checkCommand(
 
     const handler = RECIPES[check.recipe];
 
+    // Depth selection (audit mode): excluded recipes report unsupported with the stated reason.
+    // The check stays visible in the plan and the results; it never silently vanishes.
+    if (handler !== undefined && options.skipRecipes?.includes(check.recipe) === true) {
+      return makeResult(
+        check,
+        plan,
+        {
+          outcome: 'unsupported',
+          coverage: 'unknown',
+          observed: 0,
+          files: [],
+          findings: [],
+          diagnostic: options.skipReason ?? `recipe ${check.recipe} was excluded from this run`,
+        },
+        options.runId,
+        source.commit,
+        startedAt,
+        new Date(),
+      );
+    }
+
     if (handler === undefined) {
       // A recipe without a handler is reported as unsupported with its reason; claiming a pass would
       // be a fabricated result, and most of the catalogue is still unimplemented.
@@ -258,6 +279,7 @@ export async function checkCommand(
       outcome = await handler({
         appRoot: paths.appRoot,
         policyRoot: paths.policyRoot,
+        recordsRoot: recordsRootFor(paths),
         environment: plan.environment,
         check,
         rawDir,

@@ -4,6 +4,8 @@ import { mkdirSync, readFileSync, writeSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createRunDirectory, environmentIdentity, writeAtomic, writeJson, type RunRecord } from './evidence/store.js';
+import { approveUrl } from './audit/url-guard.js';
+import { auditCommand } from './commands/audit.js';
 import {
   approvalsCommand,
   checkCommand,
@@ -15,6 +17,7 @@ import {
   type CommandOutcome,
   type PlanOutcome,
 } from './commands/run.js';
+import { packageRoot } from './validation/schema.js';
 
 const STAGES = ['adoption', 'local', 'pr', 'build', 'release', 'staging', 'deployment', 'operations'] as const;
 const ENVIRONMENTS = ['local', 'preview', 'staging', 'production'] as const;
@@ -28,18 +31,29 @@ Usage:
   hardening gate      --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
   hardening report    --app APP_ROOT --policy POLICY_ROOT --run RUN_DIR
   hardening approvals --policy POLICY_ROOT
+  hardening audit     PATH [--url ORIGIN] [--out DIR] [--depth quick|standard|deep] [--allow-local]
   hardening help
   hardening version
 
 Stages:      ${STAGES.join(', ')}
 Environments: ${ENVIRONMENTS.join(', ')}
 
+Audit mode (advisory, never modifies the audited project):
+  --url         an origin (https://host) to run live checks against; private, loopback, and
+                link-local targets are refused unless --allow-local explicitly opts in
+  --depth       quick: static scanners only; standard: + history scan, client bundle, live checks;
+                deep: same set as standard in this build (deeper work needs the isolation model)
+  --out         output directory, default sechard-audit-<timestamp>/ in the working directory;
+                must live outside the audited project
+  audit exit codes: 0 the audit ran, 1 some checks errored (see the report), 2 invalid inputs
+
 Exit codes:
-  0  decision satisfied
-  1  valid execution with a blocking finding or unmet requirement
+  0  decision satisfied (audit: the audit ran)
+  1  valid execution with a blocking finding or unmet requirement (audit: execution errors)
   2  invalid inputs, or execution/evidence errors
 
-Both nonzero outcomes block a required CI check.
+Both nonzero outcomes block a required CI check. Audit mode is advisory and produces no release
+evidence; its report is the deliverable.
 `;
 
 interface Options {
@@ -109,6 +123,9 @@ const { values, positionals } = parseArgs({
     out: { type: 'string' },
     plan: { type: 'string' },
     run: { type: 'string' },
+    url: { type: 'string' },
+    depth: { type: 'string' },
+    'allow-local': { type: 'boolean', default: false },
   },
   strict: true,
 });
@@ -126,8 +143,41 @@ if (command === 'version') {
   process.exit(0);
 }
 
-if (!['validate', 'plan', 'check', 'gate', 'report', 'approvals'].includes(command)) {
+if (!['validate', 'plan', 'check', 'gate', 'report', 'approvals', 'audit'].includes(command)) {
   fail(`unknown command '${command}'. Run \`hardening help\`.`);
+}
+
+if (command === 'audit') {
+  const target = positionals[1];
+  if (target === undefined || target.length === 0) {
+    fail('audit: missing PATH. Usage: hardening audit PATH [--url ORIGIN] [--out DIR] [--depth quick|standard|deep]');
+  }
+  const depth = values.depth ?? 'standard';
+  if (depth !== 'quick' && depth !== 'standard' && depth !== 'deep') {
+    fail(`audit: unknown depth '${depth}'. Expected quick, standard, or deep.`);
+  }
+
+  let approved = undefined;
+  if (values.url !== undefined) {
+    const guard = await approveUrl(values.url, { allowLocal: values['allow-local'] === true });
+    if (guard.approved === undefined) {
+      err('audit: the --url target is refused:\n');
+      for (const refusal of guard.refusals) err(`  - ${refusal}\n`);
+      process.exit(2);
+    }
+    approved = guard.approved;
+  }
+
+  const audited: CommandOutcome = await auditCommand({
+    target,
+    ...(values.out === undefined ? {} : { out: values.out }),
+    depth,
+    ...(approved === undefined ? {} : { url: approved }),
+    policyRoot: resolve(values.policy ?? packageRoot()),
+    now: new Date(),
+  });
+  emit(audited);
+  process.exit(audited.exitCode);
 }
 
 if (command === 'approvals') {

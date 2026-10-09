@@ -75,10 +75,27 @@ entries:
       - src/domain/**
       - src/validation/**
       - src/execution/**
+      - src/commands/**
     reason: The evaluator and the validator turn records into decisions. A change can turn a block into a pass.
     reviewer_checks:
       - The tests still fail when the behaviour they guard is removed
       - Unknown severity, empty scope, and missing evidence still block
+
+  - id: audit_boundary
+    control: CTX-01
+    requires: human_review
+    paths:
+      - src/audit/**
+    reason: >-
+      Audit mode runs against an entire untrusted folder and, with --url, contacts a network target.
+      The URL guard decides what may be contacted, the report writers decide what leaves the
+      repository boundary, and the command owns the never-writes contract. A regression in any of
+      them is a trust-boundary break, not a bug.
+    reviewer_checks:
+      - The URL guard still refuses loopback, link-local, private, and mapped-IPv6 targets without --allow-local
+      - Report output is still redacted and escaped; SARIF still carries no snippets
+      - Nothing writes inside the audited tree (the tree-digest test still exists and runs)
+
 
   - id: security_tests
     control: AGT-03

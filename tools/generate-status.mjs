@@ -64,8 +64,10 @@ const lines = [
   '## Open findings and blockers',
   '',
   'These are not generated: the authoritative list is in `docs/implementation-progress.md` and',
-  '`CHANGELOG.md`. The short version, as of Batch W:',
+  '`CHANGELOG.md`. The short version, as of Batch U:',
   '',
+  '- audit mode exists (Batch U) with stated limits: local folder only, `deep` equals `standard`',
+  '  until the isolation model exists, and Python static analysis is not run (JS/TS rule pack only);',
   '- the scanner, client-asset, and live-HTTP recipes are wired (Batch W); the authorization,',
   '  functional, dependency-policy, agent, and release recipes are not, so no app fully passes yet;',
   '- the PR workflow now evaluates the base branch\'s records (Batch W3); its platform behaviour is',
@@ -75,7 +77,7 @@ const lines = [
   '- AUTH-02 recovery isolation and genuine session expiry are untested;',
   '- no `LICENSE` and no security contact **by owner decision**: private, sole-maintainer, and\n  undistributed; OPS-03 stays unmet and release evaluation blocks, which is correct while no release\n  is planned;',
   '- platform verification (Step 13) awaits the owner\'s throwaway GitHub account;',
-  '- audit-mode isolation for executing untrusted application code is undefined (Batch U).',
+  '- the vendored SARIF schema is OASIS material: licence review before any distribution (Batch D).',
   '',
 ];
 

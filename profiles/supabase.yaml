@@ -1,0 +1,59 @@
+schema_version: profile/v1
+id: supabase
+definition_version: 1
+review_status: draft
+title: Supabase-backed data layer (composable feature profile)
+extends: [core]
+description: >-
+  Composed when Supabase is detected. Adds the authorization-test and functional-test obligations
+  for row-level-security-backed data access, and pins the recipes that must eventually satisfy
+  them. Publishable keys are intended for clients; secret keys bypass row-level security.
+controls:
+  - { control: AUTH-01 }
+  - { control: AUTH-02 }
+  - { control: AUTHZ-01 }
+  - { control: AUTHZ-02 }
+  - { control: AUTHZ-03 }
+  - { control: DATA-01 }
+  - { control: SEC-02 }
+stage_requirements:
+  pr:
+    required_methods:
+      - authorization_test
+      - functional_test
+    required_recipes:
+      - authorization/ownership
+      - authorization/security-fields
+      - data/grants-and-policies
+  release:
+    required_methods:
+      - authorization_test
+      - functional_test
+    required_recipes:
+      - authorization/ownership
+      - authorization/role-and-tenant
+      - authorization/security-fields
+      - data/grants-and-policies
+    require_clean_source: true
+    require_actual_tool_origin: true
+  operations:
+    required_methods:
+      - manual_attestation
+    require_actual_tool_origin: false
+support_constraints:
+  platforms: [linux-ci]
+  runtime:
+    supabase: "declared in app.yaml; verified when the stack runs"
+  notes: >-
+    Legacy anon and service-role keys are deprecated by the end of 2026, and creating a new key
+    does not revoke an old one. A secret key in a browser bundle is a privileged-credential finding,
+    not a configuration choice.
+permitted_exceptions:
+  - { control: AUTH-01, policy: never }
+  - { control: AUTH-02, policy: permitted, max_duration_days: 30 }
+  - { control: AUTHZ-01, policy: never }
+  - { control: AUTHZ-02, policy: never }
+  - { control: AUTHZ-03, policy: never }
+  - { control: DATA-01, policy: permitted, max_duration_days: 14 }
+  - { control: SEC-02, policy: permitted, max_duration_days: 7, note: "A privileged key in a client bundle needs containment, not a waiver" }
+

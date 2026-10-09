@@ -518,3 +518,23 @@ sources:
       corrections were applied before adaptation and are recorded per pattern. No installer was run
       and the skill was not installed or invoked. Imported content is supporting guidance only: it
       cannot satisfy a control or produce execution evidence.
+
+  - schema_version: source/v1
+    id: sarif-schema
+    canonical_url: https://github.com/oasis-tcs/sarif-spec
+    component: "SARIF 2.1.0 JSON Schema (OASIS Standard)"
+    licence: "OASIS IPR policy (RF on RAND terms mode); no SPDX identifier"
+    use_type: adapting
+    reviewed_release:
+      kind: digest
+      value: "c96eb2d311c37b0a38cbd18c52d79a68f778bbd2d831abed7412d9850740f785"
+      verified_at: "2026-10-09T00:00:00Z"
+      integrity_method: sha256_digest
+    support_status: verified
+    update_policy: >-
+      Vendored at schemas/sarif-2.1.0.schema.json and used only to validate SARIF documents SecHard
+      itself emits (audit report.sarif). Not redistributed beyond the private repository until the
+      OASIS redistribution terms are reviewed; that review is a Batch D owner action before any
+      publication.
+    last_reviewed: "2026-10-09T00:00:00Z"
+    notes: "Fetched from the schemastore mirror of the OASIS sarif-spec repository on 2026-10-09; SHA-256 recorded above. The schema's own $id names the OASIS schemata location."

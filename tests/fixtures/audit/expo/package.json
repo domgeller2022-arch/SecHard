@@ -1,0 +1,9 @@
+{
+  "name": "expo-fixture",
+  "private": true,
+  "description": "FIXTURE: an Expo app shape. The stack is deliberately unsupported; the audit must say so.",
+  "dependencies": {
+    "expo": "~52.0.0",
+    "react-native": "0.76.0"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "vite-supabase-fixture",
+  "private": true,
+  "description": "FIXTURE: a minimal Vite + Supabase + Stripe app shape for audit-mode acceptance. Not a real application.",
+  "dependencies": {
+    "react": "19.0.0",
+    "vite": "6.0.0",
+    "@supabase/supabase-js": "2.50.0",
+    "stripe": "17.0.0"
+  }
+}

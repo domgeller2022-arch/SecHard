@@ -1,6 +1,6 @@
 # Status
 
-> Generated from `docs/implementation-progress.md` (source SHA-256 `ced6d5e6f6d9598b1fff92c5bf37a72c5a12e4970223f351e13a99ba6a417a7d`) by
+> Generated from `docs/implementation-progress.md` (source SHA-256 `a80fbafa53cbe6751687a9b633b7eefcf8ca0104cf271d35e92b360529715640`) by
 > `node tools/generate-status.mjs`. Do not edit by hand: edit the progress record and regenerate.
 > A section appears here only when the record states its state; "verified" means the record's
 > stated acceptance checks ran, nothing more.
@@ -24,12 +24,15 @@
 | Step 14 — Manual evidence and operational recipes (2026-10-08) | `verified` |
 | Batch R — Repair (remediation plan, 2026-10-08) | `verified` |
 | Batch W — Wire (remediation plan, 2026-10-08) | `verified` |
+| Batch U — Audit mode (2026-10-09) | `verified` |
 
 ## Open findings and blockers
 
 These are not generated: the authoritative list is in `docs/implementation-progress.md` and
-`CHANGELOG.md`. The short version, as of Batch W:
+`CHANGELOG.md`. The short version, as of Batch U:
 
+- audit mode exists (Batch U) with stated limits: local folder only, `deep` equals `standard`
+  until the isolation model exists, and Python static analysis is not run (JS/TS rule pack only);
 - the scanner, client-asset, and live-HTTP recipes are wired (Batch W); the authorization,
   functional, dependency-policy, agent, and release recipes are not, so no app fully passes yet;
 - the PR workflow now evaluates the base branch's records (Batch W3); its platform behaviour is
@@ -41,5 +44,5 @@ These are not generated: the authoritative list is in `docs/implementation-progr
   undistributed; OPS-03 stays unmet and release evaluation blocks, which is correct while no release
   is planned;
 - platform verification (Step 13) awaits the owner's throwaway GitHub account;
-- audit-mode isolation for executing untrusted application code is undefined (Batch U).
+- the vendored SARIF schema is OASIS material: licence review before any distribution (Batch D).
 

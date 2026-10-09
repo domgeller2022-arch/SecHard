@@ -1600,3 +1600,118 @@ client-secret coverage (H5), W3 pull-request trust (H4), W4 live-check recipe co
   (audit mode) is the proposed next batch and needs the owner's authorisation.
 - **Next step:** owner review of `docs/checkpoints/batch-w.md`, then Batch U or the owner's chosen
   batch.
+
+---
+
+## Batch U — Audit mode (2026-10-09)
+
+**Authorisation.** `authorised_batch: U` in `01-owner-decisions.md`, set on the owner's explicit
+instruction ("continue with the next phase and building") after the Batch W checkpoint was
+reviewed. Scope: remediation-plan Batch A (renamed U by the gap analysis D11) — A1 the audit
+command, A2 stack and feature detection, A3 the report, A4 composable profiles — plus the
+before-A gap items D1, D2, D5, D6, D8, and D9.
+
+- **State:** `verified` in this environment. Platform behaviour is unchanged (no workflow ran);
+  the audit live path is proven against a local TLS server, not a deployed internet target.
+- **Files changed:** `src/audit/detect.ts`, `src/audit/url-guard.ts`, `src/audit/explanations.ts`,
+  `src/audit/report.ts` (new); `src/commands/audit.ts` (new); `src/cli.ts` (audit wiring,
+  usage); `src/commands/io.ts` (`recordsRoot`, profiles loaded by directory); `src/commands/run.ts`
+  (`skipRecipes`/`skipReason`, `recordsRoot` into recipe context); `src/execution/recipes.ts`
+  (`recordsRoot` for the live recipe); `src/adapters/http.ts` (fetch `cause` chain in TLS
+  classification); `src/domain/matrix.ts` (all-mixed classification; profiles from the directory);
+  `profiles/{nextjs,react-spa,node-api,python-web,supabase,payments}.yaml` (new composable set);
+  `schemas/sarif-2.1.0.schema.json` (vendored, provenance in `upstream/sources.yaml`);
+  `docs/audit-mode.md` (new), `README.md`, `tests/fixtures/audit/**` (new fixture apps),
+  `tests/audit/**` and `tests/scanners/audit-cli.test.ts` (new), `tests/live/http.test.ts`,
+  `tests/domain/catalogue.test.ts`, `controls/matrix.md` and
+  `docs/checkpoints/control-review-sheet.md` (regenerated).
+- **Actual checks run, on Node 24.21.0:**
+  - `pnpm test` → **510 tests, 31 files, all passing** (34 new audit unit tests, 1 matrix
+    classification regression test, 1 live-adapter cause-chain regression test).
+  - `pnpm run test:scanners` → **27 passing** (18 previous + 9 audit CLI acceptance tests:
+    three sample applications, the reference application, depth semantics, `--out` refusal,
+    `--url` refusals, and the production live-check path).
+  - `pnpm run test:integration` → **8 passing**; `pnpm run test:example` → **5 passing**.
+  - `pnpm run typecheck`, `typecheck:tools`, `lint` → clean. `generate:matrix` regenerated.
+  - Real audits through the compiled CLI: a Vite+Supabase+Stripe app (findings from gitleaks
+    repository **and** history, opengrep, zizmor, osv-scanner), a Python FastAPI app (PYSEC
+    advisories for the pinned `requests==2.19.1` and `fastapi==0.95.2`), an Expo app (gap banner +
+    real lockfile advisories), and the reference application (zero committed secrets, stack
+    composed as core + nextjs + supabase). The audited trees' SHA-256 content digests were
+    identical before and after each audit.
+- **U1 — the command.** `hardening audit PATH [--url ORIGIN] [--out DIR] [--depth quick|standard|
+  deep] [--allow-local]`. It generates an ephemeral manifest into `<out>/records/` (validated
+  against the consumer schema before anything runs), then uses the real `planCommand`,
+  `checkCommand`, and `gateCommand` with a `recordsRoot` override — the audited tree is never
+  written to, and the `--out` directory must live outside it (exit 2 otherwise). Detection is a
+  bounded read-only walk; every detection records its evidence; undetectable features stay
+  `unknown`, never `disabled`.
+- **D1 — no untrusted code execution.** No recipe executes application code; `quick` is the fast
+  static set, `standard` adds history/client-bundle/live checks, and `deep` states in the report
+  that it adds nothing in this build because deeper work needs the isolation model (D8's semantics
+  defined and tested; the isolation model itself is deliberately not built).
+- **D2 — the Git-URL claim is dropped, not faked.** Audit takes a local folder; the trust rules for
+  cloning an untrusted repository are recorded as not built. `--policy` defaults to the shipped
+  policy root.
+- **D6 — the `--url` guard.** Private, loopback, link-local (including cloud metadata), RFC1918,
+  unique-local and mapped-IPv6 targets, credential URLs, non-HTTP(S) schemes, and deep paths are
+  refused (exit 2, no request made); hostnames are resolved and every resolved address is checked
+  and recorded; `--allow-local` is the explicit opt-in. The generated inventory is validated by
+  the recipe's own loader.
+- **D5 — SARIF.** `report.sarif` validates against the vendored OASIS SARIF 2.1.0 schema
+  (provenance and the OASIS-licence review note are in `upstream/sources.yaml`), is redacted,
+  carries no snippets, and uses relative or remote URIs only. The report also ships `report.md`
+  (prioritised, plain-English findings with effort, confidence, standards references, and a
+  ready-to-paste AI prompt), a self-contained `report.html`, and `report.json`; all four come from
+  one evaluation.
+- **D9 — the tree-digest test.** "Never writes" is defined (no creation, modification, or deletion
+  inside the target, including caches; outputs to `--out` only) and enforced by checksumming the
+  target tree before and after each acceptance audit.
+- **U4 — composable profiles.** `nextjs`, `react-spa`, `node-api`, `python-web` (stacks), `supabase`
+  and `payments` (features), all `draft`, all loaded from `profiles/` by directory rather than a
+  hardcoded list (a shipped-but-unloaded profile is dead policy). Deliberate omissions, recorded:
+  the `quality` profile arrives with Batch Q when QUAL-02+ controls exist; `firebase-detect`,
+  `uploads`, `runtime-ai`, and `multi-tenant` have no catalogue controls or recipes to select in
+  this build (detection reports the features and the report states the gaps); `nextjs-supabase`
+  is **kept, not replaced**, so the example's records keep resolving — the plan's "replace" would
+  have been churn with no behavioural gain.
+- **Defects found and fixed while building this batch:**
+  1. **The control matrix misclassified every control that has only `mixed` and manual methods as
+     `manual_only`** — whose own definition says "a scan result can never satisfy these", which
+     was false after Batch W's `required_coverage` change. Eight controls (SEC-01, GOV-01, AGT-01,
+     AGT-02, CI-01, CI-02, WEB-01, DEPLOY-01) were listed wrong. Batch W had also edited SEC-01
+     to version 2 without regenerating the matrix, so the drift was invisible until this batch
+     regenerated it. The classifier now counts `mixed` towards `mixed`; a regression test pins
+     SEC-01 as `mixed`; the matrix and review sheet are regenerated.
+  2. **The live HTTP adapter classified an unverified TLS connection as a generic unreachable
+     route.** Node's fetch reports certificate failures as "fetch failed" with the socket error on
+     `error.cause`; the adapter read only the outer message. Found by the audit live-target
+     acceptance test (the manual reproduction showed `route-unreachable` where `tls-invalid` was
+     due); fixed by reading the cause chain, with a regression test in `tests/live/http.test.ts`.
+  3. **The first version of the live acceptance test hosted its HTTPS server in the test process**
+     while the CLI helper blocked that process's event loop synchronously, so the TLS handshake
+     never completed and the test saw a 10-second timeout misread as an unreachable route. The
+     server now runs as an independent child process. Recorded here because "the test was wrong,
+     not the code" is exactly the kind of finding this repository exists to make visible.
+- **Limitations and unresolved findings:**
+  - **Local folder only; `deep` equals `standard`** in this build; both stated in the report and
+    `docs/audit-mode.md`.
+  - **Python static analysis does not run** — the reviewed rule pack is JS/TS only; the
+    `python-web` profile does not require the method rather than fabricate coverage.
+  - **The audit live path is proven against `--allow-local` https targets** (self-signed local
+    server, honest `tls-invalid` finding). A real deployed-origin audit with valid TLS was not
+    performed; the machinery is identical.
+  - **The fastapi acceptance audit costs ~5 minutes** because osv-scanner resolves Python
+    dependencies online; recorded as the price of the real-advisory acceptance rather than
+    hidden with a fixture.
+  - **The SARIF schema is OASIS material** (RF-on-RAND IPR mode, no SPDX id). Vendored for
+    validation of our own output; redistribution beyond this private repository needs the licence
+    review recorded in `upstream/sources.yaml` — an owner action for Batch D.
+  - Unchanged from W: authorization/functional/dependency-policy/agent/release recipes unwired;
+    TLS manual; LAN binding and AUTH-02 recovery/session still unowned by a batch.
+- **Owner decisions or external setup still needed:** none blocking. For review: the six new
+  profiles' control selections and method sets (`profiles/*.yaml`), and the audit contract
+  (`docs/audit-mode.md`). `authorised_batch` stays `U`; Batch Q (quality) or S (standards) is
+  proposed next, per the remediation plan's order.
+- **Next step:** owner review of `docs/checkpoints/batch-u.md`, then Batch Q or S on
+  authorisation.

@@ -278,6 +278,25 @@ describe('matrix generation', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('classifies an all-mixed control as mixed, never manual_only', () => {
+    // Batch W made SEC-01's two gitleaks recipes `mixed` (tool evidence judged against
+    // required_coverage). The matrix classifier still dropped an all-mixed control into
+    // `manual_only` — whose own definition says a scan result can never satisfy it — so the
+    // regenerated matrix contradicted the control. Found and fixed in Batch U.
+    const sec01 = controls.find((control) => control.id === 'SEC-01');
+    expect(sec01).toBeDefined();
+    expect(sec01?.verification.every((method) => method.coverage === 'mixed')).toBe(true);
+    const dir = mkdtempSync(join(tmpdir(), 'hardening-matrix-mixed-'));
+    try {
+      const matrixPath = join(dir, 'matrix.md');
+      generateMatrix({ matrixPath, reviewSheetPath: join(dir, 'sheet.md') });
+      const matrix = readFileSync(matrixPath, 'utf8');
+      expect(matrix).toMatch(/\*\*SEC-01\*\* \| [^|]+\| [^|]+\| [^|]+\| mixed \|/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('semantic validation helpers', () => {

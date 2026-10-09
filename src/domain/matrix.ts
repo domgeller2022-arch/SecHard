@@ -1,6 +1,15 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { loadCatalogue, loadMappings, loadPatterns, loadProfile, loadSources, type ControlDefinition, type Profile } from './definitions.js';
+import { packageRoot } from '../validation/schema.js';
+
+/** Every reviewed profile file, sorted: the matrix cannot drift behind a shipped profile. */
+function loadAllProfiles(): Profile[] {
+  return readdirSync(join(packageRoot(), 'profiles'))
+    .filter((name) => name.endsWith('.yaml') || name.endsWith('.yml'))
+    .sort()
+    .map((name) => loadProfile(name.replace(/\.ya?ml$/, '')));
+}
 
 export interface MatrixOptions {
   readonly matrixPath: string;
@@ -13,11 +22,16 @@ const escapeCell = (value: string): string => value.replace(/\|/g, '\\|').replac
  * `automated` only when every declared method runs by the runner. One manual method makes the
  * control `mixed`, because tool evidence alone cannot satisfy it. `manual_only` when nothing is
  * automated, in which case a scan result can never satisfy the control at all.
+ *
+ * A `mixed` method counts toward `mixed`, not toward manual-only: `mixed` means tool evidence can
+ * partially satisfy the control against its own `required_coverage`. Before Batch U this function
+ * dropped an all-`mixed` control into `manual_only`, contradicting the same file's own definition
+ * of that word — found when regenerating the matrix after Batch W's SEC-01 v2 change had not been.
  */
 function coverage(control: ControlDefinition): 'automated' | 'mixed' | 'manual_only' {
   const coverages = control.verification.map((entry) => entry.coverage);
   if (coverages.every((value) => value === 'automated')) return 'automated';
-  if (coverages.some((value) => value === 'automated')) return 'mixed';
+  if (coverages.some((value) => value === 'automated' || value === 'mixed')) return 'mixed';
   return 'manual_only';
 }
 
@@ -57,7 +71,7 @@ export function generateMatrix(options: MatrixOptions): { readonly matrixPath: s
   const mappings = loadMappings();
   const patterns = loadPatterns();
   const sources = loadSources();
-  const profiles = [loadProfile('core'), loadProfile('nextjs-supabase')];
+  const profiles = [loadProfile('core'), ...loadAllProfiles().filter((profile) => profile.id !== 'core')];
 
   const matrix = [
     '# Control coverage matrix',

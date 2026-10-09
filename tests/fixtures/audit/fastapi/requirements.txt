@@ -1,0 +1,4 @@
+# FIXTURE: a pinned Python dependency list with a known-vulnerable pin for the advisory scan.
+fastapi==0.95.2
+uvicorn==0.22.0
+requests==2.19.1

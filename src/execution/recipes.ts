@@ -32,6 +32,8 @@ import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from 
 export interface RecipeContext {
   readonly appRoot: string;
   readonly policyRoot: string;
+  /** Where consumer records (including the approved-target inventory) live. */
+  readonly recordsRoot?: string;
   readonly environment: Environment;
   readonly check: ExpectedCheck;
   /** Directory for raw reports. Written with digests recorded in the result. */
@@ -336,7 +338,8 @@ async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
 }
 
 async function runLiveHttp(context: RecipeContext): Promise<RecipeOutcome> {
-  const file = join(context.appRoot, '.hardening', 'targets.yaml');
+  const recordsRoot = context.recordsRoot ?? context.appRoot;
+  const file = join(recordsRoot, '.hardening', 'targets.yaml');
   const { inventory, issues } = loadTargetInventory(file);
   if (inventory === undefined) return unsupported(`no approved target inventory: ${issues.join('; ')}`);
   if (issues.length > 0) return errored(`the target inventory is not usable: ${issues.join('; ')}`);
