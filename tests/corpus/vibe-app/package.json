@@ -1,0 +1,6 @@
+{
+  "name": "vibe-app-fixture",
+  "private": true,
+  "description": "FIXTURE: deliberately vibe-coded app for quality-analyser calibration. Every defect in it is seeded and listed in SEEDED-ISSUES.yaml.",
+  "dependencies": { "react": "18.0.0", "dayjs": "1.11.0", "moment": "2.29.0" }
+}

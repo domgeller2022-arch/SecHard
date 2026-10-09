@@ -67,13 +67,14 @@ const EXTENSION_LANGUAGES: Readonly<Record<string, string>> = {
 
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.py', '.go', '.rb', '.php', '.java', '.rs', '.kt', '.swift']);
 
-interface WalkedFile {
+export interface WalkedFile {
   readonly path: string;
   readonly size: number;
 }
 
-/** Bounded, read-only walk. Skips dependency and build directories entirely. */
-function walk(root: string): WalkedFile[] {
+/** Bounded, read-only walk. Skips dependency and build directories entirely. Exported: the quality
+ * scanners use the same bounded walk and the same skip rules. */
+export function walk(root: string): WalkedFile[] {
   const files: WalkedFile[] = [];
   const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
   while (queue.length > 0 && files.length < MAX_WALK_FILES) {
@@ -297,10 +298,13 @@ export function detectStackAndFeatures(root: string): Detection {
   }
   features['environments'] = { state: 'enabled', evidence: [{ file: '.', detail: 'audit mode always evaluates against a local environment unless a --url target is supplied' }] };
 
-  // Profile composition from detection. `core` always applies (the gate-mode rule mirrored here).
+  // Profile composition from detection. `core` always applies (the gate-mode rule mirrored here),
+  // and `quality` always composes because the owner's 2026-10-08 goal makes quality a required
+  // capability reported in its own section — never changing a security verdict, and the reverse.
   const profiles: { id: string; evidence: readonly DetectionEvidence[] }[] = [];
   const coreEvidence: DetectionEvidence = { file: '.', detail: 'the core profile applies to every audited application' };
   profiles.push({ id: 'core', evidence: [coreEvidence] });
+  profiles.push({ id: 'quality', evidence: [{ file: '.', detail: 'quality is a required capability of every audit (owner goal 2026-10-08); its findings are reported in their own section' }] });
 
   if (SUPPORTED_STACKS.has(stack.kind)) {
     const stackProfile: readonly { id: string; kinds: readonly StackKind[] }[] = [

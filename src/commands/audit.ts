@@ -305,6 +305,7 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     `  checks: ${checked.results?.length ?? 0} result(s), ${errored.length} error(s)`,
     `  findings: ${report.findings.length}${report.findings.length === 0 ? '' : ` (${[...bySeverity.entries()].map(([severity, count]) => `${count} ${severity}`).join(', ')})`}`,
     `  security score: ${report.securityScore.score === null ? 'no findings recorded' : String(report.securityScore.score)} — ${report.securityScore.verdict}`,
+    `  quality score: ${report.qualityScore.score === null ? 'not assessed' : String(report.qualityScore.score)} — ${report.qualityScore.verdict}`,
     `  could not check: ${report.couldNotCheck.length} item(s) — listed in the report`,
     `  reports: ${reportPaths.markdown}`,
     `           ${reportPaths.html}`,

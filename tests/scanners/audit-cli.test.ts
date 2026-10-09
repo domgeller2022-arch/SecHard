@@ -169,7 +169,7 @@ describe('hardening audit on three sample applications', () => {
 
     // Detection and composition are in the report, in the plan's required shape.
     expect(audit.report).toContain('Detected stack: `react-spa`');
-    expect(audit.report).toContain('Composed profiles: `core`, `react-spa`, `supabase`, `payments`');
+    expect(audit.report).toContain('Composed profiles: `core`, `quality`, `react-spa`, `supabase`, `payments`');
     expect(audit.report).toContain('## Fix these first');
     expect(audit.report).toContain('## What we could not check');
     expect(audit.report).toContain('Ready-to-paste prompt');
@@ -204,7 +204,7 @@ describe('hardening audit on three sample applications', () => {
 
     expect(audit.run.status, audit.run.stderr).toBe(0);
     expect(audit.report).toContain('Detected stack: `python-web`');
-    expect(audit.report).toContain('Composed profiles: `core`, `python-web`');
+    expect(audit.report).toContain('Composed profiles: `core`, `quality`, `python-web`');
     // osv scans requirements.txt and finds the advisories pinned in the fixture.
     expect(findingsFor(audit.results, 'osv/lockfile').length).toBeGreaterThan(0);
     // gitleaks honestly reports why it cannot run (no git worktree), never a pass.
@@ -233,7 +233,7 @@ describe('hardening audit on three sample applications', () => {
     // Tools are fetched, so no wired recipe may error on the reference stack.
     expect(audit.run.status, audit.run.stderr).toBe(0);
     expect(audit.report).toContain('Detected stack: `nextjs`');
-    expect(audit.report).toContain('Composed profiles: `core`, `nextjs`, `supabase`');
+    expect(audit.report).toContain('Composed profiles: `core`, `quality`, `nextjs`, `supabase`');
     // The reference application has no committed secrets; the scan proves it, not an assumption.
     expect(audit.results.find((entry) => entry.check_id.includes('gitleaks/repository'))?.findings ?? []).toEqual([]);
   }, 600_000);

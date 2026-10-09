@@ -1,0 +1,6 @@
+{
+  "name": "clean-twin-fixture",
+  "private": true,
+  "description": "FIXTURE: the clean counterpart of vibe-app. The quality analysers must report zero findings on it.",
+  "dependencies": { "react": "18.0.0", "dayjs": "1.11.0" }
+}

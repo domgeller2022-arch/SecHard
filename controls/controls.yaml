@@ -1,5 +1,9 @@
 schema_version: control-catalogue/v1
-catalogue_version: 1
+catalogue_version: 2
+migration:
+  changed_in: 2
+  reason: "Batch Q adds the quality controls QUAL-02 through QUAL-13 (remediation plan Q1). The 35 v1 IDs are unchanged and their approvals still resolve against their content digests; the additions are new IDs at definition_version 1 and review_status draft, so release evaluation blocks on them until the owner approves them — the same rule as every other control."
+  added: [QUAL-02, QUAL-03, QUAL-04, QUAL-05, QUAL-06, QUAL-07, QUAL-08, QUAL-09, QUAL-10, QUAL-11, QUAL-12, QUAL-13]
 controls:
   - id: CTX-01
     schema_version: control/v1
@@ -553,6 +557,345 @@ controls:
     reassessment_triggers:
       - The test framework or quality tooling changes
       - A threshold is raised or lowered
+
+  - id: QUAL-02
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Strict static correctness
+    purpose: >-
+      Keep the type system load-bearing rather than decorative: suppressions and escape hatches are
+      counted, bounded, and visible instead of sprinkled until the compiler stops catching anything.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - 'Type-suppression markers (@ts-ignore, @ts-expect-error without a reason, type: ignore, eslint-disable) are counted and stay within reviewed thresholds'
+      - 'Any/unknown usage is bounded and each use is justified where it exists'
+      - The trend is visible in the report so a growing suppression count is noticed, not normalised
+    verification:
+      - method: quality_scan
+        recipe: quality/strict-correctness
+        coverage: mixed
+        notes: "Marker and any-usage counts are SecHard-owned measurements; full strict-type-checked linting and a tsc --strict probe against the app's own type graph are recorded gaps (they need the app's type dependencies)."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Marker counts are a signal, not proof of type unsafety; a justified @ts-expect-error is legitimate
+      - Full strict lint (typescript-eslint strict-type-checked) and mypy/pyright are not run in this build
+      - A count within threshold is not evidence of correctness, only of bounded suppression
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A suppression marker is added or removed
+      - The thresholds are recalibrated on the corpus
+
+  - id: QUAL-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: No significant duplication
+    purpose: >-
+      Detect copy-pasted logic blocks before they diverge: a clone fixed in one place and not the
+      other is a defect factory that review cannot track.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Duplicated blocks beyond the reviewed minimum size are listed with locations
+      - The duplicated percentage is measured against a reviewed threshold, not guessed
+      - Findings name both clone sites so the fix is actionable
+    verification:
+      - method: quality_scan
+        recipe: quality/duplication
+        coverage: automated
+        notes: "Requires a token-level clone detector (jscpd is the reviewed candidate). Not wired in this build; the recipe reports unsupported with this reason rather than a fabricated pass."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Clone detection is syntactic; near-duplicates with renamed identifiers are found only by token-level tools
+      - The threshold is calibrated, not universal, and must be re-checked on real applications
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A block of logic is copied rather than extracted
+      - The clone detector or its threshold changes
+
+  - id: QUAL-04
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Bounded complexity and size
+    purpose: >-
+      Keep functions and files small enough to review: complexity that cannot be held in a head is
+      complexity that ships unreviewed.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Cyclomatic complexity, function length, parameter count, and file length are measured per language against reviewed thresholds
+      - The worst offenders are listed, not just aggregate numbers
+    verification:
+      - method: quality_scan
+        recipe: quality/complexity
+        coverage: automated
+        notes: "Requires a per-function complexity analyser (Lizard is the reviewed candidate). Not wired in this build; a file-line count is not complexity and would be a fabricated measurement, so the recipe reports unsupported with this reason."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Complexity thresholds are signals about reviewability, not correctness
+      - Per-function metrics need a real parser; crude proxies are refused rather than reported as measurements
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A function or file grows past its threshold
+      - The analyser or thresholds change
+
+  - id: QUAL-05
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: No dead code or unused dependencies
+    purpose: >-
+      Remove code and packages nothing uses: dead code is attack surface, confusion, and stale
+      documentation all at once, and unused dependencies still ship install hooks and advisories.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Unused exports, files, and dependencies are listed with the evidence for "unused"
+      - The analysis distinguishes entry points and framework-injected references before claiming death
+    verification:
+      - method: quality_scan
+        recipe: quality/dead-code
+        coverage: automated
+        notes: "Requires a reference-aware dead-code analyser (Knip for JS/TS, Vulture for Python are the reviewed candidates). Not wired in this build; the recipe reports unsupported with this reason."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Dead-code analysis has false positives on dynamic references; findings are removal candidates, not verdicts
+      - A truly unused dependency must still be removed deliberately (its removal can change the lockfile graph)
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A feature is removed or a file is orphaned
+      - A dependency is added
+
+  - id: QUAL-06
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Sound module structure
+    purpose: >-
+      Keep the dependency graph acyclic and layered: UI importing database clients, or server-only
+      code reachable from client bundles, is an architecture defect that becomes a security defect.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Module cycles are listed
+      - Layer violations (UI importing data access, server-only imported client-side) are listed
+    verification:
+      - method: quality_scan
+        recipe: quality/module-structure
+        coverage: automated
+        notes: "Requires a dependency-graph analyser with reviewed rules (dependency-cruiser is the reviewed candidate). Not wired in this build; the recipe reports unsupported with this reason."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Layer rules are per-architecture conventions that must be reviewed for the audited stack, not universal
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A module is added or an import crosses a layer boundary
+      - The layer rules change
+
+  - id: QUAL-07
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Errors are handled, not swallowed
+    purpose: >-
+      Make every failure path visible: an empty catch or a discarded error value turns a failure the
+      system could have reported into data loss the user discovers later. Related to Top 10 2025
+      A10 (software and data integrity failures) through silent failure.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - Empty catch blocks and catch-and-return-constants are reported with locations
+      - console/log calls in production source paths are reported as review candidates
+      - Async calls whose rejection nobody awaits are reported
+    verification:
+      - method: quality_scan
+        recipe: quality/error-handling
+        coverage: automated
+        notes: "Reviewed Opengrep rule pack ci/configs/opengrep-rules/quality-errors.yaml, run through the pinned opengrep binary — the same reviewed-execution path as the security rules."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Syntactic rules only — a catch that logs and continues incorrectly, or a destructure that ignores `error`, needs inter-procedural analysis this build does not have
+      - console.log in scripts and tools is legitimate; the rule scopes to production source paths by directory convention and states when it cannot tell
+    standards:
+      - { framework: OWASP-Top-10, requirement: A10, relationship: related_risk, notes: "Silent failure handling undermines integrity monitoring; not a verified coverage claim." }
+      - { framework: NIST-SSDF, relationship: related_risk, notes: "PW.7 (review code for security defects) includes error-handling review." }
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A new catch block or async call is added
+      - A rule is added to or removed from the quality rule pack
+
+  - id: QUAL-08
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Tests that test something
+    purpose: >-
+      Keep the test suite load-bearing: skipped, focused, and assertion-free tests produce a green
+      check that certifies nothing — the exact failure mode this repository exists to stop.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Focused (.only) and skipped tests are listed; a focused test on a shared branch is visible in every report
+      - Assertion-free test bodies and tautological assertions are listed
+    verification:
+      - method: quality_scan
+        recipe: quality/test-quality
+        coverage: mixed
+        notes: "SecHard-owned static scan of test files. Coverage ratios and mutation scores are recorded gaps (they need running the suite, which the audit isolation model does not yet permit)."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Static signals only — a test with assertions that assert the wrong thing needs human review
+      - Test-to-code ratio is not measured in this build
+    standards:
+      - { framework: NIST-SSDF, relationship: related_risk, notes: "PW.7.2 includes ensuring tests exist and are meaningful." }
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A test is skipped, focused, or rewritten
+      - A test framework is added
+
+  - id: QUAL-09
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: No AI-authorship tells (signal)
+    purpose: >-
+      Surface the structural habits that make generated-but-unreviewed code recognisable —
+      narrating comments, placeholder stubs, hallucinated imports, defensive noise — as review
+      candidates. Every finding is a signal with an explanation, never proof of authorship.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Each tell rule fires on a vulnerable fixture and stays silent on a clean twin (measured, not asserted once)
+      - Recall and precision are measured on the calibration corpus and reported per run
+      - Findings are labelled signal/likely/confirmed and never presented as proof a human did not write the code
+    verification:
+      - method: quality_scan
+        recipe: quality/vibe-tells
+        coverage: mixed
+        notes: "SecHard-owned analyser (src/quality/tells.ts). No mature open-source analyser exists for this; each rule carries fixtures and corpus-measured precision."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - These are heuristics about reviewability. A comment that explains WHY code is deliberate is not a tell, and the analyser distinguishes rationale from narration by content, which is a judgement with a measured false-positive rate — never proof of authorship or of absence of review
+      - Near-duplicate helpers and mixed-paradigm structure are not detected in this build
+      - The rule set is calibrated on the corpus and on this repository itself; recalibration is a reviewed change
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A rule is added, tuned, or removed
+      - The corpus or its seeded-issue list changes
+
+  - id: QUAL-10
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Consistent formatting and naming
+    purpose: >-
+      Keep the codebase uniform enough that a reader's attention goes to meaning, not to layout
+      drift and three naming conventions for the same thing.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - A check-only format run with SecHard's pinned configuration reports deviations
+      - Naming-convention inconsistencies are reported as signals
+    verification:
+      - method: quality_scan
+        recipe: quality/formatting
+        coverage: automated
+        notes: "Requires a formatter in check-only mode (Prettier/Biome for JS/TS, Ruff format for Python are the reviewed candidates). Not wired in this build; the recipe reports unsupported with this reason."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Formatting findings are style, not defects; their value is review bandwidth
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The formatter or its configuration changes
+
+  - id: QUAL-11
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Repository hygiene and documentation truth
+    purpose: >-
+      Keep the repository's own claims checkable: a lockfile, a changelog, CI that runs, ignore rules
+      that keep secrets and build output out of commits, and a licence decision that is recorded even
+      when the answer is "none, deliberately". Related to OSPS baseline (documentation and quality).
+    applicability: { rule: always }
+    acceptance:
+      - A lockfile is committed, CI configuration exists, and .gitignore covers secrets and build output
+      - README commands are runnable, a CHANGELOG exists, and the licence state is present or its deliberate absence is recorded
+    verification:
+      - method: quality_scan
+        recipe: quality/repo-hygiene
+        coverage: mixed
+        notes: "SecHard-owned repository checks; README command runnability is asserted where the repository's own test suite proves it, and reported as a signal otherwise."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Presence checks cannot prove the CI is green or the README is truthful, only that the artifacts exist; the audit report states this
+      - A missing licence is a recorded-decision question, not automatically a defect
+    standards:
+      - { framework: OpenSSF-OSPS, relationship: related_risk, notes: "OSPS DO/LE/QA requirements cover documentation, licensing, and repository hygiene." }
+    owner_role: repository-owner
+    reassessment_triggers:
+      - Repository structure or CI changes
+      - The licence decision changes
+
+  - id: QUAL-12
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Dependency health
+    purpose: >-
+      Keep the dependency set deliberate: two libraries doing one job, deprecated or abandoned
+      packages, and unnoticed major-version drift are how a dependency list becomes a liability.
+    applicability: { rule: when_any_feature_enabled, features: [interfaces, hosting] }
+    acceptance:
+      - Duplicate libraries for one job (two date libraries, two HTTP clients) are listed from the lockfile against a reviewed mapping
+      - Deprecated or abandoned packages and outdated majors are listed where registry evidence is available
+    verification:
+      - method: quality_scan
+        recipe: quality/dependency-health
+        coverage: mixed
+        notes: "SecHard-owned lockfile duplicate scan in this build. Registry-based deprecation, staleness, and major-drift checks need online queries and are recorded gaps."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - The duplicate mapping is a reviewed list of known-equivalent roles, not a semantic equivalence engine
+      - Registry-based health (deprecated, outdated) is not measured in this build
+    standards:
+      - { framework: OpenSSF-OSPS, relationship: related_risk, notes: "OSPS dependency-management requirements cover knowing and maintaining your dependencies." }
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - A dependency is added or removed
+      - The equivalent-roles mapping changes
+
+  - id: QUAL-13
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: Frontend quality
+    purpose: >-
+      When a user interface is shipped, verify it is usable by the people it is shipped to:
+      accessibility conformance and measured performance, not vibes.
+    applicability: { rule: when_feature_enabled, features: [interfaces] }
+    acceptance:
+      - axe-core accessibility violations (WCAG 2.2 AA target) are listed when the application can be reached
+      - Performance budgets and bundle size are measured against reviewed thresholds
+    verification:
+      - method: quality_scan
+        recipe: quality/frontend-quality
+        coverage: mixed
+        notes: "Requires a running application and a browser (axe-core via Playwright, Lighthouse CI are the reviewed candidates). Not wired in this build; live-recipe preconditions (an approved target) do not exist for it yet, so the recipe reports unsupported with this reason."
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+    limitations:
+      - Automated accessibility covers a minority of WCAG; manual keyboard and screen-reader passes remain manual evidence
+      - Performance measurements need a production-like build and are per-application
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - The UI changes materially
+      - The accessibility or performance tooling changes
 
   - id: AUTH-01
     schema_version: control/v1

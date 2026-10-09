@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/quality-thresholds.schema.json",
+  "title": "Quality thresholds",
+  "description": "Calibration values for the quality recipes. These are measurements-become-findings thresholds, not security limits; recalibration is a reviewed change to this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "policy_version", "review_status", "strict_correctness", "test_quality", "vibe_tells", "repo_hygiene", "dependency_health", "calibration"],
+  "properties": {
+    "schema": { "const": "hardening/quality-thresholds/v1" },
+    "policy_version": { "type": "integer", "minimum": 1 },
+    "review_status": { "enum": ["draft", "owner_reviewed"] },
+    "strict_correctness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["suppression_markers_max_per_file", "suppression_markers_max_total", "any_type_max_per_file"],
+      "properties": {
+        "suppression_markers_max_per_file": { "type": "integer", "minimum": 0, "maximum": 1000 },
+        "suppression_markers_max_total": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "any_type_max_per_file": { "type": "integer", "minimum": 0, "maximum": 1000 }
+      }
+    },
+    "test_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_files_listed"],
+      "properties": {
+        "max_files_listed": { "type": "integer", "minimum": 1, "maximum": 10000 }
+      }
+    },
+    "vibe_tells": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_files_listed"],
+      "properties": {
+        "max_files_listed": { "type": "integer", "minimum": 1, "maximum": 10000 }
+      }
+    },
+    "repo_hygiene": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_lockfiles"],
+      "properties": {
+        "expected_lockfiles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+        }
+      }
+    },
+    "dependency_health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["equivalent_roles"],
+      "properties": {
+        "equivalent_roles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "packages"],
+            "properties": {
+              "role": { "type": "string", "minLength": 1, "maxLength": 100 },
+              "packages": { "type": "array", "minItems": 2, "maxItems": 32, "items": { "type": "string", "minLength": 1, "maxLength": 200 } }
+            }
+          }
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recall_floor", "precision_floor", "clean_twin_max_findings"],
+      "properties": {
+        "recall_floor": { "type": "number", "minimum": 0, "maximum": 1 },
+        "precision_floor": { "type": "number", "minimum": 0, "maximum": 1 },
+        "clean_twin_max_findings": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    }
+  }
+}

@@ -9,6 +9,10 @@ import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
 import { inspectBrowserAssets } from '../build/client-assets.js';
+import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
+import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
+import { analyzeVibeTells } from '../quality/tells.js';
+import { loadQualityThresholds } from '../quality/thresholds.js';
 import { resolveTool, runTool, type ToolAvailability } from './registry.js';
 import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from '../domain/types.js';
 
@@ -241,8 +245,8 @@ async function runOsv(context: RecipeContext): Promise<RecipeOutcome> {
   };
 }
 
-async function runOpengrep(context: RecipeContext): Promise<RecipeOutcome> {
-  const configPath = join(context.policyRoot, 'ci', 'configs', 'opengrep-rules', 'hardening-core.yaml');
+async function runOpengrepWithPack(context: RecipeContext, packRelativePath: string, packRuleId: string): Promise<RecipeOutcome> {
+  const configPath = join(context.policyRoot, 'ci', 'configs', 'opengrep-rules', packRelativePath);
   if (!existsSync(configPath)) return errored(`the reviewed rule pack is missing at ${configPath}`);
 
   const args = [
@@ -263,7 +267,7 @@ async function runOpengrep(context: RecipeContext): Promise<RecipeOutcome> {
   const parsed = parseOpengrepReport(run.outcome.stdout);
   if ('error' in parsed) return errored(parsed.error);
   if (parsed.scope.observed === 0) {
-    return unsupported('opengrep scanned no files in the application root; there is nothing to analyse');
+    return unsupported(`opengrep scanned no files in the application root; there is nothing for the ${packRuleId} rules to analyse`);
   }
 
   return {
@@ -272,11 +276,40 @@ async function runOpengrep(context: RecipeContext): Promise<RecipeOutcome> {
     observed: parsed.scope.observed,
     files: (parsed.scope.files ?? []).slice(0, MAX_FILES_RECORDED),
     findings: parsed.findings,
-    tool: { ...toolIdentity('opengrep'), rule_pack: 'ci/configs/opengrep-rules/hardening-core.yaml' },
+    tool: { ...toolIdentity('opengrep'), rule_pack: `ci/configs/opengrep-rules/${packRelativePath}` },
     reportDigest: digestOf(run.outcome.stdout),
     ...(parsed.parserErrors.length === 0 ? {} : { diagnostic: parsed.parserErrors.join('; ') }),
   };
 }
+
+const runOpengrep = (context: RecipeContext): Promise<RecipeOutcome> =>
+  runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
+
+/**
+ * The console-log rule scopes to production source directories by convention (src, app, lib,
+ * pages, components, server, api at the audited root). A semgrep `paths` filter proved unreliable
+ * here — relative include patterns matched a `.` target and silently matched nothing against an
+ * absolute target — so the reviewed scoping lives in this code, where it is tested.
+ */
+const PRODUCTION_SOURCE_DIRS = new Set(['src', 'app', 'lib', 'pages', 'components', 'server', 'api']);
+
+const runQualityErrors = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const outcome = await runOpengrepWithPack(context, 'quality-errors.yaml', 'error-handling');
+  if (outcome.outcome !== 'pass') return outcome;
+
+  const filtered = outcome.findings.filter((finding) => {
+    if (finding.rule_id !== 'hardening.quality-console-log-production') return true;
+    const firstSegment = (finding.location ?? '').split(/[/:\\]/)[0] ?? '';
+    return PRODUCTION_SOURCE_DIRS.has(firstSegment);
+  });
+  const dropped = outcome.findings.length - filtered.length;
+
+  return {
+    ...outcome,
+    findings: filtered,
+    ...(dropped === 0 ? {} : { diagnostic: `${outcome.diagnostic ?? ''}; ${String(dropped)} console.log finding(s) outside production source directories were held back by the reviewed scoping`.trimStart() }),
+  };
+};
 
 async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
   const root = worktreeRoot(context.appRoot) ?? context.appRoot;
@@ -363,6 +396,68 @@ async function runLiveHttp(context: RecipeContext): Promise<RecipeOutcome> {
   };
 }
 
+function thresholdsFor(context: RecipeContext): { thresholds?: QualityThresholdsShape; failure?: RecipeOutcome } {
+  const loaded = loadQualityThresholds(context.policyRoot);
+  if (loaded.thresholds === undefined) {
+    return {
+      failure: errored(`the reviewed quality thresholds are unusable: ${loaded.issues.join('; ')}`),
+    };
+  }
+  return { thresholds: loaded.thresholds };
+}
+
+type QualityThresholdsShape = ReturnType<typeof loadQualityThresholds>['thresholds'];
+
+const runStrictCorrectness = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const { thresholds, failure } = thresholdsFor(context);
+  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  const result = analyzeStrictCorrectness(context.appRoot, thresholds.strict_correctness);
+  return Promise.resolve(qualityOutcome('quality-strict-correctness', result.findings, result.filesRead,
+    'suppression-marker and any-escape counts; full strict lint and the application\'s own tsc probe are recorded gaps'));
+};
+
+const runTestQuality = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const result = analyzeTestQuality(context.appRoot);
+  return Promise.resolve(qualityOutcome('quality-test-quality', result.findings, result.filesRead,
+    'static test-shape signals; coverage ratios and mutation scores need running the suite, which the isolation model forbids'));
+};
+
+const runVibeTells = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const { thresholds, failure } = thresholdsFor(context);
+  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  const result = analyzeVibeTells(context.appRoot, { maxFilesListed: thresholds.vibe_tells.max_files_listed });
+  return Promise.resolve(qualityOutcome('quality-vibe-tells', result.findings, result.scope.filesRead,
+    'review-candidate signals measured on the calibration corpus; never proof of authorship'));
+};
+
+const runRepoHygiene = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const { thresholds, failure } = thresholdsFor(context);
+  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  const result = analyzeRepoHygiene(context.appRoot, thresholds.repo_hygiene.expected_lockfiles);
+  return Promise.resolve(qualityOutcome('quality-repo-hygiene', result.findings, result.checks,
+    'presence checks: artifacts existing is not the same as CI being green or documentation being true'));
+};
+
+const runDependencyHealth = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const { thresholds, failure } = thresholdsFor(context);
+  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  const result = analyzeDependencyHealth(context.appRoot, thresholds.repo_hygiene.expected_lockfiles, thresholds.dependency_health.equivalent_roles);
+  return Promise.resolve(qualityOutcome('quality-dependency-health', result.findings, result.packagesExamined,
+    'lockfile duplicate-role scan; registry-based deprecation and major-drift checks are recorded gaps'));
+};
+
+function qualityOutcome(toolName: string, findings: readonly Finding[], observed: number, coverageNote: string): RecipeOutcome {
+  return {
+    outcome: 'pass',
+    coverage: 'complete',
+    observed,
+    files: [],
+    findings,
+    tool: { name: toolName, observed_version: '1' },
+    diagnostic: coverageNote,
+  };
+}
+
 export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'gitleaks/repository': (context) => runGitleaks(context, true),
   'gitleaks/history': (context) => runGitleaks(context, false),
@@ -371,6 +466,12 @@ export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'zizmor/workflows': runZizmor,
   'build/client-assets': runClientAssets,
   'web/http-requirements': runLiveHttp,
+  'quality/error-handling': runQualityErrors,
+  'quality/strict-correctness': runStrictCorrectness,
+  'quality/test-quality': runTestQuality,
+  'quality/vibe-tells': runVibeTells,
+  'quality/repo-hygiene': runRepoHygiene,
+  'quality/dependency-health': runDependencyHealth,
 };
 
 export const IMPLEMENTED_RECIPES: readonly string[] = Object.keys(RECIPES);

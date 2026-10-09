@@ -85,10 +85,13 @@ inventory that does not validate can never be honoured.
 
 ## What an audit reports
 
-- **Two scores with plain verdicts** — security (severity-weighted, over the checks that ran) and
-  quality (not assessed in this build; the quality controls are Batch Q). Both carry the coverage
+- **Two scores with plain verdicts** — security (severity-weighted, over the security checks that
+  ran) and quality (from the quality findings, Batch Q: wired recipes for error handling, test
+  quality, AI-authorship tells, strict correctness, repository hygiene, and dependency health;
+  the external-analyser recipes report `unsupported` with their reasons). Both carry the coverage
   caveat: "N of M planned checks produced an answer". Quality can never change the security
-  verdict, and the reverse.
+  verdict, and the reverse; findings are separated into security and quality sections, each with
+  its own explanations and prompts.
 - **Fix these first** — the top findings by severity, then deployed-surface exposure
   (browser-shipped and live findings outrank source-only ones of the same severity).
 - **What we could not check** — every unsupported or errored check with its reason, detection gaps,

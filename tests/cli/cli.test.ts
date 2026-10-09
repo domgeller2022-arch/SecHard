@@ -90,7 +90,9 @@ describe('validate', () => {
     const result = cli(['validate', '--app', FIXTURE, '--policy', REPO]);
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('validate: OK');
-    expect(result.stdout).toContain('35 controls');
+    // Not hardcoded: the catalogue test pins the exact ID set, so this only mirrors the
+    // policy the CLI actually loaded — it cannot silently disagree with it.
+    expect(result.stdout).toContain(`${loadCatalogue().controls.length} controls`);
   });
 
   it('rejects a manifest naming a profile that does not exist', () => {

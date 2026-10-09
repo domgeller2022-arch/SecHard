@@ -1,0 +1,57 @@
+schema_version: profile/v1
+id: quality
+definition_version: 1
+review_status: draft
+title: Quality (composable capability profile)
+extends: [core]
+description: >-
+  The quality capability (remediation-plan Batch Q). Quality results are reported in their own
+  section and never change a security verdict, and the reverse. Audit mode composes this profile
+  for every application because the owner's 2026-10-08 goal makes quality a required capability;
+  gate-mode consumers select it explicitly.
+
+  Several recipes in this profile require external analysers (jscpd, Lizard, Knip,
+  dependency-cruiser, formatters, axe-core) that are deliberately not provisioned yet: those
+  recipes report unsupported with the reason rather than a fabricated pass. The thresholds they
+  and the wired recipes use live in policy/quality-thresholds.yaml.
+controls:
+  - { control: QUAL-01 }
+  - { control: QUAL-02 }
+  - { control: QUAL-03 }
+  - { control: QUAL-04 }
+  - { control: QUAL-05 }
+  - { control: QUAL-06 }
+  - { control: QUAL-07 }
+  - { control: QUAL-08 }
+  - { control: QUAL-09 }
+  - { control: QUAL-10 }
+  - { control: QUAL-11 }
+  - { control: QUAL-12 }
+  - { control: QUAL-13 }
+stage_requirements:
+  pr:
+    required_methods: [quality_scan]
+  release:
+    required_methods: [quality_scan]
+  operations:
+    required_methods: [quality_scan]
+support_constraints:
+  platforms: [linux-ci]
+  notes: >-
+    Quality findings are suggestions with explanations, labelled signal, likely, or confirmed; a
+    heuristic is never presented as proof. QUAL-08 (tests that test something) is not exceptable:
+    a skipped or gutted test is a control removal, not a risk to accept.
+permitted_exceptions:
+  - { control: QUAL-01, policy: permitted, max_duration_days: 30 }
+  - { control: QUAL-02, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-03, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-04, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-05, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-06, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-07, policy: permitted, max_duration_days: 30 }
+  - { control: QUAL-08, policy: never, note: "A skipped, focused, or assertion-free test is a control removal, not an accepted risk" }
+  - { control: QUAL-09, policy: permitted, max_duration_days: 90, note: "Signals are advisory; accepting them is recording a judgement, not weakening a gate" }
+  - { control: QUAL-10, policy: permitted, max_duration_days: 90 }
+  - { control: QUAL-11, policy: permitted, max_duration_days: 30 }
+  - { control: QUAL-12, policy: permitted, max_duration_days: 30 }
+  - { control: QUAL-13, policy: permitted, max_duration_days: 60 }

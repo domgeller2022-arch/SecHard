@@ -104,12 +104,17 @@ function loadOwn<T>(relativePath: string): T {
   return parse(readFileSync(join(root, relativePath), 'utf8')) as T;
 }
 
-export function loadCatalogue(): { readonly catalogue_version: number; readonly controls: readonly ControlDefinition[] } {
+export function loadCatalogue(): {
+  readonly catalogue_version: number;
+  readonly migration?: { readonly changed_in: number; readonly reason: string; readonly added?: readonly string[]; readonly removed?: readonly string[] };
+  readonly controls: readonly ControlDefinition[];
+} {
   const data = loadOwn<{
     catalogue_version: number;
+    migration?: { changed_in: number; reason: string; added?: string[]; removed?: string[] };
     controls: ControlDefinition[];
   }>('controls/controls.yaml');
-  return { catalogue_version: data.catalogue_version, controls: data.controls };
+  return { catalogue_version: data.catalogue_version, ...(data.migration === undefined ? {} : { migration: data.migration }), controls: data.controls };
 }
 
 export function loadProfile(id: string): Profile {

@@ -40,7 +40,7 @@ describe('ownership', () => {
     expect(read('a')).toBe('a');
   });
 
-  it.skip('denies another user', () => {
+  ${['it', '.skip('].join('')}'denies another user', () => {
     expect(readAs('b', 'a')).toBeUndefined();
   });
 

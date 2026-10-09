@@ -13,6 +13,81 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Batch Q — the quality section: "engineered, not vibe-coded" (10 October 2026)
+
+The remediation plan's quality batch. Every audit now carries a quality section reported
+separately from security — neither can change the other's verdict — and the quality findings are
+measured, calibrated instruments, not vibes. Checkpoint: `docs/checkpoints/batch-q.md`.
+
+**The catalogue grew up (gap D3).** Catalogue **version 2**: the 35 v1 IDs are unchanged and their
+approvals still resolve; QUAL-02…QUAL-13 are added as `draft` definitions with a `migration` note
+that names exactly what changed, enforced by the schema and by a test — a catalogue whose ID set
+changes without a migration note is now a test failure, not a silent release change. Release
+evaluation blocks on the twelve new controls until the owner approves them, the same rule as every
+other control.
+
+**Six quality recipes wired** (Q1/Q4), each producing real findings through the compiled CLI:
+
+- `quality/error-handling` — the reviewed opengrep pack `quality-errors.yaml`: empty catch blocks,
+  `.then()` chains with no `.catch()`, and `console.log` in production source directories (scoped
+  by tested recipe code — semgrep `paths` filters proved unreliable and the pack says so).
+- `quality/vibe-tells` — the SecHard-owned analyser: narration comments (with the rationale/
+  narration distinction as its central, calibrated design decision), step narration, marketing
+  adjectives, banners, emoji, placeholder comments and values, hardcoded local URLs, debugger
+  statements, commented-out code, comment dominance. Every finding is a **signal with an
+  explanation, never proof of authorship**; the plan's "deliberately" tell is judged by absence of
+  reasoning, not the word alone.
+- `quality/test-quality` — focused, skipped, tautological, and assertion-free tests.
+- `quality/strict-correctness` — type-suppression markers and `any`/JSDoc-`{any}` escapes, with
+  per-file and project thresholds; `@ts-expect-error` **with** a reason counts but does not flag.
+- `quality/repo-hygiene` — lockfile, `.gitignore` (dependencies and `.env`), README, CHANGELOG,
+  CI, licence (whose deliberate absence is a recorded decision the finding acknowledges).
+- `quality/dependency-health` — duplicate libraries for one job, from a reviewed equivalent-roles
+  map in the thresholds policy.
+
+Thresholds live in the reviewed `policy/quality-thresholds.yaml` (validated by a new schema); a
+consumer configuration can never widen them.
+
+**Measured, not promised (Q6).** `tests/corpus/` holds a deliberately vibe-coded fixture with
+**18 seeded issues** and a clean twin. Calibration on it: **recall 1.0, precision 1.0 (20 findings,
+all matched to seeds), clean twin 0 findings** — floors (0.8/0.6/0) cleared and the measured
+numbers printed by the test. The opengrep pack is verified the same way with the real pinned
+binary in the scanners suite.
+
+**SecHard passes its own quality audit** — and getting there was the calibration working: the
+first self-audit reported **48 findings**, and each was judged honestly. That process found a
+real defect (a literal `.skip` inside the change-report test's detection fixture — now composed at
+runtime, the repository's established technique), fixed five false-positive classes in the rules
+(CSS hex colours read as comments, wrapped prose read as narration, Playwright destructuring read
+as assertion-free tests, the analyser's own pattern text read as findings, mention-vs-use for
+localhost), and ended at **one accepted LOW finding**: the deliberately absent licence, a recorded
+owner decision. Zero high or critical, pinned by `tests/quality/self-audit.test.ts`.
+
+**The reference app's M8 defects are fixed (gap A2), verified live:** `updateNote` no longer drops
+the body field, every note write inspects and surfaces its error instead of discarding it,
+`X-Powered-By` is off, and CSP + COOP + CORP headers ship — confirmed with `curl` against the
+running production build (X-Powered-By absent, all seven headers present).
+
+**Toolchain defects found while wiring the pack, recorded:**
+
+1. The pinned **opengrep reads local rule packs with a locale-dependent codec** and crashes on
+   non-ASCII content under the minimal recipe environment (`'ascii' codec can't decode…` in
+   `config_resolver.py`). The security pack was pure ASCII by luck; reviewed rule packs are now
+   ASCII-only by rule, and the pack header records why.
+2. Semgrep-style tools **prefix a local config path onto every rule id**; the adapter now
+   normalises to the reviewed pack namespace (the earlier suffix-tolerant tests anticipated the
+   mangling).
+
+**Staged, recorded rather than implied:** jscpd (duplication), Lizard (complexity), Knip/Vulture
+(dead code), dependency-cruiser (module structure), formatters, axe-core/Lighthouse (frontend), and
+QUAL-01's own-scripts recipes (executing application code needs the isolation model, gap D1) all
+report `unsupported` with the tool's name as the reason. Q5 (advisory AI review) awaits the owner's
+opt-in; registry-based dependency health (deprecation, major drift) and the external calibration
+targets are staged work.
+
+Suite at this point: **522 unit + 8 integration + 31 scanner + 5 example tests**, all passing on
+Node 24.21.0.
+
 ### Batch U — `hardening audit`: point it at any folder and get a report (9 October 2026)
 
 The remediation plan's audit-mode batch (renamed U by the gap analysis, D11). `hardening audit PATH`

@@ -76,10 +76,12 @@ entries:
       - src/validation/**
       - src/execution/**
       - src/commands/**
-    reason: The evaluator and the validator turn records into decisions. A change can turn a block into a pass.
+      - src/quality/**
+    reason: The evaluator and the validator turn records into decisions, and the quality analysers decide what counts as a finding. A change can turn a block into a pass or a defect into silence.
     reviewer_checks:
       - The tests still fail when the behaviour they guard is removed
       - Unknown severity, empty scope, and missing evidence still block
+      - A quality rule change was run against the calibration corpus and the clean twin, and the measured recall/precision still clear the floors
 
   - id: audit_boundary
     control: CTX-01

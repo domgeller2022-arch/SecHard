@@ -1,0 +1,53 @@
+# Reviewed local rule pack for QUAL-07 (errors are handled, not swallowed).
+#
+# Same rules as the security pack: pinned locally, never fetched at scan time, and each rule has a
+# vulnerable and a clean fixture (tests/corpus). These are review candidates; a match is a finding
+# to triage, not proof of a defect.
+#
+# Scope limits, stated rather than implied:
+# - The console-log rule's production-path scoping lives in the recipe, not in semgrep `paths`
+#   filters: relative path filters resolve differently depending on how the target is spelled
+#   (found while wiring this pack; a `.` target matched, an absolute target silently did not),
+#   so the rule ships unscoped and the recipe applies the reviewed directory convention with
+#   testable code.
+# - A destructure that ignores an `error` value needs inter-procedural analysis; not detected here.
+# - An unawaited async call is detected only in the .then()/.catch() shape.
+rules:
+  - id: hardening.quality-empty-catch
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      An empty catch block swallows the failure completely: the operation failed, nobody was told,
+      and the user finds out later from missing data. Handle the error (log with context, return a
+      failure, or rethrow).
+    metadata:
+      hardening_controls: [QUAL-07]
+    pattern-either:
+      - pattern: catch ($E) {}
+      - pattern: catch {}
+      - pattern: catch ($E) { return; }
+
+  - id: hardening.quality-floating-promise
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: >-
+      A .then() chain with no .catch() turns a rejection into an unhandled promise rejection: the
+      failure disappears at runtime. Add a rejection handler, or await the call and handle the
+      error locally.
+    metadata:
+      hardening_controls: [QUAL-07]
+    patterns:
+      - pattern: $X.then(...)
+      - pattern-not: $X.then(...).catch(...)
+
+  - id: hardening.quality-console-log-production
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: >-
+      console.log in a production source path leaks internal structure into user-visible logs and
+      is usually leftover debugging. Use a logger with levels, or remove it. Scripts, tools, and
+      tests are legitimate places to print; the recipe holds back matches outside production
+      source directories by the reviewed convention.
+    metadata:
+      hardening_controls: [QUAL-07]
+    pattern: console.log(...)

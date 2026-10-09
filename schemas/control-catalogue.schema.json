@@ -2,20 +2,66 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://schemas.hardening.invalid/control-catalogue.schema.json",
   "title": "Control catalogue",
-  "description": "The repository-owned catalogue of control definitions. Exactly the 35 v1 IDs, each carrying its definition version, review status, applicability, acceptance criteria, verification methods, evidence requirements, and limitations.",
+  "description": "The repository-owned catalogue of control definitions. Versioned: catalogue v1 held the 35 blueprint IDs; each version bump carries a migration note naming what changed, and ID sets never change silently.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "catalogue_version", "controls"],
+  "required": [
+    "schema_version",
+    "catalogue_version",
+    "controls"
+  ],
   "properties": {
-    "schema_version": { "const": "control-catalogue/v1" },
-    "catalogue_version": { "type": "integer", "minimum": 1 },
+    "schema_version": {
+      "const": "control-catalogue/v1"
+    },
+    "catalogue_version": {
+      "type": "integer",
+      "minimum": 1
+    },
     "controls": {
       "type": "array",
       "minItems": 1,
       "items": {
         "allOf": [
-          { "$ref": "https://schemas.hardening.invalid/schemas/control.schema.json" }
+          {
+            "$ref": "https://schemas.hardening.invalid/schemas/control.schema.json"
+          }
         ]
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed_in",
+        "reason"
+      ],
+      "properties": {
+        "changed_in": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 2000
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{3,5}-[0-9]{2}$"
+          },
+          "maxItems": 64
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{3,5}-[0-9]{2}$"
+          },
+          "maxItems": 64
+        }
       }
     }
   }

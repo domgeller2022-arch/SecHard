@@ -1,0 +1,49 @@
+schema: hardening/quality-thresholds/v1
+policy_version: 1
+review_status: draft
+
+# Quality thresholds (remediation-plan Batch Q, task Q1). These are calibration values, not
+# security limits: they decide when a measurement becomes a finding. They were set on the
+# calibration corpus (tests/corpus/) and on this repository's own self-audit — not guessed — and
+# recalibration is a reviewed change to this file, never a consumer configuration.
+#
+# Provenance of the initial calibration is recorded in docs/checkpoints/batch-q.md.
+
+strict_correctness:
+  # QUAL-02. Suppression markers are signals; the thresholds bound how many become findings.
+  suppression_markers_max_per_file: 3
+  suppression_markers_max_total: 20
+  any_type_max_per_file: 5
+
+test_quality:
+  # QUAL-08. Any focused or skipped test is a finding; these floors are for the per-file listing.
+  max_files_listed: 200
+
+vibe_tells:
+  # QUAL-09. Comment tells are judged against this density so that a well-commented file is not a
+  # finding by default; the corpus sets the floor.
+  max_files_listed: 200
+
+repo_hygiene:
+  # QUAL-11. Presence checks; no thresholds beyond the recorded expectations.
+  expected_lockfiles: [pnpm-lock.yaml, package-lock.json, yarn.lock, npm-shrinkwrap.json, requirements.txt, go.mod, Cargo.lock, composer.lock]
+
+dependency_health:
+  # QUAL-12. The reviewed equivalent-roles mapping: two or more packages from one role in the
+  # dependency list is a "two libraries for one job" finding. This is a curated list of known
+  # equivalents, not a semantic engine; additions are reviewed policy changes.
+  equivalent_roles:
+    - { role: date-time, packages: [moment, dayjs, luxon, date-fns, '@date-fns/tz'] }
+    - { role: utility-belt, packages: [lodash, lodash-es, underscore] }
+    - { role: http-client, packages: [axios, got, node-fetch, cross-fetch] }
+    - { role: unique-id, packages: [uuid, nanoid, cuid, shortid] }
+    - { role: validation, packages: [zod, yup, joi, ajv] }
+    - { role: markdown, packages: [marked, markdown-it, remark, showdown] }
+
+calibration:
+  # The floors the corpus test asserts (recall/precision of the wired quality rules on
+  # tests/corpus/). Numbers, not vibes: the measured values are reported in the checkpoint and
+  # must clear these floors to count as calibrated.
+  recall_floor: 0.8
+  precision_floor: 0.6
+  clean_twin_max_findings: 0

@@ -1715,3 +1715,89 @@ before-A gap items D1, D2, D5, D6, D8, and D9.
   proposed next, per the remediation plan's order.
 - **Next step:** owner review of `docs/checkpoints/batch-u.md`, then Batch Q or S on
   authorisation.
+
+---
+
+## Batch Q — Quality: "engineered, not vibe-coded" (2026-10-10)
+
+**Authorisation.** `authorised_batch: U` covered the batch map's next slot ambiguously (the plan's
+Q can run after U); the owner's explicit instruction ("lets start with batch Q") authorises Batch Q.
+Scope: remediation-plan Q1 (quality controls), Q4 (the SecHard-owned tells analyser), Q6 (the
+calibration corpus), gap A2 (apply the reference-app M8 findings or record them), and gap D3 (the
+catalogue-versioning story for new control IDs). Q2/Q3 (external analyser provisioning), Q5
+(advisory AI review), and the external calibration targets (Juice Shop, NodeGoat) are staged.
+
+- **State:** `verified` for everything wired, with the staged work named below.
+- **Files changed:** `controls/controls.yaml` (catalogue v2: QUAL-02…13 added, migration note),
+  `controls/control.schema.json` (`quality_scan` method), `schemas/control-catalogue.schema.json`
+  (`migration`), `schemas/quality-thresholds.schema.json` + `policy/quality-thresholds.yaml` (new),
+  `profiles/quality.yaml` (new), `src/quality/{thresholds,common,tells,correctness,hygiene}.ts`
+  (new), `ci/configs/opengrep-rules/quality-errors.yaml` (new),
+  `src/execution/recipes.ts` (six quality recipes + rule-id normalisation),
+  `src/adapters/opengrep.ts` (pack-prefixed rule ids normalised), `src/audit/detect.ts` (quality
+  always composes), `src/audit/report.ts` (security/quality split), `src/audit/explanations.ts`
+  (quality explanations), `src/adapters/http.ts` unchanged; reference app: `app/notes/actions.ts`,
+  `app/notes/page.tsx`, `next.config.ts` (M8 fixes); `tests/quality/{corpus,self-audit}.test.ts`,
+  `tests/corpus/**` (new), `tests/scanners/quality-opengrep.test.ts` (new),
+  `tests/agent/change-report.test.ts` (fixture composed at runtime),
+  `agent-rules/review-manifest.yaml`, `README.md`, `docs/audit-mode.md`, `controls/matrix.md` and
+  `docs/checkpoints/control-review-sheet.md` (regenerated).
+- **Actual checks run, on Node 24.21.0:**
+  - `pnpm test` → **522 tests, 33 files, all passing** (calibration, self-audit, catalogue
+    migration, and the adjusted profile-composition assertions).
+  - `pnpm run test:scanners` → **31 passing** (27 previous + 4 opengrep quality-pack tests with the
+    real binary: every rule fires on the vibe-app seeds, the clean twin stays silent).
+  - `pnpm run test:integration` → **8 passing**; `pnpm run test:example` → **5 passing** (rebuilt
+    example); `typecheck`, `typecheck:tools`, `lint` clean; `generate:matrix` regenerated.
+  - **Calibration measured (Q6):** recall **1.0** over 18 seeded issues, precision **1.0** (20
+    findings, all matched to seeds), clean twin **0 findings** — floors 0.8/0.6/0 cleared.
+  - **Self-audit (the checkpoint's "SecHard passes its own quality audit"):** zero high/critical
+    findings, and exactly one accepted LOW finding — the deliberately absent licence (a recorded
+    owner decision the hygiene check reports because an unrecorded absence is indistinguishable
+    from an oversight).
+  - **Reference app (A2/M8):** `updateNote` writes the body (it silently dropped it), every
+    insert/update/delete inspects and surfaces its error, `X-Powered-By` is off, and CSP +
+    COOP + CORP headers are set — **verified live against the running production build with
+    curl**: X-Powered-By absent, all seven security headers present.
+- **D3 (catalogue versioning).** Catalogue v2 carries a `migration` note that names exactly what
+  was added; the catalogue test asserts the note and the deliberate 47-ID set, keeps the 35 v1
+  definitions' owner-review assertions scoped to v1, and expects the 12 new drafts unresolved for
+  approvals (release evaluation blocks on them until the owner approves — the same rule as every
+  other control). A schema field allows new ID sets only with a migration note.
+- **Q4 (tells analyser).** Rules: narration (a comment restating the next line's mechanics — judged
+  against the next line only, with rationale markers and wrapped-prose guards, because the
+  three-line window misread this repository's own policy comments), step narration, marketing
+  adjectives, banners, emoji, placeholder comments/values, hardcoded local URLs (scheme required;
+  comparisons and config/tool/e2e files are mentions, not assumptions), debugger statements,
+  commented-out code, and comment dominance. Deliberate omissions recorded: near-duplicate
+  helpers, several utility files, mixed paradigms (need cross-file analysis), hallucinated imports
+  (need registry access, Batch X). Every finding is a signal with an explanation — never proof of
+  authorship.
+- **Reference-app defect found by the analysers during calibration:** `tests/agent/
+  change-report.test.ts` contained a literal `.skip` inside its detection fixture — composed at
+  runtime now, per the repository's established technique. The instrument found a real instance of
+  the thing it measures, in the repository that built it.
+- **Toolchain defect found while wiring the quality pack:** the pinned opengrep (1.30.0) reads
+  local config files with a locale-dependent codec and crashes on non-ASCII content under the
+  minimal recipe environment (`'ascii' codec can't decode…` in `config_resolver.py`); the security
+  pack was pure ASCII by luck. The reviewed rule packs are now ASCII-only by rule, and the pack
+  header records why. Separately: semgrep-style tools prefix a local config path onto every rule
+  id — the adapter now normalises to the reviewed pack namespace, which the earlier suffix-tolerant
+  tests already anticipated.
+- **Staged, recorded rather than implied:** jscpd (QUAL-03), Lizard (QUAL-04), Knip/Vulture
+  (QUAL-05), dependency-cruiser (QUAL-06), formatters (QUAL-10), axe-core/Lighthouse (QUAL-13),
+  and QUAL-01's own-scripts recipes (D1: executing application code needs the isolation model) —
+  each recipe reports `unsupported` with the tool's name as the reason. Q5 (advisory AI review)
+  needs the owner's explicit opt-in and a provider decision. The external calibration targets are
+  security corpora first (Batch X).
+- **Limitations and unresolved findings:** registry-based dependency health (deprecation, major
+  drift) is not measured; the tells analyser's precision was tuned against this repository and the
+  corpus, and recalibration is a reviewed change to `policy/quality-thresholds.yaml`; the
+  opengrep locale defect is an upstream bug recorded here (ASCII-only configs are our defence,
+  not a fix).
+- **Owner decisions or external setup still needed:** review the twelve new control definitions
+  (all `draft`; release evaluation blocks on them until approved, by design), the quality
+  profile's exception policies, and the thresholds policy. `authorised_batch` stays `U`; Batch S
+  (standards) is the remaining plan batch that can proceed.
+- **Next step:** owner review of `docs/checkpoints/batch-q.md`, then Batch S or X on
+  authorisation.

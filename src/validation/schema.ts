@@ -21,7 +21,8 @@ export type SchemaName =
   | 'control-approvals'
   | 'pattern'
   | 'source'
-  | 'live-targets';
+  | 'live-targets'
+  | 'quality-thresholds';
 
 const SCHEMA_FILES: Record<SchemaName, string> = {
   app: 'app.schema.json',
@@ -38,6 +39,7 @@ const SCHEMA_FILES: Record<SchemaName, string> = {
   'control-approvals': 'control-approvals.schema.json',
   pattern: 'pattern.schema.json',
   'live-targets': 'live-targets.schema.json',
+  'quality-thresholds': 'quality-thresholds.schema.json',
 };
 
 const cache = new Map<SchemaName, ValidateFunction>();

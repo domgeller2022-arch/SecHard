@@ -1,0 +1,37 @@
+schema: hardening/corpus/v1
+
+# The calibration record for tests/corpus/vibe-app. Every seeded issue names the rule expected to
+# fire and where. Recall and precision are measured against this list (remediation plan Q6): a rule
+# that does not fire on its seed is a recall failure; a finding with no seed is a precision
+# question — and the clean twin must produce zero findings, which is where false positives show.
+#
+# The opengrep-served seeds (empty catch, floating promise, console.log) are verified in the
+# scanners suite with the real binary; they are listed here so the record is complete.
+
+app: vibe-app
+clean_twin: clean-twin
+
+seeded:
+  - { rule_id: tell.step-narration, file: src/app.js }
+  - { rule_id: tell.narration-comment, file: src/app.js }
+  - { rule_id: tell.marketing-comment, file: src/app.js }
+  - { rule_id: tell.emoji-in-source, file: src/launch.js }
+  - { rule_id: tell.placeholder-comment, file: src/app.js }
+  - { rule_id: tell.placeholder-code, file: src/app.js }
+  - { rule_id: tell.hardcoded-local-url, file: src/app.js }
+  - { rule_id: tell.debugger-statement, file: src/app.js }
+  - { rule_id: tell.commented-out-code, file: src/app.js }
+  - { rule_id: ts-suppression, file: src/app.js }
+  - { rule_id: any-type, file: src/app.js }
+  - { rule_id: focused-test, file: src/checkout.test.js }
+  - { rule_id: skipped-test, file: src/checkout.test.js }
+  - { rule_id: tautological-assertion, file: src/checkout.test.js }
+  - { rule_id: assertion-free-test, file: src/checkout.test.js }
+  - { rule_id: no-changelog, file: . }
+  - { rule_id: no-licence, file: . }
+  - { rule_id: duplicate-role, file: package-lock.json }
+
+opengrep_seeded:
+  - { rule_id: hardening.quality-empty-catch, file: src/app.js }
+  - { rule_id: hardening.quality-floating-promise, file: src/app.js }
+  - { rule_id: hardening.quality-console-log-production, file: src/app.js }

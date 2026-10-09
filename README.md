@@ -15,13 +15,17 @@ mode) implements the pointing-at-a-folder half of that goal; the quality section
 
 ## Status
 
-**Batches R (repair), W (wire), and U (audit mode) of the remediation plan are implemented.**
-`hardening check` runs the secret, dependency, static-analysis, workflow, client-asset, and
-live-HTTP recipes through the reviewed toolchain, and `hardening audit` produces a prioritised,
-plain-English report on any folder — no manifest required — with the profile set composed from what
-detection finds. The remaining catalogue recipes (authorization, functional, agent, policy, and
-release recipes) still report `unsupported` with their reasons. The quality section (Q) and
-requirement-level standards (S) are not built yet.
+**Batches R (repair), W (wire), U (audit mode), and Q (quality) of the remediation plan are
+implemented.** `hardening check` runs the secret, dependency, static-analysis, workflow,
+client-asset, and live-HTTP recipes through the reviewed toolchain; `hardening audit` produces a
+prioritised, plain-English report on any folder — no manifest required — with the profile set
+composed from what detection finds; and every audit now carries a **quality section** (Batch Q)
+reported separately from security: error handling, test quality, AI-authorship tells, strict
+correctness, repository hygiene, and dependency health are measured by six wired recipes, with
+measured recall and precision (1.0/1.0 on the calibration corpus) and the remaining analysers
+(jscpd, Lizard, Knip, dependency-cruiser, formatters, axe-core) honestly `unsupported` with their
+reasons. The authorization, functional, dependency-policy, agent, and release recipes still report
+`unsupported` with their reasons. Requirement-level standards (S) are not built yet.
 
 Read before trusting anything:
 
@@ -140,6 +144,15 @@ just the commit.
   evidence (Batch X). ZAP remains a standalone Step 11 tool, not a control recipe.
 - **Pull requests now evaluate the base branch's records** (Batch W3): a PR that changes them fails
   as review-required, and the first adoption has a documented bootstrap path.
+- **Quality (Batch Q).** Six SecHard-owned quality recipes are wired (`quality/error-handling` via
+  the reviewed opengrep pack, `quality/vibe-tells`, `quality/test-quality`,
+  `quality/strict-correctness`, `quality/repo-hygiene`, `quality/dependency-health`), calibrated
+  on `tests/corpus/` (a deliberately vibe-coded app with 18 seeded issues and a clean twin) and on
+  this repository's own self-audit, which reports exactly one accepted finding (the deliberately
+  absent licence, a recorded owner decision). The catalogue is at version 2 (47 controls: the 35
+  v1 IDs unchanged plus QUAL-02…13) with a migration note; the duplication, complexity, dead-code,
+  module-structure, formatting, and frontend-quality recipes need external analysers that are not
+  provisioned yet and report `unsupported` with the reason rather than a fabricated pass.
 - **Audit mode has boundaries, stated rather than implied.** It audits a local folder only (clone a
   Git URL yourself first — the trust rules for cloning untrusted repositories are deliberately not
   built); `--depth deep` adds nothing over `standard` in this build because executing an

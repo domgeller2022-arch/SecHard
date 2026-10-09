@@ -47,6 +47,8 @@ export interface AnnotatedFinding {
   readonly confidence: Confidence;
   readonly prompt: string;
   readonly exposure: 'deployed-surface' | 'source';
+  /** Security and quality are reported separately and neither can change the other's verdict. */
+  readonly family: 'security' | 'quality';
 }
 
 export interface AuditReport {
@@ -132,6 +134,7 @@ function annotate(input: AuditReportInput): AnnotatedFinding[] {
         confidence: explanation.confidence,
         prompt: explanation.prompt,
         exposure: deployedSurfaceTools.has(finding.tool) ? 'deployed-surface' : 'source',
+        family: (finding.control_ids ?? result.control_ids).some((control) => control.startsWith('QUAL-')) ? 'quality' : 'security',
       });
     }
   }
@@ -146,14 +149,33 @@ function annotate(input: AuditReportInput): AnnotatedFinding[] {
   return annotated;
 }
 
-function securityScore(annotated: readonly AnnotatedFinding[]): { score: number | null; verdict: string } {
-  if (annotated.length === 0) {
+function securityScore(security: readonly AnnotatedFinding[]): { score: number | null; verdict: string } {
+  if (security.length === 0) {
     return { score: null, verdict: 'No findings among the checks that ran — read the "could not check" list before trusting this.' };
   }
-  const penalty = annotated.reduce((total, finding) => total + (SEVERITY_WEIGHT[finding.severity] ?? 0), 0);
+  return scoreOf(security);
+}
+
+/**
+ * Quality is scored from quality findings only, and only when a quality check actually produced an
+ * answer. No answer, no score: "not assessed" is honest; a guessed number is not.
+ */
+function qualityScore(input: AuditReportInput, quality: readonly AnnotatedFinding[]): { score: number | null; verdict: string } {
+  const ran = input.results.filter((result) => result.control_ids.some((control) => control.startsWith('QUAL-')) && (result.outcome === 'pass' || result.outcome === 'fail'));
+  if (ran.length === 0) {
+    return { score: null, verdict: 'Not assessed: no quality check produced an answer. Quality controls run when the quality profile is composed; the deferred analysers are listed in "What we could not check".' };
+  }
+  if (quality.length === 0) {
+    return { score: 100, verdict: 'No quality findings among the quality checks that ran.' };
+  }
+  return scoreOf(quality);
+}
+
+function scoreOf(findings: readonly AnnotatedFinding[]): { score: number | null; verdict: string } {
+  const penalty = findings.reduce((total, finding) => total + (SEVERITY_WEIGHT[finding.severity] ?? 0), 0);
   const score = Math.max(0, 100 - penalty);
-  const hasCritical = annotated.some((finding) => finding.severity === 'critical');
-  const hasHigh = annotated.some((finding) => finding.severity === 'high');
+  const hasCritical = findings.some((finding) => finding.severity === 'critical');
+  const hasHigh = findings.some((finding) => finding.severity === 'high');
   const verdict = hasCritical
     ? 'Critical findings exist. Act on them before anything else ships.'
     : hasHigh
@@ -162,18 +184,6 @@ function securityScore(annotated: readonly AnnotatedFinding[]): { score: number 
         ? 'No blocking findings among the checks that ran; medium and low items remain.'
         : 'Findings need attention; work through them by priority.';
   return { score, verdict };
-}
-
-function qualityScore(input: AuditReportInput): { score: number | null; verdict: string } {
-  // No quality control beyond QUAL-01 is defined in this build; QUAL-01's recipes are not wired
-  // (Batch Q). An audit therefore reports quality as not assessed rather than inventing a score.
-  const qualResults = input.results.filter((result) => result.control_ids.includes('QUAL-01'));
-  const ran = qualResults.filter((result) => result.outcome === 'pass' || result.outcome === 'fail');
-  if (ran.length === 0) {
-    return { score: null, verdict: 'Not assessed in this build: the quality controls (QUAL-02 onwards) arrive with the quality batch, and no quality recipe ran.' };
-  }
-  const failed = ran.some((result) => result.outcome === 'fail');
-  return { score: failed ? 0 : 100, verdict: failed ? 'The application\'s own build or test suite failed when run.' : "The application's own build or test suite passed; deeper quality analysis arrives with the quality batch." };
 }
 
 function couldNotCheck(input: AuditReportInput): string[] {
@@ -217,15 +227,19 @@ function countRan(input: AuditReportInput): { ran: number; planned: number } {
 
 export function buildAuditReport(input: AuditReportInput): AuditReport {
   const findings = annotate(input);
-  const fixFirst = findings.slice(0, 10);
+  // Security and quality are separated at the source: neither family feeds the other's score or
+  // priority list, and the two sections cannot disagree because both derive from this one split.
+  const security = findings.filter((finding) => finding.family === 'security');
+  const quality = findings.filter((finding) => finding.family === 'quality');
+  const fixFirst = security.slice(0, 10);
   const could = couldNotCheck(input);
-  const sec = securityScore(findings);
-  const qual = qualityScore(input);
+  const sec = securityScore(security);
+  const qual = qualityScore(input, quality);
   const coverage = countRan(input);
 
   const json = buildJson(input, findings, fixFirst, sec, qual, could, coverage);
-  const markdown = buildMarkdown(input, findings, fixFirst, sec, qual, could, coverage);
-  const html = buildHtml(input, findings, fixFirst, sec, qual, could, coverage);
+  const markdown = buildMarkdown(input, security, quality, fixFirst, sec, qual, could, coverage);
+  const html = buildHtml(input, security, quality, fixFirst, sec, qual, could, coverage);
   const sarif = buildSarif(input, findings);
 
   return {
@@ -288,7 +302,8 @@ function redactFinding(finding: AnnotatedFinding): AnnotatedFinding {
 
 function buildMarkdown(
   input: AuditReportInput,
-  findings: readonly AnnotatedFinding[],
+  security: readonly AnnotatedFinding[],
+  quality: readonly AnnotatedFinding[],
   fixFirst: readonly AnnotatedFinding[],
   sec: { score: number | null; verdict: string },
   qual: { score: number | null; verdict: string },
@@ -317,7 +332,7 @@ function buildMarkdown(
   ];
 
   if (fixFirst.length === 0) {
-    lines.push('No findings among the checks that ran.');
+    lines.push('No security findings among the checks that ran.');
   } else {
     lines.push('| # | Severity | Where | What it is | Effort | Confidence |', '| --- | --- | --- | --- | --- | --- |');
     fixFirst.forEach((finding, index) => {
@@ -332,11 +347,39 @@ function buildMarkdown(
     for (const item of could) lines.push(`- ${safe(item)}`);
   }
 
-  lines.push('', '## Findings', '');
-  if (findings.length === 0) {
-    lines.push('No findings were reported by the checks that ran.');
+  lines.push('', '## Findings — security and supply chain', '');
+  if (security.length === 0) {
+    lines.push('No security findings were reported by the checks that ran.');
   } else {
-    for (const finding of findings) {
+    for (const finding of security) {
+      lines.push(
+        `### ${finding.severity}: ${safe(finding.title)}`,
+        '',
+        `- **Where:** \`${safe(finding.location || '(no location)')}\``,
+        `- **Reported by:** ${safe(finding.tool)} (rule \`${safe(finding.rule_id)}\`)`,
+        ...(finding.detail === undefined ? [] : [`- **Detail:** ${safe(finding.detail)}`]),
+        `- **Why it matters:** ${safe(finding.what)}`,
+        `- **How to fix it:** ${safe(finding.fix)}`,
+        `- **Effort:** ${finding.effort} · **Confidence:** ${finding.confidence}`,
+        ...(finding.control_ids.length === 0 ? [] : [`- **Controls:** ${finding.control_ids.join(', ')}`]),
+        ...(finding.standards.length === 0 ? [] : [`- **Standards references:** ${finding.standards.map((ref) => safe(ref)).join('; ')} (related-risk references, not verified conformance)`]),
+        `- **Ready-to-paste prompt for your AI assistant:**`,
+        '',
+        '  ```text',
+        `  ${safe(finding.prompt)}`,
+        '  ```',
+        '',
+      );
+    }
+  }
+
+  lines.push('', '## Findings — quality', '',
+    'Quality findings are suggestions with explanations. They never change the security verdict above.',
+    '');
+  if (quality.length === 0) {
+    lines.push(qual.score === null ? 'Not assessed: no quality check produced an answer (see "What we could not check").' : 'No quality findings among the quality checks that ran.');
+  } else {
+    for (const finding of quality) {
       lines.push(
         `### ${finding.severity}: ${safe(finding.title)}`,
         '',
@@ -397,7 +440,8 @@ footer { color: #777; font-size: .85rem; margin-top: 3rem; }
 
 function buildHtml(
   input: AuditReportInput,
-  findings: readonly AnnotatedFinding[],
+  security: readonly AnnotatedFinding[],
+  quality: readonly AnnotatedFinding[],
   fixFirst: readonly AnnotatedFinding[],
   sec: { score: number | null; verdict: string },
   qual: { score: number | null; verdict: string },
@@ -410,7 +454,7 @@ function buildHtml(
 
   const gapItems = could.map((item) => `<li>${h(item)}</li>`).join('\n');
 
-  const findingBlocks = findings.map((finding) => {
+  const findingBlockFor = (finding: AnnotatedFinding): string => {
     const standards = finding.standards.length === 0 ? '' : `<li><strong>Standards references:</strong> ${h(finding.standards.join('; '))} (related-risk references, not verified conformance)</li>`;
     const controls = finding.control_ids.length === 0 ? '' : `<li><strong>Controls:</strong> ${h(finding.control_ids.join(', '))}</li>`;
     return `<div class="finding">
@@ -427,7 +471,9 @@ ${standards}
 <p><strong>Ready-to-paste prompt for your AI assistant:</strong></p>
 <pre>${h(finding.prompt)}</pre>
 </div>`;
-  }).join('\n');
+  };
+  const securityBlocks = security.map(findingBlockFor).join('\n');
+  const qualityBlocks = quality.map(findingBlockFor).join('\n');
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Security audit — ${h(input.targetName)}</title><style>${CSS}</style></head>
@@ -441,12 +487,15 @@ ${input.detection.unsupported_stack === undefined ? '' : `<div class="banner"><s
 <tr><td>Security</td><td>${sec.score === null ? '—' : h(String(sec.score))}</td><td>${h(sec.verdict)}</td></tr>
 <tr><td>Quality</td><td>${qual.score === null ? '—' : h(String(qual.score))}</td><td>${h(qual.verdict)}</td></tr></table>
 <p>Of the checks planned for this audit, <strong>${coverage.ran} of ${coverage.planned}</strong> produced an answer. A score is only a signal over what ran — read the &ldquo;What we could not check&rdquo; list before trusting it.</p>
-<h2>Fix these first</h2>
-${fixFirst.length === 0 ? '<p>No findings among the checks that ran.</p>' : `<table><tr><th>#</th><th>Severity</th><th>Where</th><th>What it is</th><th>Effort</th><th>Confidence</th></tr>\n${fixRows}</table>`}
+<h2>Fix these first (security)</h2>
+${fixFirst.length === 0 ? '<p>No security findings among the checks that ran.</p>' : `<table><tr><th>#</th><th>Severity</th><th>Where</th><th>What it is</th><th>Effort</th><th>Confidence</th></tr>\n${fixRows}</table>`}
 <h2>What we could not check</h2>
 ${could.length === 0 ? '<p>Everything planned ran.</p>' : `<ul class="gaps">\n${gapItems}\n</ul>`}
-<h2>Findings</h2>
-${findings.length === 0 ? '<p>No findings were reported by the checks that ran.</p>' : findingBlocks}
+<h2>Findings — security and supply chain</h2>
+${security.length === 0 ? '<p>No security findings were reported by the checks that ran.</p>' : securityBlocks}
+<h2>Findings — quality</h2>
+<p>Quality findings are suggestions with explanations. They never change the security verdict above.</p>
+${quality.length === 0 ? `<p>${h(qual.score === null ? 'Not assessed: no quality check produced an answer (see "What we could not check").' : 'No quality findings among the quality checks that ran.')}</p>` : qualityBlocks}
 <h2>How the gate saw it</h2>
 <p>The same evaluation the gate produced, unchanged: decision <code>${h(input.decision.satisfied ? 'satisfied' : 'blocked')}</code> with ${h(String(input.decision.reasons.length))} blocking reason(s); ${h(String(input.decision.control_outcomes.filter((outcome) => outcome.outcome === 'satisfied').length))} of ${h(String(input.decision.control_outcomes.length))} applicable controls satisfied. An audit is advisory: a blocked gate here means &ldquo;requirements exist that source alone cannot satisfy&rdquo;, not &ldquo;the application failed&rdquo;.</p>
 <footer>Generated from the same evaluation as the gate. Formatting does not change the decision.</footer>

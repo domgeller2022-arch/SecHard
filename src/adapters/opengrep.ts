@@ -72,6 +72,11 @@ export function parseOpengrepReport(
       parserErrors.push(`opengrep: finding ${index} has no check_id and was skipped`);
       continue;
     }
+    // Semgrep-derived tools prefix a local config file's path onto every rule id
+    // (`…opengrep-rules.hardening.quality-empty-catch`). The rule's namespace is the reviewed pack
+    // directory, so the id is the part after it; a registry-served id passes through unchanged.
+    const packMarker = 'opengrep-rules.';
+    const ruleId = checkId.includes(packMarker) ? checkId.slice(checkId.lastIndexOf(packMarker) + packMarker.length) : checkId;
     const path = typeof item.path === 'string' ? item.path : undefined;
     if (path !== undefined) scannedFiles.add(path);
     const line = typeof item.start?.line === 'number' ? item.start.line : undefined;
@@ -82,10 +87,10 @@ export function parseOpengrepReport(
       : [];
 
     findings.push({
-      id: stableFindingId(['opengrep', checkId, path, line, fingerprint]),
+      id: stableFindingId(['opengrep', ruleId, path, line, fingerprint]),
       tool: 'opengrep',
-      rule_id: checkId,
-      title: typeof item.extra?.message === 'string' ? item.extra.message : checkId,
+      rule_id: ruleId,
+      title: typeof item.extra?.message === 'string' ? item.extra.message : ruleId,
       severity: severityFromRuleLevel(typeof item.extra?.severity === 'string' ? item.extra.severity : undefined),
       ...(path === undefined ? {} : { location: line === undefined ? path : `${path}:${line}` }),
       ...(fingerprint === undefined ? {} : { resource: fingerprint }),

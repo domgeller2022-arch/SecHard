@@ -11,7 +11,7 @@ import { createNote, deleteNote, updateNote } from './actions';
  * page would show the wrong rows — which is why the authorization tests exercise the boundary
  * directly rather than through the interface.
  */
-export default async function Notes() {
+export default async function Notes({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,6 +23,11 @@ export default async function Notes() {
       </main>
     );
   }
+
+  // Write failures are surfaced here as values, not thrown, so the user sees what happened
+  // instead of a silent no-op (the audit's M8 finding, fixed in Batch Q).
+  const params = (await searchParams) ?? {};
+  const writeError = typeof params['error'] === 'string' ? params['error'] : undefined;
 
   const { data: notes, error } = await supabase
     .from('notes')
@@ -39,6 +44,7 @@ export default async function Notes() {
       </p>
 
       {error === null ? null : <p role="alert">Could not load notes: {error.message}</p>}
+      {writeError === undefined ? null : <p role="alert">{writeError}</p>}
 
       <h2 style={{ fontSize: '1rem' }}>Your notes</h2>
       <ul data-testid="notes">
@@ -49,7 +55,8 @@ export default async function Notes() {
             <form action={updateNote} style={{ display: 'inline' }}>
               <input type="hidden" name="id" value={note.id} />
               <input name="title" defaultValue={note.title} aria-label="New title" />
-              <button type="submit">Rename</button>
+              <input name="body" defaultValue={note.body} aria-label="New body" />
+              <button type="submit">Save</button>
             </form>
             <form action={deleteNote} style={{ display: 'inline' }}>
               <input type="hidden" name="id" value={note.id} />

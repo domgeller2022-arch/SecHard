@@ -38,7 +38,7 @@ describe('stack detection', () => {
     const detection = detectStackAndFeatures(root);
     expect(detection.stack.kind).toBe('react-spa');
     expect(detection.stack.evidence.length).toBeGreaterThan(0);
-    expect(detection.profiles.map((profile) => profile.id)).toEqual(['core', 'react-spa', 'supabase', 'payments']);
+    expect(detection.profiles.map((profile) => profile.id)).toEqual(['core', 'quality', 'react-spa', 'supabase', 'payments']);
     expect(detection.features['persistent_storage']).toMatchObject({ state: 'enabled' });
     expect(detection.features['payments']).toMatchObject({ state: 'enabled' });
     expect(detection.features['payments']?.evidence.length).toBeGreaterThan(0);
@@ -61,7 +61,7 @@ describe('stack detection', () => {
     });
     const detection = detectStackAndFeatures(root);
     expect(detection.stack.kind).toBe('python-web');
-    expect(detection.profiles.map((profile) => profile.id)).toEqual(['core', 'python-web']);
+    expect(detection.profiles.map((profile) => profile.id)).toEqual(['core', 'quality', 'python-web']);
     // Static analysis is deliberately not required for this stack: the rule pack is JS-only.
     expect(detection.profiles.some((profile) => profile.id === 'nextjs')).toBe(false);
   });
