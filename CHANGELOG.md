@@ -13,6 +13,30 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Fixed — the GitHub CI run, red since Batch W without anyone noticing (10 October 2026)
+
+The owner asked that everything be pushed; watching the resulting `repo-checks` run showed the
+**Batch W push had failed CI on 2026-10-08 and no run had been checked since the Batch R
+acceptance** — a monitoring gap, recorded here as a defect in the repository's own process
+(claims of "CI green" were true only of commit `6e5cec4`). Three real failures, all fixed:
+
+1. **Two unit tests silently required fetched scanner tools.** Batch W wired the scanners into
+   `check`, which made the CLI end-to-end tests environment-dependent: with tools present the
+   wired recipes report `unsupported` for the bare fixture (exit 1); without tools — the unit CI
+   job, which fetches nothing by design — they are errors naming the missing tool (exit 2). The
+   local machine always had tools, so the no-tools branch never ran locally. Both tests now assert
+   the contract their environment exercises, with each branch named and the missing-tool
+   diagnostic asserted in the no-tools case — a contract that had no direct test before.
+2. **The SARIF writer emitted absolute machine paths** (gap D5's own requirement): locations
+   inside the audited target are now relativized against the target root with `uriBaseId` naming
+   it. GitHub's `/tmp` scratch exposed what the local macOS `/var/folders` temp dir hid from the
+   test's `/tmp`-prefix assertion.
+3. **The process defect itself:** pushes are now verified by watching the run to completion, not
+   assumed green because the previous one was.
+
+Suite after the fix: **535 unit + 8 integration + 32 scanner + 5 example tests**, all passing
+locally with tools; the no-tools branch of the two CLI tests is exercised on CI.
+
 ### Batch S — standards at requirement level (10 October 2026)
 
 The remediation plan's standards batch. Every mapped standard now has a requirement-level mapping

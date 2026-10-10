@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
+import { resolveTool } from '../../src/execution/registry.js';
 
 /**
  * R6.4: every command the README advertises must actually run.
@@ -67,7 +68,16 @@ describe('every README command runs against a scratch consumer', () => {
     expect(status, output).toBe(0);
     expect(output).toContain('validate: OK');
     expect(output).toContain('plan: derived');
-    expect(output).toContain('required check(s) did not run');
+    // The check command's summary is environment-dependent by design (see the equivalent branch in
+    // tests/cli/cli.test.ts): with fetched tools the wired recipes report unsupported for the
+    // bare fixture (exit 1, "required check(s) did not run"); without them they are errors naming
+    // the missing tool (exit 2, "execution error(s)"). The README block itself always completes
+    // because `report` follows; the run's exit code only surfaces inside the captured output.
+    if (resolveTool('gitleaks').available) {
+      expect(output).toContain('required check(s) did not run');
+    } else {
+      expect(output).toContain('execution error(s)');
+    }
     expect(output).toContain('gate: blocked');
     expect(output).toContain('Approvals on record');
 

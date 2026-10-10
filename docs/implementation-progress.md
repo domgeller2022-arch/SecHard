@@ -1901,3 +1901,31 @@ curation) and the release-side SLSA row are staged with recorded reasons.
   if adopted, must be SHA-pinned.
 - **Next step:** owner review of `docs/checkpoints/batch-s.md`, then Batch X (expansion) or D
   (adoption) on authorisation.
+
+
+---
+
+## Revision: the red CI run found by pushing Batch S (2026-10-10)
+
+The owner instructed that all updated work be pushed before the next batch. The push of Batch S
+(`08cc1c8`) triggered `repo-checks`, and watching it exposed that **the Batch W push
+(`70382b1`) had failed CI on 2026-10-08 and the failure had never been recorded** — the last
+verified green run was Batch R's `6e5cec4`. The batch-w checkpoint's platform section described
+the pull-request workflow as unverified but did not state that the push run itself was red.
+Recorded here as a process defect: a run nobody watched is a claim nobody checked.
+
+- **State:** `verified` for the fixes; the run is watched to green on GitHub before this is closed.
+- **Root cause 1:** two unit tests (`tests/cli/cli.test.ts`, `tests/cli/readme.test.ts`) silently
+  required fetched scanner tools — Batch W's wiring made `check`'s exit code environment-dependent
+  (unsupported → exit 1 with tools; missing-tool errors → exit 2 without). The local machine
+  always had tools, so the unit CI branch never executed locally. Fixed: both tests now branch on
+  `resolveTool('gitleaks').available` and assert the named contract for the environment they are
+  in; the no-tools branch additionally asserts the missing-tool error diagnostic, which had no
+  direct test before.
+- **Root cause 2:** the audit SARIF writer kept absolute local paths inside the audited target
+  (contradicting gap D5's own wording). GitHub's `/tmp` runner directories tripped the
+  `audit-cli` test that the macOS `/var/folders` temp dir had satisfied locally. Fixed: absolute
+  locations inside the target are relativized against the audit root (`uriBaseId: AUDITROOT`);
+  the unit test now uses a location inside the fixture target.
+- **Checks run locally:** full unit suite (535) and the scanners suite including the audit CLI
+  acceptance (32) pass with tools present; the CI run exercises the no-tools branches.

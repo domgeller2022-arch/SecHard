@@ -9,6 +9,7 @@ import { redactSecrets, escapeMarkdown, containsSecretPattern } from '../../src/
 import { evaluate } from '../../src/domain/evaluator.js';
 import { buildPlan, planIdentity } from '../../src/domain/planner.js';
 import { loadCatalogue, loadProfile } from '../../src/domain/definitions.js';
+import { resolveTool } from '../../src/execution/registry.js';
 import type { ApplicabilityRule } from '../../src/domain/applicability.js';
 import type { ManifestRecord } from '../../src/domain/types.js';
 import { NOW, allPassing, manifest, planFor, policy } from '../helpers/fixtures.js';
@@ -151,11 +152,28 @@ describe('plan, check, gate, report end to end', () => {
 
   it('runs the built-in recipe and reports a real pass for it', () => {
     const result = cli(['check', '--app', FIXTURE, '--policy', REPO, '--plan', join(runDir, 'plan.json'), '--out', runDir]);
-    // Required checks that did not run make `check` exit 1. That is the fail-closed contract: a CI
-    // job must not be green because the only implemented recipe passed.
-    expect(result.status).toBe(1);
+    // The exit code is the fail-closed contract, and it is environment-dependent by design:
+    // - with the scanner tools fetched, the wired recipes report unsupported for this bare fixture
+    //   (no worktree, no lockfile, no workflows) and `check` exits 1 - a CI job must not be green
+    //   just because the recipes that ran all passed;
+    // - without the tools (the unit CI job deliberately fetches nothing), the wired recipes are
+    //   errors naming the missing tool, and `check` exits 2 - the harder failure mode.
+    // Both branches are the contract; which one runs is recorded by the assertion below, so a
+    // change in either behaviour fails with a named reason. (Before this, the test asserted exit 1
+    // unconditionally and GitHub CI - which had been red since the Batch W push, unnoticed - was
+    // the only place the no-tools branch could fail.)
+    const toolsPresent = resolveTool('gitleaks').available;
+    if (toolsPresent) {
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('required check(s) did not run');
+    } else {
+      expect(result.status).toBe(2);
+      expect(result.stdout).toContain('execution error(s)');
+      const results = JSON.parse(readFileSync(join(runDir, 'results.json'), 'utf8')) as { outcome: string; diagnostic?: string }[];
+      const missingTool = results.find((entry) => entry.outcome === 'error' && /not available|absent|missing|fetch/.test(entry.diagnostic ?? '') === true);
+      expect(missingTool?.diagnostic, 'a missing tool must name itself in the error diagnostic').toBeTruthy();
+    }
     expect(result.stdout).toContain('produced');
-    expect(result.stdout).toContain('required check(s) did not run');
 
     const results = JSON.parse(readFileSync(join(runDir, 'results.json'), 'utf8')) as {
       check_id: string;

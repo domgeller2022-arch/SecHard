@@ -571,7 +571,7 @@ function buildSarif(input: AuditReportInput, findings: readonly AnnotatedFinding
     message: { text: redactSecrets(`${finding.title}. ${finding.what} ${finding.fix}`) },
     locations: [{
       physicalLocation: {
-        artifactLocation: sarifUri(finding.location),
+        artifactLocation: sarifUri(finding.location, input.target),
       },
     }],
   }));
@@ -610,19 +610,35 @@ function sarifLevel(severity: Severity): 'error' | 'warning' | 'note' {
   return 'note';
 }
 
-function sarifUri(location: string): { uri: string; uriBaseId: string } | { uri: string } {
-  const redacted = redactSecrets(location);
+/**
+ * A SARIF artifact URI, relative to the audited target whenever the location is inside it.
+ *
+ * Gap analysis D5 said this plainly: no absolute local paths in artifact URIs - they leak the
+ * machine's directory layout into a document that gets uploaded to code scanning. The first
+ * implementation kept absolute paths and relied on `uriBaseId` alone; GitHub CI caught it
+ * (`/tmp/hardening-audit-.../src/sast.ts`), because the local macOS temp dir (/var/folders) hid
+ * what the test was looking for. The fix relativizes against the audit target here, in the
+ * writer, so the document carries `src/sast.ts` with the base naming the target root.
+ */
+function sarifUri(location: string, target: string): { uri: string; uriBaseId: string } | { uri: string } {
+  const redacted = redactSecrets(location).replace(/[\u0000-\u001f\u007f]/g, '');
   if (/^https?:\/\//.test(redacted)) return { uri: redacted };
-  // SARIF requires artifact URIs to be valid uri-references. Scanner locations are file paths with
-  // line suffixes (`src/x.ts:3`) or free text (`requests@2.19.1 (PyPI)`); percent-encoding each
-  // path segment keeps the location readable and the document valid, strips control characters,
-  // and never emits an absolute local path (those carry a uriBaseId instead).
-  const cleaned = redacted.replace(/[\u0000-\u001f\u007f]/g, '');
-  const encoded = cleaned.split('/').map(encodeURIComponent).join('/');
-  if (cleaned.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(cleaned)) {
-    return { uri: encoded.replace(/\\/g, '/'), uriBaseId: 'AUDITROOT' };
+  const normalize = (value: string): string => value.replace(/\\/g, '/').replace(/\/$/, '');
+  const normalizedTarget = normalize(target);
+  const normalized = normalize(redacted);
+  if (normalizedTarget.length > 0 && normalized.startsWith(`${normalizedTarget}/`)) {
+    const relative = normalized.slice(normalizedTarget.length + 1);
+    return { uri: relative.split('/').map(encodeURIComponent).join('/'), uriBaseId: 'AUDITROOT' };
   }
-  return { uri: encoded };
+  if (/^https?:\/\//.test(normalized)) return { uri: normalized };
+  // A bare path (no machine prefix) is already relative; percent-encode segments so line
+  // suffixes (`src/x.ts:3`) and free-text locations stay valid uri-references.
+  if (!normalized.startsWith('/')) {
+    return { uri: normalized.split('/').map(encodeURIComponent).join('/') };
+  }
+  // An absolute path outside the target is unusual; it is kept as-is rather than mangled,
+  // because inventing a relative form would misreport the location.
+  return { uri: normalized.split('/').map(encodeURIComponent).join('/') };
 }
 
 function pathToFileUri(target: string): string {

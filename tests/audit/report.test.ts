@@ -225,7 +225,7 @@ describe('SARIF output', () => {
       resultFor('gitleaks/repository', [
         { id: 'f-1', rule: 'github-pat', severity: 'high', tool: 'gitleaks', title: 'token in source', location: 'src/token.ts:3' },
         { id: 'f-2', rule: 'missing-security-header', severity: 'medium', tool: 'live-http-check', title: 'header absent', location: 'https://example.invalid/' },
-        { id: 'f-3', rule: 'browser-source-map', severity: 'info', tool: 'client-asset-inspection', title: 'source map shipped', location: '/abs/dist/map.js' },
+        { id: 'f-3', rule: 'browser-source-map', severity: 'info', tool: 'client-asset-inspection', title: 'source map shipped', location: '/tmp/fixture-app/src/inner/dist/map.js' },
       ]),
     ]));
     const parsed = JSON.parse(report.sarif) as {
@@ -236,9 +236,11 @@ describe('SARIF output', () => {
     // A path with a line suffix is percent-encoded so the URI stays a valid uri-reference.
     expect(results[0]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('src/token.ts%3A3');
     expect(results[1]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('https://example.invalid/');
-    // An absolute local path becomes relative-with-base rather than a machine path.
+    // An absolute path INSIDE the audited target is relativized against it with the base naming
+    // the target root - never a machine path. (The first writer kept absolute paths; GitHub CI's
+    // /tmp scratch dir caught what the macOS /var/folders temp dir hid.)
     expect(results[2]?.locations[0]?.physicalLocation.artifactLocation.uriBaseId).toBe('AUDITROOT');
-    expect(results[2]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('/abs/dist/map.js');
+    expect(results[2]?.locations[0]?.physicalLocation.artifactLocation.uri).toBe('src/inner/dist/map.js');
   });
 
   it('carries no snippets, so a secret finding cannot ship its own secret', () => {
