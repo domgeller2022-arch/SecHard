@@ -193,6 +193,27 @@
           "notes": {
             "type": "string",
             "maxLength": 2000
+          },
+          "wstg": {
+            "type": "array",
+            "description": "WSTG 4.2 test IDs this recipe implements (for example WSTG-ATHZ-02).",
+            "items": {
+              "type": "string",
+              "pattern": "^WSTG-[A-Z]{4}-[0-9]{2}$"
+            },
+            "maxItems": 16,
+            "uniqueItems": true
+          },
+          "wstg_note": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 1000,
+            "description": "Recorded reason no WSTG test exists for this recipe."
+          },
+          "cheat_sheet": {
+            "type": "string",
+            "maxLength": 512,
+            "description": "The OWASP Cheat Sheet this recipe follows, by reference."
           }
         }
       },

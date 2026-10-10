@@ -1,0 +1,403 @@
+schema: hardening/standard-mapping/v1
+standard_id: openssf-osps
+edition: "v2026.08.28"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+#
+# All 64 active requirements and the one retired id, extracted from
+# baseline.openssf.org/versions/2026-08-28 on 2026-10-10. SecHard applies Level 1 to itself; the
+# self-assessment record and owner-blocked misses are in docs/checkpoints/batch-s.md.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: OSPS-AC-01.01
+    summary: 'Reading or modifying sensitive repository resources requires authorization.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-AC-02.01
+    summary: 'New collaborators require manual permission assignment or least-privilege defaults.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-AC-03.01
+    summary: 'Direct commits to the primary branch are prevented by enforcement.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-AC-03.02
+    summary: 'Deleting the primary branch is treated as a sensitive activity.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-AC-04.01
+    summary: 'CI tasks with unspecified permissions default to the lowest permission.'
+    controls: [CI-02]
+    recipes: [ci/toolchain-pins]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-AC-04.02
+    summary: 'Jobs are assigned only the minimum privileges necessary.'
+    controls: [CI-01, CI-02]
+    recipes: [zizmor/workflows, ci/toolchain-pins]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-01.01
+    summary: 'Untrusted metadata in CI/CD is sanitized before pipeline use.'
+    controls: [CI-01]
+    recipes: [zizmor/workflows]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-01.03
+    summary: 'Untrusted code snapshots cannot access privileged CI/CD credentials.'
+    controls: [CI-01]
+    recipes: [zizmor/workflows]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-01.04
+    summary: 'Trusted-collaborator pipeline input is sanitized and validated.'
+    controls: [CI-01]
+    recipes: [zizmor/workflows]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-02.01
+    summary: 'Official releases carry a unique version identifier.'
+    controls: [REL-01]
+    recipes: [release/evidence-assembly]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-BR-02.02
+    summary: 'Release assets are clearly associated with the release identifier.'
+    controls: [REL-01]
+    recipes: [release/evidence-assembly]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-BR-03.01
+    summary: 'Official project URIs are delivered over encrypted channels.'
+    controls: [DEPLOY-01]
+    recipes: [deploy/environment]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-BR-03.02
+    summary: 'Official distribution channels resist adversary-in-the-middle attacks.'
+    controls: [DEPLOY-01]
+    recipes: [deploy/environment]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-BR-04.01
+    summary: 'Releases contain a descriptive log of functional and security changes.'
+    controls: [REL-01]
+    recipes: [release/evidence-assembly]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-BR-05.01
+    summary: 'Dependency ingestion uses standardized tooling.'
+    controls: [DEP-01]
+    recipes: [dependency/lockfile-policy]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-06.01
+    summary: 'Releases are signed or accounted for in a signed manifest.'
+    controls: [REL-01]
+    recipes: [release/evidence-assembly]
+    method: gap
+    relationship: related_risk
+    note: 'release signing is not implemented; SLSA provenance is the Batch D release-pipeline item'
+  - id: OSPS-BR-07.01
+    summary: 'Unencrypted secrets are prevented from entering version control.'
+    controls: [SEC-01]
+    recipes: [gitleaks/repository, gitleaks/history]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-07.02
+    summary: 'A secrets-management policy exists with storage and rotation guidance.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-DO-01.01
+    summary: 'Documentation includes user guides for basic functionality.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-DO-02.01
+    summary: 'Documentation includes a guide for reporting defects.'
+    controls: [QUAL-11, OPS-03]
+    recipes: [quality/repo-hygiene, ops/alert-delivery]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-DO-03.01
+    summary: 'Documentation explains how to verify release integrity and authenticity.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-DO-03.02
+    summary: 'Documentation explains how to verify the identity of the person making a release.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-DO-04.01
+    summary: 'Documentation states the scope and duration of support.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-DO-05.01
+    summary: 'Documentation states when releases or versions stop being supported.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-DO-06.01
+    summary: 'Documentation describes how third-party dependencies are selected and tracked.'
+    controls: [DEP-01, QUAL-11]
+    recipes: [dependency/lockfile-policy, quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-DO-07.01
+    summary: 'Documentation explains how to build the software.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-GV-01.01
+    summary: 'Documentation lists members with access to sensitive resources.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-GV-01.02
+    summary: 'Documentation describes roles and responsibilities of members.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-GV-02.01
+    summary: 'A mechanism exists for public discussion of proposed changes.'
+    controls: [GOV-01]
+    recipes: [governance/platform-settings]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-GV-03.01
+    summary: 'Documentation explains the contribution process, or states contributions are not accepted.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-GV-03.02
+    summary: 'A contributor guide states requirements for acceptable contributions.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-GV-04.01
+    summary: 'A policy requires reviewing collaborators before granting escalated permissions.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-LE-01.01
+    summary: 'Contributors assert they are legally authorized on every commit.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-LE-02.01
+    summary: 'The source-code licence meets the OSI or FSF definition.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-LE-02.02
+    summary: 'The released-assets licence meets the OSI or FSF definition.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-LE-03.01
+    summary: 'The source licence is maintained in a LICENSE or equivalent file.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-LE-03.02
+    summary: 'The released-assets licence is included with the release.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-QA-01.01
+    summary: 'The source repository is publicly readable at a static URL.'
+    method: gap
+    relationship: related_risk
+    note: 'public visibility is an owner decision; SecHard is deliberately private (recorded in 01-owner-decisions) and the requirement is an owner-blocked item for the owner to accept or change'
+  - id: OSPS-QA-01.02
+    summary: 'Version control keeps a publicly readable record of all changes.'
+    method: gap
+    relationship: related_risk
+    note: 'public visibility is an owner decision; SecHard is deliberately private (recorded in 01-owner-decisions) and the requirement is an owner-blocked item for the owner to accept or change'
+  - id: OSPS-QA-02.01
+    summary: 'The repository contains a dependency list accounting for direct dependencies.'
+    controls: [DEP-01]
+    recipes: [dependency/lockfile-policy]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-QA-02.02
+    summary: 'Releases are delivered with a software bill of materials.'
+    controls: [DEP-01]
+    method: gap
+    relationship: related_risk
+    note: 'SBOM generation is not implemented in v1; the lockfile is the dependency record that exists'
+  - id: OSPS-QA-03.01
+    summary: 'Automated status checks must pass (or be manually bypassed) on primary-branch commits.'
+    controls: [CI-03]
+    recipes: [gate/completeness]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-QA-04.01
+    summary: 'Multi-repository projects document the list of codebases.'
+    controls: [CTX-01]
+    recipes: [manifest/validate]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-QA-04.02
+    summary: 'Subprojects of a released multi-repo project enforce security requirements.'
+    controls: [GOV-02]
+    recipes: [policy/record-consistency]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-QA-05.01
+    summary: 'The repository contains no generated executable artifacts.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-QA-05.02
+    summary: 'The repository contains no unreviewable binary artifacts.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-QA-06.01
+    summary: 'CI runs at least one automated test suite before commits are accepted.'
+    controls: [CI-03]
+    recipes: [gate/completeness]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-QA-06.02
+    summary: 'Documentation states when and how tests are run.'
+    controls: [QUAL-11]
+    recipes: [quality/repo-hygiene]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-QA-06.03
+    summary: 'A policy requires major changes to add or update tests.'
+    controls: [AGT-03]
+    recipes: [agent/test-change-review]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-QA-07.01
+    summary: 'Primary-branch commits require at least one non-author human approval.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-SA-01.01
+    summary: 'Design documentation shows all actions and actors after a release.'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-SA-02.01
+    summary: 'Documentation describes all external software interfaces of the release.'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-SA-03.01
+    summary: 'A security assessment identifies likely and impactful threats after release.'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-SA-03.02
+    summary: 'Threat modeling and attack-surface analysis protect the release.'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-01.01
+    summary: 'A coordinated vulnerability disclosure policy exists with a response timeframe.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-02.01
+    summary: 'Documentation contains security contacts.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-03.01
+    summary: 'A means exists for private vulnerability reporting to the security contacts.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-04.01
+    summary: 'Discovered vulnerabilities are publicly published.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-04.02
+    summary: 'Non-affecting component vulnerabilities are accounted for in a VEX document.'
+    controls: [DEP-03]
+    method: gap
+    relationship: related_risk
+    note: 'VEX documents are not produced by this build'
+  - id: OSPS-VM-05.01
+    summary: 'A policy defines remediation thresholds for SCA findings.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-05.02
+    summary: 'A policy addresses SCA violations before any release.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-05.03
+    summary: 'Changes are automatically evaluated against a policy for malicious dependencies and known vulnerabilities.'
+    controls: [DEP-03, CI-03]
+    recipes: [osv/lockfile, gate/completeness]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-VM-06.01
+    summary: 'A policy defines remediation thresholds for SAST findings.'
+    controls: [CODE-01]
+    recipes: [opengrep/rules]
+    method: manual
+    relationship: related_risk
+  - id: OSPS-VM-06.02
+    summary: 'Changes are automatically evaluated against a SAST policy and blocked on violations.'
+    controls: [CODE-01, CI-03]
+    recipes: [opengrep/rules, gate/completeness]
+    method: automated
+    relationship: related_risk
+  - id: OSPS-BR-01.02
+    summary: 'Retired in the v2026.08.28 edition.'
+    method: not_applicable
+    relationship: related_risk
+    note: 'retired by an upstream change (ossf/security-baseline#443); kept visible rather than silently dropped'

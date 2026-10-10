@@ -325,6 +325,44 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
     promptIntro: 'A console.log exists in a production source path. Remove it or replace it with a levelled logger.',
   },
 
+  // --- Batch S rules: API Top 10, RFC 9700, Electron ---
+  'hardening.ssrf-request-derived-url': {
+    what: 'A network request is made with a URL derived from request data. If that value can name any host, an attacker chooses where the server connects - the server-side request forgery path, and the classic way to reach internal services and cloud metadata from outside.',
+    fix: 'Validate the destination against a reviewed allowlist of protocols and hosts before fetching; never fetch a caller-supplied URL directly.',
+    effort: 'M', confidence: 'likely',
+    promptIntro: 'A fetch uses a request-derived URL, a server-side request forgery path. Validate the destination against a host allowlist before fetching.',
+  },
+  'hardening.api-unvalidated-response-consumption': {
+    what: 'An external API response is returned to the caller as parsed data with no visible status or shape validation. A failed or hostile third-party response then flows straight into application state - the unsafe-consumption path.',
+    fix: 'Check the response status and validate the payload shape (a type guard or schema) before returning or storing it.',
+    effort: 'S', confidence: 'likely',
+    promptIntro: 'An external response is returned without a status or shape check. Add the status check and validate the payload shape before returning it.',
+  },
+  'hardening.oauth-implicit-grant': {
+    what: 'An implicit-grant response type hands access tokens directly to the browser, where history entries, logs, extensions, and any script can read them. RFC 9700 prohibits the flow.',
+    fix: 'Use the authorization code flow with PKCE; tokens stay on the server side and the browser only carries a short-lived code.',
+    effort: 'M', confidence: 'confirmed',
+    promptIntro: 'The OAuth flow uses an implicit grant (response_type token or id_token). Replace it with the authorization code flow with PKCE so tokens never reach the browser.',
+  },
+  'hardening.electron-node-integration': {
+    what: 'Electron nodeIntegration:true exposes Node APIs (filesystem, processes) to renderer code. Any XSS in the renderer becomes remote code execution on the user machine.',
+    fix: 'Keep nodeIntegration off and expose reviewed IPC through a preload script.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'The Electron renderer enables nodeIntegration. Turn it off and expose reviewed functionality through a preload bridge.',
+  },
+  'hardening.electron-context-isolation-off': {
+    what: 'Electron contextIsolation:false lets page JavaScript reach the preload script context and its privileged objects.',
+    fix: 'Keep context isolation on.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'The Electron renderer disables context isolation. Turn it back on so page code cannot reach privileged objects.',
+  },
+  'hardening.electron-sandbox-off': {
+    what: 'The Electron renderer runs without the OS sandbox. A compromised renderer gets direct access to more of the machine.',
+    fix: 'Leave the sandbox on unless a preload genuinely needs Node; document the exception if one is required.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'The Electron renderer disables the OS sandbox. Re-enable it, or document why the preload needs it off.',
+  },
+
   // --- live HTTP ---
   'unapproved-redirect': {
     what: 'The deployed site redirects a request to a different host than the one approved. Open redirects are used in phishing: the victim sees a familiar start of a URL and lands somewhere hostile.',

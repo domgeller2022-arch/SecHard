@@ -63,18 +63,18 @@ controls:
     - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "security-focused verification" }
   DEP-01:
     - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "dependency integrity" }
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "software supply chain failures" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A03, notes: "Software Supply Chain Failures (2025); the 2021 combined integrity category was split." }
   DEP-02:
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "software supply chain failures" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A03, notes: "Software Supply Chain Failures (2025); the 2021 combined integrity category was split." }
   DEP-03:
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "vulnerable and outdated components" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A03, notes: "Outdated components fall under Software Supply Chain Failures in the 2025 list, which has no separate category for them." }
   SEC-01:
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "secrets management" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A04, notes: "Hardcoded and exposed credentials are Cryptographic Failures territory in the 2025 list." }
     - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "secret scanning" }
   SEC-02:
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "secrets management" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A04, notes: "Hardcoded and exposed credentials are Cryptographic Failures territory in the 2025 list." }
   SEC-03:
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "secrets management" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A04, notes: "Hardcoded and exposed credentials are Cryptographic Failures territory in the 2025 list." }
     - { framework: MVSP, relationship: related_risk, requirement: "credential handling" }
   CI-01:
     - { framework: OpenSSF-OSPS, relationship: related_risk, requirement: "CI/CD isolation and least privilege" }
@@ -92,7 +92,7 @@ controls:
     - { framework: OWASP-ASVS, relationship: related_risk, requirement: "account management and recovery" }
   AUTHZ-01:
     - { framework: OWASP-API-Security, relationship: related_risk, requirement: "object and property level authorization" }
-    - { framework: OWASP-Top-10, relationship: related_risk, requirement: "broken access control" }
+    - { framework: OWASP-Top-10, relationship: related_risk, requirement: A01, notes: "Broken Access Control (2025)." }
   AUTHZ-02:
     - { framework: OWASP-API-Security, relationship: related_risk, requirement: "function level authorization" }
   AUTHZ-03:

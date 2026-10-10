@@ -15,7 +15,7 @@ mode) implements the pointing-at-a-folder half of that goal; the quality section
 
 ## Status
 
-**Batches R (repair), W (wire), U (audit mode), and Q (quality) of the remediation plan are
+**Batches R, W, U (audit mode), Q (quality), and S (standards) of the remediation plan are
 implemented.** `hardening check` runs the secret, dependency, static-analysis, workflow,
 client-asset, and live-HTTP recipes through the reviewed toolchain; `hardening audit` produces a
 prioritised, plain-English report on any folder — no manifest required — with the profile set
@@ -25,7 +25,10 @@ correctness, repository hygiene, and dependency health are measured by six wired
 measured recall and precision (1.0/1.0 on the calibration corpus) and the remaining analysers
 (jscpd, Lizard, Knip, dependency-cruiser, formatters, axe-core) honestly `unsupported` with their
 reasons. The authorization, functional, dependency-policy, agent, and release recipes still report
-`unsupported` with their reasons. Requirement-level standards (S) are not built yet.
+`unsupported` with their reasons. Standards are mapped at requirement level (Batch S): 518 entries across ASVS 5.0.0, Top 10 2025,
+API Top 10 2023, SSDF 1.1, OSPS, MVSP, ASD SBD, and MCP (link-only), with generated coverage
+matrices under `controls/coverage/` and a per-application standards statement in every audit
+report.
 
 Read before trusting anything:
 
@@ -144,6 +147,11 @@ just the commit.
   evidence (Batch X). ZAP remains a standalone Step 11 tool, not a control recipe.
 - **Pull requests now evaluate the base branch's records** (Batch W3): a PR that changes them fails
   as review-required, and the first adoption has a documented bootstrap path.
+- **Standards at requirement level (Batch S).** ASVS L1 reviewable line by line against the
+  vendored official CSV; AUTH-03 (OAuth/OIDC flow security, RFC 9700) at catalogue v3; six new
+  static rules (SSRF, unsafe external-response consumption, implicit grant, and the Electron
+  trio); WSTG citations on every test recipe; OSPS Level 1 applied to this repository with every
+  miss recorded as met, owner-blocked, or release-pending.
 - **Quality (Batch Q).** Six SecHard-owned quality recipes are wired (`quality/error-handling` via
   the reviewed opengrep pack, `quality/vibe-tells`, `quality/test-quality`,
   `quality/strict-correctness`, `quality/repo-hygiene`, `quality/dependency-health`), calibrated

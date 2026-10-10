@@ -1,0 +1,53 @@
+schema: hardening/standard-mapping/v1
+standard_id: asd-secure-by-design
+edition: "current (6-foundation edition, fetched 2026-10-10)"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+#
+# The ASD Secure by Design foundations page was fetched on 2026-10-10; the current edition defines
+# six foundations. Each is mapped at foundation level with its key focus areas reflected in the
+# mapped controls.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: ASD-SBD-1
+    summary: 'Holistic secure organisation'
+    controls: [GOV-01, GOV-02]
+    recipes: [governance/protections, policy/record-consistency]
+    method: manual
+    relationship: related_risk
+  - id: ASD-SBD-2
+    summary: 'Early and sustained security'
+    controls: [CTX-01, GOV-02]
+    recipes: [manifest/validate, inventory/review, policy/record-consistency]
+    method: manual
+    relationship: related_risk
+  - id: ASD-SBD-3
+    summary: 'Secure product development'
+    controls: [CODE-01, DEP-01, DEP-02, WEB-01]
+    recipes: [opengrep/rules, dependency/lockfile-policy, web/negative-inputs]
+    method: automated
+    relationship: related_risk
+  - id: ASD-SBD-4
+    summary: 'Testing the application against the required security behaviour'
+    controls: [AUTHZ-01, QUAL-01, AGT-03]
+    recipes: [authorization/ownership, quality/test-suite, agent/security-test-suite]
+    method: manual
+    relationship: related_risk
+    note: 'testing recipes are declared; authorization and own-suite recipes are unwired'
+  - id: ASD-SBD-5
+    summary: 'Continuous assurance'
+    controls: [CI-03, OPS-01, OPS-03]
+    recipes: [gate/completeness, ops/alert-delivery]
+    method: automated
+    relationship: related_risk
+  - id: ASD-SBD-6
+    summary: 'Secure deprecation'
+    controls: [REL-02, OPS-02]
+    recipes: [ops/restore-exercise]
+    method: manual
+    relationship: related_risk
+    note: 'deprecation and rollback are operational evidence territory'

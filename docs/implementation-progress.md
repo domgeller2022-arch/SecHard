@@ -1801,3 +1801,103 @@ catalogue-versioning story for new control IDs). Q2/Q3 (external analyser provis
   (standards) is the remaining plan batch that can proceed.
 - **Next step:** owner review of `docs/checkpoints/batch-q.md`, then Batch S or X on
   authorisation.
+
+---
+
+## Batch S — Standards at requirement level (2026-10-10)
+
+**Authorisation.** Batch S on the owner's explicit instruction ("lets start with S"). Scope:
+remediation-plan S1 (the mapping data model and coverage matrices), S2 (per-standard work), S4
+(comparison-project records), and gap D7's Scorecard-pinning statement. S3 (agent-guidance
+curation) and the release-side SLSA row are staged with recorded reasons.
+
+- **State:** `verified` for everything delivered; the staged work is named below.
+- **Files changed:** `controls/mappings/{asvs,owasp-top-10,owasp-api-top-10,nist-ssdf,osps,mvsp,
+  asd-sbd,mcp-top-10}.yaml` (new, 518 requirement entries), `controls/mappings/data/
+  asvs-5.0.0-en.csv` (vendored official data, licence notice in `upstream/sources.yaml`),
+  `controls/coverage/**` (new, generated), `schemas/standard-mapping.schema.json`,
+  `src/domain/standards-coverage.ts`, `tools/generate-coverage.ts`,
+  `ci/configs/opengrep-rules/hardening-core.yaml` (six new rules: SSRF, unsafe consumption,
+  implicit grant, three Electron rules), `tests/fixtures/scanners/{api,oauth,electron}/**`
+  (vulnerable/fixed pairs), `controls/controls.yaml` (catalogue **v3**: AUTH-03; WSTG citations and
+  cheat-sheet references on every test recipe; corrected QUAL-07 Top-10 note),
+  `controls/control.schema.json` (wstg/cheat_sheet), `schemas/control-catalogue.schema.json`
+  (migration history), all six auth-bearing profiles (AUTH-03, never exceptable),
+  `src/audit/report.ts` + `src/commands/audit.ts` (per-application standards-coverage statement),
+  `src/adapters/opengrep.ts` (unchanged this batch), `upstream/sources.yaml` (ASVS vendoring;
+  Top-10 2025 names; gorrion split out per S4; QUAL-07 note), `agent-rules/review-manifest.yaml`
+  (mappings are review-required), `tests/domain/standards-coverage.test.ts` (new),
+  `tests/scanners/adapters.test.ts` (new-rule fixtures), tests updated deliberately for the
+  catalogue change; `README.md`, `docs/audit-mode.md`, matrices regenerated.
+- **Actual checks run, on Node 24.21.0:**
+  - `pnpm test` → **535 tests, 34 files, all passing**, including the new Batch S acceptance:
+    no unmapped ASVS id, no invalid chapter, levels checked against the vendored CSV, exact
+    2025 Top-10 names, API1–API10 present, SSDF's 42 active tasks + 5 recorded consolidations,
+    MCP link-only, every gap carrying a reason, every mapped control and recipe id existing.
+  - `pnpm run test:scanners` → **31 passing**; the six new opengrep rules verified against their
+    vulnerable fixtures and clean twins with the real pinned binary.
+  - `pnpm run test:integration` → **8 passing**; `pnpm run test:example` → **5 passing**;
+    `typecheck`, `typecheck:tools`, `lint` clean.
+- **S1 (data model).** `schemas/standard-mapping.schema.json` + `src/domain/standards-coverage.ts`
+  + `tools/generate-coverage.ts`: eight mapping files, eight generated matrices under
+  `controls/coverage/` with an index, and a per-application standards-coverage statement in every
+  audit report (which requirements the composed profiles could actually check for THIS app).
+- **S2 (per-standard).**
+  - **ASVS 5.0.0: all 345 requirements mapped** (70 L1: 12 automated, 20 manual, 38 gap; L2/L3
+    recorded with methods and reasons; V17 WebRTC not_applicable). The official CSV is vendored
+    (SHA-256 in sources; CC BY-SA review-before-distribution note), and a test enforces that no
+    summary reproduces the standard's phrasing. The plan's expected areas all have named controls
+    or recorded gaps: V7 (AUTH-01, unwired - the recorded session finding), V10 (AUTH-03),
+    V3/V5/V11/V14/V15 (gaps with reasons or manual mappings).
+  - **AUTH-03 (RFC 9700)** added at catalogue v3: OAuth/OIDC flow security - implicit-grant
+    prohibition enforced by the wired `hardening.oauth-implicit-grant` rule (fixture detected,
+    clean twin silent), PKCE/state/nonce/redirect handling by the declared
+    `auth/oauth-flows` manual recipe. Never exceptable in every profile that selects it.
+  - **Top 10 2025**: names fetched from the published edition (A01 Broken Access Control …
+    A10 Mishandling of Exceptional Conditions) and pinned by test; the chapter-level mappings in
+    `standards.yaml` updated to the 2025 letters, including correcting this repository's own
+    Batch Q note (A10 is exceptional conditions, not integrity).
+  - **API Top 10 2023**: API1–API10 mapped; API7 SSRF and API10 unsafe consumption have wired
+    static rules with fixtures; the SSRF rule's syntactic limitation (indirect routing through a
+    variable) is recorded in the fixture itself.
+  - **WSTG 4.2**: every `authorization_test`/`functional_test` recipe cites WSTG test ids
+    (WSTG-ATHZ-02/04 for IDOR, SESS for session, INPV for inputs, BUSL for flows) or records why
+    no WSTG test exists (WSTG excludes DoS; supply-chain hooks and release drills are out of
+    scope for it), plus the cheat sheet each follows. Enforced by test.
+  - **SSDF 1.1**: task ids extracted from the official SP 800-218 PDF (public domain); 42 active
+    tasks mapped (PW/RV to controls, PO/PS to governance and manual evidence), 5 v1.1
+    consolidations recorded as such. The plan's "42" matches the active count exactly.
+  - **OSPS v2026.08.28**: all 64 active requirements fetched and mapped (the plan's 67 was an
+    estimate; the published edition has 64 active plus one retired id, which stays visible).
+    **Level 1 applied to SecHard itself** - see the checkpoint for the met/owner-blocked table.
+    **D7 recorded**: when Scorecard is run, it must be SHA-pinned like every external action (the
+    Trivy/KICS lesson); stated in the checkpoint's owner list.
+  - **MVSP**: all 25 controls mapped (CC0 source, structure fetched).
+  - **ASD SBD**: the current six-foundation edition fetched and mapped to CTX/GOV/OPS.
+  - **MCP Top 10**: link-only as the plan requires (CC-BY-NC-SA); ids and category names with
+    canonical links, zero adapted text, licence note enforced by test.
+  - **SLSA 1.2**: staged - no release exists, so "releases get Build L2" has nothing to attach
+    to; it is a Batch D release-pipeline item, recorded rather than faked.
+- **S4**: the gorrion production-readiness-checklist now has its own source record with its MIT
+  licence, separate from the representative checklist entry; the astoj IaC project could not be
+  identified from a URL in the plan and is recorded as a gap rather than guessed at.
+- **S3 staged, not skipped**: CodeGuard, the OpenSSF AI-instructions guide, and the OWASP Secure
+  Coding with AI cheat sheet are already recorded as sources with verified licences; adapting
+  them into `agent-rules/core/` regenerates AGENTS.md/CLAUDE.md and needs owner review of the
+  generated guidance - doing that in the same session as 518 mapping entries risks rushing
+  unreviewable instruction text. Recorded as the first item of the next batch or a standalone
+  owner-reviewed task.
+- **Approval invalidations (deliberate):** WSTG citations edited fourteen v1 definitions and the
+  catalogue gained AUTH-03, so 14 approvals no longer resolve and 20 of 35 still do; the
+  catalogue test pins the full unresolved list. Batch D re-approves the sheet.
+- **Limitations and unresolved findings:** the audit-level standards statement is kit-level plus
+  composition - it says what could run for the app, not what a human assessor verified
+  (ASVS-style full verification is a service, not a scan, and the report says so); the
+  true-positive-checklists entry keeps a representative canonical URL because the projects it
+  stands for have no single one.
+- **Owner decisions or external setup still needed:** review ASVS L1 and Top 10 2025 **line by
+  line** (the checkpoint's review list points at the matrices), then approve or amend; the
+  fourteen WSTG-invalidated definitions need re-approval whenever the owner chooses; Scorecard,
+  if adopted, must be SHA-pinned.
+- **Next step:** owner review of `docs/checkpoints/batch-s.md`, then Batch X (expansion) or D
+  (adoption) on authorisation.

@@ -1,0 +1,80 @@
+schema: hardening/standard-mapping/v1
+standard_id: owasp-api-security
+edition: "2023"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: API1
+    summary: 'Broken Object Level Authorization (BOLA) (2023 edition)'
+    controls: [AUTHZ-01, AUTHZ-03]
+    recipes: [authorization/ownership, authorization/security-fields]
+    method: manual
+    relationship: related_risk
+    note: 'ownership matrix recipes are declared but unwired'
+  - id: API2
+    summary: 'Broken Authentication (2023 edition)'
+    controls: [AUTH-01, AUTH-02]
+    recipes: [auth/session-behaviour, auth/recovery-isolation]
+    method: manual
+    relationship: related_risk
+    note: 'authentication recipes are unwired'
+  - id: API3
+    summary: 'Broken Object Property Level Authorization (2023 edition)'
+    controls: [AUTHZ-03]
+    recipes: [authorization/security-fields]
+    method: manual
+    relationship: related_risk
+    note: 'mass-assignment and security-field recipes are declared but unwired'
+  - id: API4
+    summary: 'Unrestricted Resource Consumption (2023 edition)'
+    controls: [ABUSE-01]
+    recipes: [abuse/resource-limits]
+    method: manual
+    relationship: related_risk
+    note: 'resource-limit recipes are declared but unwired'
+  - id: API5
+    summary: 'Broken Function Level Authorization (2023 edition)'
+    controls: [AUTHZ-02]
+    recipes: [authorization/role-and-tenant]
+    method: manual
+    relationship: related_risk
+    note: 'role and tenant recipes are declared but unwired'
+  - id: API6
+    summary: 'Unrestricted Access to Sensitive Business Flows (2023 edition)'
+    controls: [BIZ-01, ABUSE-01]
+    recipes: [biz/transaction-integrity, abuse/resource-limits]
+    method: manual
+    relationship: related_risk
+  - id: API7
+    summary: 'Server Side Request Forgery (2023 edition)'
+    controls: [WEB-01, CODE-01]
+    recipes: [opengrep/rules, web/negative-inputs]
+    method: automated
+    relationship: related_risk
+    note: 'the SSRF rule flags fetches of request-derived URLs (syntactic); allowlist validation is the negative-input recipe (unwired)'
+  - id: API8
+    summary: 'Security Misconfiguration (2023 edition)'
+    controls: [WEB-02, DEPLOY-01]
+    recipes: [web/http-requirements, deploy/environment]
+    method: automated
+    relationship: related_risk
+    note: 'asserted through the declared live requirements; TLS depth is the tls_check gap'
+  - id: API9
+    summary: 'Improper Inventory Management (2023 edition)'
+    controls: [CTX-01, DEP-01]
+    recipes: [manifest/validate, dependency/lockfile-policy]
+    method: manual
+    relationship: related_risk
+    note: 'the manifest is the inventory; SBOM generation is not implemented'
+  - id: API10
+    summary: 'Unsafe Consumption of APIs (2023 edition)'
+    controls: [WEB-01, CODE-01]
+    recipes: [opengrep/rules, web/negative-inputs]
+    method: automated
+    relationship: related_risk
+    note: 'the unvalidated-response rule flags direct returns of external data without status or shape checks (syntactic)'

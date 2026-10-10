@@ -1,0 +1,172 @@
+schema: hardening/standard-mapping/v1
+standard_id: mvsp
+edition: "current site edition (v3 layout, fetched 2026-10-10)"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+#
+# MVSP is CC0 1.0 (public domain); section and control names are taken from mvsp.dev on
+# 2026-10-10.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: '1.1'
+    summary: 'External vulnerability reports'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+    note: 'the disclosure policy and security.txt are the documented path; response timeframes are manual evidence'
+  - id: '1.2'
+    summary: 'Customer testing'
+    method: gap
+    relationship: related_risk
+    note: 'customer security testing agreements are outside the v1 scope'
+  - id: '1.3'
+    summary: 'Self-assessment'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+    note: 'self-assessment against a named release is inventory review material'
+  - id: '1.4'
+    summary: 'External testing'
+    controls: [OPS-03]
+    method: manual
+    relationship: related_risk
+    note: 'annual penetration testing is manual evidence territory'
+  - id: '1.5'
+    summary: 'Training'
+    method: gap
+    relationship: related_risk
+    note: 'personnel training has no control in v1'
+  - id: '1.6'
+    summary: 'Compliance'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+    note: 'jurisdictional and contractual obligations are declared in the manifest and reviewed'
+  - id: '1.7'
+    summary: 'Incident handling'
+    controls: [OPS-01, OPS-03]
+    recipes: [ops/response-exercise, ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: '1.8'
+    summary: 'Data handling'
+    controls: [PRIV-01]
+    recipes: [privacy/retention-review]
+    method: manual
+    relationship: related_risk
+  - id: '2.1'
+    summary: 'Single sign-on'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: '2.2'
+    summary: 'HTTPS-only'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'HSTS and redirect behaviour are asserted by the live recipe when declared; TLS depth is the unwired tls_check gap'
+  - id: '2.3'
+    summary: 'Security headers'
+    controls: [WEB-02]
+    recipes: [web/http-requirements]
+    method: automated
+    relationship: related_risk
+    note: 'CSP, framing controls, and cache disabling are asserted through the declared requirements'
+  - id: '2.4'
+    summary: 'Password policy'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'password-policy depth is untested in this build; the reference app defers password rules to the identity provider'
+  - id: '2.5'
+    summary: 'Security libraries'
+    controls: [DEP-01]
+    recipes: [dependency/lockfile-policy]
+    method: automated
+    relationship: related_risk
+    note: 'reviewed-framework selection is the dependency policy; the wired recipes enforce identity and advisories'
+  - id: '2.6'
+    summary: 'Dependency patching'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: automated
+    relationship: related_risk
+  - id: '2.7'
+    summary: 'Logging of authentication, CRUD, configuration, and owner-access events'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: '2.8'
+    summary: 'Encryption'
+    controls: [WEB-02]
+    recipes: [web/http-requirements]
+    method: automated
+    relationship: related_risk
+    note: 'transport encryption is asserted; at-rest encryption depth is out of v1 scope'
+  - id: '3.1'
+    summary: 'List of data'
+    controls: [CTX-01]
+    recipes: [manifest/validate]
+    method: automated
+    relationship: related_risk
+    note: 'the manifest declares data classification'
+  - id: '3.2'
+    summary: 'Data flow diagram'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: '3.3'
+    summary: 'Vulnerability prevention'
+    controls: [WEB-01, CODE-01, AUTHZ-01]
+    recipes: [web/negative-inputs, opengrep/rules, authorization/ownership]
+    method: automated
+    relationship: related_risk
+    note: 'developer guidelines are supported by the wired static rules; the deeper flows are unwired'
+  - id: '3.4'
+    summary: 'Time to fix vulnerabilities'
+    controls: [DEP-03, OPS-03]
+    recipes: [osv/lockfile, ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: '3.5'
+    summary: 'Build and release process'
+    controls: [CI-01, CI-02, REL-01]
+    recipes: [zizmor/workflows, ci/toolchain-pins, release/evidence-assembly]
+    method: automated
+    relationship: related_risk
+    note: 'SLSA Build Level 1 provenance is the release-pipeline item; SecHard records source and build identity now and provenance verification is Batch D'
+  - id: '4.1'
+    summary: 'Physical access'
+    method: gap
+    relationship: related_risk
+    note: 'physical security is outside software scope'
+  - id: '4.2'
+    summary: 'Logical access'
+    controls: [AUTHZ-02, SEC-03]
+    recipes: [authorization/role-and-tenant, credentials/inventory]
+    method: manual
+    relationship: related_risk
+  - id: '4.3'
+    summary: 'Sub-processors'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: '4.4'
+    summary: 'Backup and disaster recovery'
+    controls: [OPS-02]
+    recipes: [ops/restore-exercise]
+    method: manual
+    relationship: related_risk

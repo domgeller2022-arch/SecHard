@@ -1,9 +1,13 @@
 schema_version: control-catalogue/v1
-catalogue_version: 2
+catalogue_version: 3
 migration:
-  changed_in: 2
-  reason: "Batch Q adds the quality controls QUAL-02 through QUAL-13 (remediation plan Q1). The 35 v1 IDs are unchanged and their approvals still resolve against their content digests; the additions are new IDs at definition_version 1 and review_status draft, so release evaluation blocks on them until the owner approves them — the same rule as every other control."
-  added: [QUAL-02, QUAL-03, QUAL-04, QUAL-05, QUAL-06, QUAL-07, QUAL-08, QUAL-09, QUAL-10, QUAL-11, QUAL-12, QUAL-13]
+  changed_in: 3
+  reason: "Batch S adds AUTH-03 (OAuth and OIDC flow security, remediation plan S2's RFC 9700 row) and bumps the catalogue from the v2 state. The 35 v1 IDs are unchanged and their approvals still resolve; the v2 and v3 additions are new IDs at definition_version 1 and review_status draft, so release evaluation blocks on them until the owner approves them — the same rule as every other control."
+  added: [AUTH-03]
+  history:
+    - changed_in: 2
+      reason: "Batch Q added the quality controls QUAL-02 through QUAL-13 (remediation plan Q1)."
+      added: [QUAL-02, QUAL-03, QUAL-04, QUAL-05, QUAL-06, QUAL-07, QUAL-08, QUAL-09, QUAL-10, QUAL-11, QUAL-12, QUAL-13]
 controls:
   - id: CTX-01
     schema_version: control/v1
@@ -196,6 +200,7 @@ controls:
         coverage: mixed
       - method: functional_test
         recipe: agent/security-test-suite
+        wstg_note: "This recipe verifies the repository's own security tests rather than testing the application through HTTP; WSTG has no test for that."
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -262,6 +267,7 @@ controls:
         coverage: mixed
       - method: functional_test
         recipe: dependency/install-hook-test
+        wstg_note: "Install-time hook behaviour is supply-chain territory; WSTG tests the deployed application and has no equivalent."
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -544,6 +550,7 @@ controls:
     verification:
       - method: functional_test
         recipe: quality/test-suite
+        wstg_note: "Runs the application's own functional checks rather than testing through HTTP; WSTG defines no test for that."
         coverage: automated
       - method: build_check
         recipe: quality/type-and-lint
@@ -720,7 +727,7 @@ controls:
       - Syntactic rules only — a catch that logs and continues incorrectly, or a destructure that ignores `error`, needs inter-procedural analysis this build does not have
       - console.log in scripts and tools is legitimate; the rule scopes to production source paths by directory convention and states when it cannot tell
     standards:
-      - { framework: OWASP-Top-10, requirement: A10, relationship: related_risk, notes: "Silent failure handling undermines integrity monitoring; not a verified coverage claim." }
+      - { framework: OWASP-Top-10, requirement: A10, relationship: related_risk, notes: "Mishandling of Exceptional Conditions (2025): swallowed failures are exactly that; not a verified coverage claim." }
       - { framework: NIST-SSDF, relationship: related_risk, notes: "PW.7 (review code for security defects) includes error-handling review." }
     owner_role: application-maintainer
     reassessment_triggers:
@@ -916,6 +923,8 @@ controls:
     verification:
       - method: authorization_test
         recipe: auth/session-behaviour
+        wstg: [WSTG-SESS-01, WSTG-SESS-07]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -946,6 +955,8 @@ controls:
     verification:
       - method: authorization_test
         recipe: auth/recovery-isolation
+        wstg: [WSTG-ATHZ-03]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html
         coverage: automated
       - method: manual_attestation
         recipe: auth/admin-mfa
@@ -960,6 +971,45 @@ controls:
     reassessment_triggers:
       - The identity provider changes
       - An administrative role is created or removed
+
+  - id: AUTH-03
+    schema_version: control/v1
+    definition_version: 1
+    review_status: draft
+    title: OAuth and OIDC flow security
+    purpose: >-
+      Keep delegated authorization flows from becoming the weakest link: implicit grants that leak
+      tokens to the browser, redirect URIs that accept anything, missing CSRF state, absent PKCE,
+      and tokens stored where scripts can read them. Based on RFC 9700 (best-current-practice
+      OAuth) and tied to ASVS V10.
+    applicability: { rule: when_feature_enabled, features: [accounts] }
+    acceptance:
+      - No implicit grant - authorization responses never deliver tokens to the client directly
+      - Redirect URIs are validated by exact match against a pre-registered allowlist
+      - The code flow carries CSRF protection (state) and PKCE for public clients
+      - ID token nonce, issuer, and audience are validated by the relying party
+      - Tokens are stored server-side or in non-script-readable storage, never in ordinary browser storage
+    verification:
+      - method: static_analysis
+        recipe: web/oauth-flow
+        coverage: mixed
+        notes: "Syntactic rule: flags response_type values that hand tokens to the browser (token, id_token). PKCE, exact redirect matching, and nonce validation need configuration and flow evidence - the manual recipe."
+      - method: manual_attestation
+        recipe: auth/oauth-flows
+        coverage: mixed
+    evidence_requirements:
+      - { kind: check_result, required_origin: actual_tool }
+      - { kind: manual_evidence, required_origin: manual_attestation, max_age_days: 90 }
+    limitations:
+      - The static rule is syntactic - a compliant-looking configuration can still be wrong, and a correct flow in unusual spelling can be missed
+      - Authorization-server-side requirements (client registration, refresh-token policy) are out of scope for applications that only act as clients; ASVS marks them not_applicable for the same reason
+    standards:
+      - { framework: RFC-9700, relationship: related_risk, notes: "Best-current-practice OAuth 2.0 security; flow requirements BCP 2.1, implicit grant prohibition." }
+      - { framework: OWASP-ASVS, requirement: V10, relationship: related_risk, notes: "OAuth and OIDC chapter; requirement-level mapping in controls/mappings/asvs.yaml." }
+    owner_role: application-maintainer
+    reassessment_triggers:
+      - An OAuth or OIDC integration is added or its configuration changes
+      - The flow or grant type changes
 
   - id: AUTHZ-01
     schema_version: control/v1
@@ -980,6 +1030,8 @@ controls:
     verification:
       - method: authorization_test
         recipe: authorization/ownership
+        wstg: [WSTG-ATHZ-02, WSTG-ATHZ-04]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -1009,6 +1061,8 @@ controls:
     verification:
       - method: authorization_test
         recipe: authorization/role-and-tenant
+        wstg: [WSTG-ATHZ-02, WSTG-ATHZ-03]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Multitenancy_Cheat_Sheet.html
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -1037,6 +1091,8 @@ controls:
     verification:
       - method: authorization_test
         recipe: authorization/security-fields
+        wstg: [WSTG-ATHZ-04]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -1066,6 +1122,8 @@ controls:
     verification:
       - method: authorization_test
         recipe: data/grants-and-policies
+        wstg: [WSTG-ATHZ-02]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html
         coverage: automated
       - method: policy_consistency
         recipe: data/migration-inventory
@@ -1098,6 +1156,8 @@ controls:
     verification:
       - method: functional_test
         recipe: web/negative-inputs
+        wstg: [WSTG-INPV-01, WSTG-INPV-02, WSTG-INPV-04]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html
         coverage: mixed
       - method: manual_attestation
         recipe: web/manual-boundaries
@@ -1163,6 +1223,8 @@ controls:
     verification:
       - method: functional_test
         recipe: abuse/resource-limits
+        wstg_note: "WSTG deliberately excludes denial-of-service testing; the closest guidance is the cheat sheet cited here."
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
@@ -1192,6 +1254,8 @@ controls:
     verification:
       - method: functional_test
         recipe: biz/transaction-integrity
+        wstg: [WSTG-BUSL-01, WSTG-BUSL-02]
+        cheat_sheet: https://cheatsheetseries.owasp.org/cheatsheets/Web_Service_Security_Cheat_Sheet.html
         coverage: automated
       - method: manual_attestation
         recipe: biz/provider-webhooks
@@ -1415,6 +1479,7 @@ controls:
     verification:
       - method: functional_test
         recipe: release/rollback-drill
+        wstg_note: "A deployment rollback exercise is operational verification; WSTG tests applications, not release drills."
         coverage: automated
       - method: manual_attestation
         recipe: release/hosted-rollback
@@ -1451,6 +1516,7 @@ controls:
         coverage: automated
       - method: functional_test
         recipe: exception/expiry-drill
+        wstg_note: "Exception expiry is governance machinery; WSTG has no test for waiver lifecycle."
         coverage: automated
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }

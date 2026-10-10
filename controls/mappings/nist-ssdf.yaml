@@ -1,0 +1,292 @@
+schema: hardening/standard-mapping/v1
+standard_id: nist-ssdf
+edition: "1.1"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+#
+# Task IDs and titles extracted from the official NIST SP 800-218 final PDF on 2026-10-10 (US-
+# government public domain). 42 active tasks plus the 5 consolidated into others in v1.1.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: PO.1.1
+    summary: 'Identify and document all security requirements for the software and its development.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: PO.1.2
+    summary: 'Identify and document all security requirements the organization must follow.'
+    controls: [CTX-01, GOV-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: PO.1.3
+    summary: 'Communicate security requirements to all third parties involved.'
+    controls: [GOV-01]
+    recipes: [governance/protections, governance/platform-settings]
+    method: manual
+    relationship: related_risk
+  - id: PO.2.1
+    summary: 'Create roles and responsibilities for the secure development process.'
+    controls: [GOV-01, GOV-02]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: PO.2.2
+    summary: 'Provide role-based security training for all personnel.'
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PO.2.3
+    summary: 'Obtain upper-management authorization for secure development.'
+    controls: [GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: PO.3.1
+    summary: 'Specify which tools or tool types must or should be used.'
+    controls: [CI-02, DEP-01]
+    recipes: [ci/toolchain-pins, dependency/pins]
+    method: manual
+    relationship: related_risk
+  - id: PO.3.2
+    summary: 'Follow recommended security practices to deploy and secure toolchains.'
+    controls: [CI-01, CI-02]
+    recipes: [zizmor/workflows, ci/toolchain-pins]
+    method: automated
+    relationship: related_risk
+  - id: PO.3.3
+    summary: 'Configure tools to generate artifacts of their activities.'
+    controls: [CI-03, REL-01]
+    recipes: [gate/completeness, release/evidence-assembly]
+    method: automated
+    relationship: related_risk
+  - id: PO.4.1
+    summary: 'Define criteria for software security checks.'
+    controls: [GOV-02, CI-03]
+    recipes: [policy/record-consistency, gate/completeness]
+    method: manual
+    relationship: related_risk
+  - id: PO.4.2
+    summary: 'Implement processes to consistently gather and review security check results.'
+    controls: [CI-03]
+    recipes: [gate/completeness]
+    method: automated
+    relationship: related_risk
+  - id: PO.5.1
+    summary: 'Separate and protect each environment involved in development.'
+    controls: [CI-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: PO.5.2
+    summary: 'Secure and harden development endpoints.'
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PS.1.1
+    summary: 'Store all forms of code with confidentiality and integrity protection.'
+    controls: [CI-01, GOV-01]
+    recipes: [governance/protections]
+    method: manual
+    relationship: related_risk
+  - id: PS.2.1
+    summary: 'Make software integrity verification information available to acquirers.'
+    controls: [REL-01]
+    recipes: [release/evidence-assembly]
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PS.3.1
+    summary: 'Securely archive the files needed to investigate and respond to incidents.'
+    controls: [OPS-02]
+    recipes: [ops/restore-exercise]
+    method: manual
+    relationship: related_risk
+  - id: PS.3.2
+    summary: 'Collect, safeguard, maintain, and share provenance data.'
+    controls: [REL-01]
+    recipes: [release/evidence-assembly]
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PW.1.1
+    summary: 'Use risk modeling such as threat modeling to shape design.'
+    controls: [CTX-01]
+    recipes: [inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: PW.1.2
+    summary: 'Track and maintain the security requirements through the lifecycle.'
+    controls: [CTX-01, GOV-02]
+    recipes: [manifest/validate, policy/record-consistency]
+    method: automated
+    relationship: related_risk
+  - id: PW.1.3
+    summary: 'Build in support for using memory-safe languages where appropriate.'
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PW.2.1
+    summary: 'Have a qualified independent person review code for security.'
+    controls: [GOV-02, AGT-03]
+    recipes: [governance/protections, agent/test-change-review]
+    method: manual
+    relationship: related_risk
+  - id: PW.3.1
+    summary: 'Consolidated into PO.1.3 in SSDF v1.1.'
+    method: not_applicable
+    relationship: related_risk
+    note: 'moved within SSDF v1.1; the consolidation target carries the mapping'
+  - id: PW.3.2
+    summary: 'Consolidated into PW.4.4 in SSDF v1.1.'
+    method: not_applicable
+    relationship: related_risk
+    note: 'moved within SSDF v1.1; the consolidation target carries the mapping'
+  - id: PW.4.1
+    summary: 'Acquire and maintain well-secured software components.'
+    controls: [DEP-01]
+    recipes: [dependency/lockfile-policy, dependency/pins]
+    method: manual
+    relationship: related_risk
+  - id: PW.4.2
+    summary: 'Create and maintain well-secured in-house software components.'
+    controls: [CODE-01, QUAL-02]
+    recipes: [opengrep/rules, quality/strict-correctness]
+    method: automated
+    relationship: related_risk
+  - id: PW.4.3
+    summary: 'Consolidated into PW.1.3 in SSDF v1.1.'
+    method: not_applicable
+    relationship: related_risk
+    note: 'moved within SSDF v1.1; the consolidation target carries the mapping'
+  - id: PW.4.4
+    summary: 'Verify acquired commercial and open-source components meet requirements.'
+    controls: [DEP-01, DEP-02]
+    recipes: [dependency/lockfile-policy, dependency/install-scripts]
+    method: manual
+    relationship: related_risk
+  - id: PW.4.5
+    summary: 'Consolidated into PW.4.1 and PW.4.4 in SSDF v1.1.'
+    method: not_applicable
+    relationship: related_risk
+    note: 'moved within SSDF v1.1; the consolidation target carries the mapping'
+  - id: PW.5.1
+    summary: 'Follow all applicable secure coding practices.'
+    controls: [CODE-01, WEB-01]
+    recipes: [opengrep/rules, web/negative-inputs]
+    method: automated
+    relationship: related_risk
+  - id: PW.5.2
+    summary: 'Consolidated into PW.5.1 as an example in SSDF v1.1.'
+    method: not_applicable
+    relationship: related_risk
+    note: 'moved within SSDF v1.1; the consolidation target carries the mapping'
+  - id: PW.6.1
+    summary: 'Use compiler, interpreter, and build tools with security features enabled.'
+    controls: [CI-02]
+    recipes: [ci/toolchain-pins]
+    method: manual
+    relationship: related_risk
+  - id: PW.6.2
+    summary: 'Determine which compiler and build-tool features improve security, and use them.'
+    controls: [CI-02]
+    recipes: [ci/toolchain-pins]
+    method: manual
+    relationship: related_risk
+  - id: PW.7.1
+    summary: 'Determine whether code review is warranted for the change.'
+    controls: [AGT-03]
+    recipes: [agent/test-change-review]
+    method: manual
+    relationship: related_risk
+  - id: PW.7.2
+    summary: 'Perform the code review and code analysis.'
+    controls: [CODE-01]
+    recipes: [opengrep/rules]
+    method: automated
+    relationship: related_risk
+  - id: PW.8.1
+    summary: 'Determine whether executable code testing is warranted.'
+    controls: [QUAL-01, AUTHZ-01]
+    recipes: [quality/test-suite, authorization/ownership]
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PW.8.2
+    summary: 'Design the tests, perform the testing, and log the results.'
+    controls: [QUAL-01, AUTHZ-01]
+    recipes: [quality/test-suite, authorization/ownership]
+    method: gap
+    relationship: related_risk
+    note: 'no control or recipe covers this in v1; recorded rather than implied'
+  - id: PW.9.1
+    summary: 'Define a secure baseline of configuration settings.'
+    controls: [WEB-01, WEB-02]
+    recipes: [web/negative-inputs, web/http-requirements]
+    method: manual
+    relationship: related_risk
+  - id: PW.9.2
+    summary: 'Implement the default settings, and document exceptions.'
+    controls: [WEB-01]
+    recipes: [web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: RV.1.1
+    summary: 'Gather vulnerability information from acquirers, users, and public sources.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: RV.1.2
+    summary: 'Review, analyze, and test the code for confirmed vulnerabilities.'
+    controls: [DEP-03, CODE-01]
+    recipes: [osv/lockfile, opengrep/rules]
+    method: automated
+    relationship: related_risk
+  - id: RV.1.3
+    summary: 'Maintain a policy that addresses vulnerability disclosure and remediation.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: RV.2.1
+    summary: 'Analyze each vulnerability to plan the risk response.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: RV.2.2
+    summary: 'Plan and implement risk responses for each vulnerability.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: RV.3.1
+    summary: 'Determine the root cause of each vulnerability.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: RV.3.2
+    summary: 'Analyze root causes over time to identify systemic weaknesses.'
+    controls: [OPS-03]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: RV.3.3
+    summary: 'Review the software for other vulnerabilities with the same root cause.'
+    controls: [CODE-01]
+    recipes: [opengrep/rules]
+    method: manual
+    relationship: related_risk
+  - id: RV.3.4
+    summary: 'Review the SDLC process and update it if the root cause is process-related.'
+    controls: [GOV-02]
+    recipes: [policy/record-consistency]
+    method: manual
+    relationship: related_risk

@@ -28,6 +28,7 @@ controls:
   - { control: QUAL-01 }
   - { control: AUTH-01 }
   - { control: AUTH-02 }
+  - { control: AUTH-03 }
   - { control: AUTHZ-01 }
   - { control: AUTHZ-02 }
   - { control: AUTHZ-03 }
@@ -109,6 +110,7 @@ permitted_exceptions:
   - { control: QUAL-01, policy: permitted, max_duration_days: 30 }
   - { control: AUTH-01, policy: never }
   - { control: AUTH-02, policy: permitted, max_duration_days: 30 }
+  - { control: AUTH-03, policy: never, note: "A broken authorization flow needs containment and remediation" }
   - { control: AUTHZ-01, policy: never }
   - { control: AUTHZ-02, policy: never }
   - { control: AUTHZ-03, policy: never }

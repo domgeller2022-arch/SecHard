@@ -83,6 +83,21 @@ entries:
       - Unknown severity, empty scope, and missing evidence still block
       - A quality rule change was run against the calibration corpus and the clean twin, and the measured recall/precision still clear the floors
 
+  - id: standard_mappings
+    control: GOV-02
+    requires: human_review
+    paths:
+      - controls/mappings/**
+    reason: >-
+      A mapping is a claim about another standard. An unreviewed claim must stay related_risk; a
+      requirement mapped to the wrong control, or a gap without a reason, misleads every audit
+      report's standards-coverage statement.
+    reviewer_checks:
+      - Summaries paraphrase the standard rather than reproducing its text
+      - Every gap and not_applicable carries a reason
+      - The ASVS ids, levels, and chapters match the vendored official CSV
+      - Automated mappings name a wired recipe; manual mappings name a declared manual recipe
+
   - id: audit_boundary
     control: CTX-01
     requires: human_review

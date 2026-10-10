@@ -13,6 +13,57 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Batch S — standards at requirement level (10 October 2026)
+
+The remediation plan's standards batch. Every mapped standard now has a requirement-level mapping
+(518 entries across eight files), a generated coverage matrix, and — in every audit report — a
+per-application statement of which requirements the composed profiles could actually check.
+Checkpoint: `docs/checkpoints/batch-s.md`.
+
+**The data model (S1).** `standard-mapping` schema + `controls/mappings/*.yaml` + generated
+`controls/coverage/*.md`. The old rule stands and is now tested both ways: nothing is
+`verified_coverage` until an application is assessed, and every `gap`/`not_applicable` carries a
+reason.
+
+**ASVS 5.0.0 — all 345 requirements mapped.** The official CSV is vendored (SHA-256 recorded;
+CC BY-SA licence notice with the review-before-distribution note), every ID/level/chapter is
+checked against it by test, and no summary reproduces the standard's phrasing — enforced by test
+against the official text. L1 (70): 12 automated, 20 manual, 38 recorded gaps. The areas the plan
+predicted (V7 sessions, V10 OAuth, V3/V5/V11/V14/V15) each have named controls or recorded
+reasons.
+
+**AUTH-03 (RFC 9700) at catalogue v3.** OAuth/OIDC flow security: the implicit grant is now a
+wired static finding (`hardening.oauth-implicit-grant`, fixture detected, clean twin silent),
+and PKCE/state/nonce/redirect handling ride a declared manual recipe. Never exceptable.
+
+**Six new static rules** in the reviewed pack: SSRF (API7), unvalidated external-response
+consumption (API10), implicit grant, and the Electron trio (nodeIntegration, contextIsolation,
+sandbox) — each with vulnerable/fixed fixtures and the real pinned binary verifying both sides.
+The SSRF fixture deliberately includes the indirect-routing shape the rule misses, so the
+limitation is recorded in evidence rather than prose.
+
+**Top 10 2025, corrected against the source.** Names fetched from the published edition and
+pinned by test — which caught this repository's own Batch Q error (A10 is Mishandling of
+Exceptional Conditions, not integrity failures) and moved the chapter-level mappings to the
+2025 letters. API1–API10 mapped; WSTG citations or recorded no-WSTG reasons on every test
+recipe; SSDF's 42 active tasks mapped from the official PDF (5 v1.1 consolidations recorded);
+OSPS's 64 active requirements mapped (the plan's 67 was an estimate) with Level 1 applied to
+SecHard itself — met, owner-blocked (licence, visibility, contacts: recorded decisions), or
+release-pending, stated per item in the checkpoint. MVSP (25, CC0), ASD SBD (current 6-foundation
+edition), MCP Top 10 link-only as its licence demands.
+
+**Approvals invalidated, deliberately:** WSTG citations edited fourteen v1 definitions, and
+AUTH-03 is new — 20 of 35 approvals still resolve, the catalogue test pins the full unresolved
+list, and Batch D re-approves the sheet.
+
+**Staged with reasons, not skipped:** S3 (agent-guidance curation — the three sources are
+already licence-recorded; regenerating agent instructions deserves its own reviewed pass), the
+SLSA release row (no release exists; Batch D), the astoj comparison project (the plan names it
+without a URL; a guessed repository would be a fabricated source).
+
+Suite at this point: **535 unit + 8 integration + 31 scanner + 5 example tests**, all passing on
+Node 24.21.0.
+
 ### Batch Q — the quality section: "engineered, not vibe-coded" (10 October 2026)
 
 The remediation plan's quality batch. Every audit now carries a quality section reported

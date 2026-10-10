@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadMappings, loadSources } from '../../src/domain/definitions.js';
+import { loadCatalogue, loadMappings, loadSources } from '../../src/domain/definitions.js';
 import { validateAgainstSchema } from '../../src/validation/schema.js';
 
 const mappings = loadMappings();
@@ -112,9 +112,60 @@ describe('every source record validates', () => {
     }
   });
 
-  it('treats every standard as a link, never as reused text', () => {
-    for (const [framework, edition] of Object.entries(mappings.editions)) {
-      expect(sourceById.get(edition.source_id ?? '')?.use_type, framework).toBe('linking');
+  it('cites a WSTG test id, or records why none exists, on every test recipe (Batch S)', () => {
+    // The remediation plan's WSTG row: every test recipe (authorization_test or functional_test)
+    // must cite the WSTG test IDs it implements and the cheat sheet it follows. Where WSTG has no
+    // equivalent (supply-chain hooks, the repository's own test suite, resource exhaustion - WSTG
+    // deliberately excludes DoS testing), the reason is recorded on the entry rather than a fake
+    // id being invented.
+    const catalogue = loadCatalogue();
+    const wstgIds = new Set<string>();
+    let checked = 0;
+    for (const control of catalogue.controls) {
+      for (const method of control.verification) {
+        if (method.method !== 'authorization_test' && method.method !== 'functional_test') continue;
+        checked += 1;
+        const raw = method as unknown as { wstg?: unknown; wstg_note?: unknown; recipe?: string };
+        const ids = Array.isArray(raw.wstg) ? (raw.wstg as string[]) : [];
+        for (const id of ids) {
+          expect(id, `${control.id} ${raw.recipe}: malformed WSTG id`).toMatch(/^WSTG-[A-Z]{4}-[0-9]{2}$/);
+          // Multiple recipes may cite the same WSTG test: ownership, role/tenant, and provider
+          // policy checks each implement a facet of WSTG-ATHZ-02, and that is legitimate.
+          wstgIds.add(id);
+        }
+        const note = typeof raw.wstg_note === 'string' ? raw.wstg_note : '';
+        expect(ids.length > 0 || note.length >= 20, `${control.id} ${raw.recipe}: a test recipe must cite WSTG ids or record why none exists`).toBe(true);
+        expect(ids.length === 0 || note.length === 0, `${control.id} ${raw.recipe}: cite ids or a reason, not both`).toBe(true);
+      }
     }
+    // Deliberate floor: the plan's examples (ATHZ-02 for IDOR) and the session/input chapters must
+    // be represented.
+    expect(wstgIds.has('WSTG-ATHZ-02')).toBe(true);
+    expect(wstgIds.has('WSTG-ATHZ-04')).toBe(true);
+    expect(wstgIds.has('WSTG-SESS-01')).toBe(true);
+    expect(wstgIds.has('WSTG-INPV-01')).toBe(true);
+    expect(checked).toBeGreaterThan(8);
+  });
+
+  it('records reused standard material with a digest, a licence, and a review-before-distribution note', () => {
+    // Until Batch S, every standard was link-only: no standard text was reused anywhere. Batch S
+    // vendored the official ASVS requirement CSV so the requirement-level mapping is checkable
+    // offline and reviewable against the real text. The rule is therefore stricter, not looser:
+    // a standard recorded as `adapting` must carry a content digest, a named licence, and the
+    // review-before-distribution note; everything else stays link-only.
+    const adaptingStandards: string[] = [];
+    for (const [framework, edition] of Object.entries(mappings.editions)) {
+      const source = sourceById.get(edition.source_id ?? '');
+      if (source?.use_type === 'linking') continue;
+      adaptingStandards.push(framework);
+      expect(source?.use_type, framework).toBe('adapting');
+      expect(source?.licence, framework).toBeTruthy();
+      expect(source?.reviewed_release.kind, framework).toBe('digest');
+      expect(source?.reviewed_release.value, framework).toMatch(/^[0-9a-f]{64}$/);
+      expect(source?.notes ?? '', framework).toMatch(/CC BY-SA|licence review/i);
+    }
+    // The deliberate list: exactly the standards whose data is vendored. Anything else appearing
+    // here is an undeclared reuse of standard text and must fail this test.
+    expect(adaptingStandards.sort()).toEqual(['OWASP-ASVS']);
   });
 });

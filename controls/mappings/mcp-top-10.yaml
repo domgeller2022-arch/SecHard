@@ -1,0 +1,82 @@
+schema: hardening/standard-mapping/v1
+standard_id: owasp-mcp-top-10
+edition: "2025 (beta)"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+#
+# Link-only mapping by deliberate decision: the non-commercial share-alike licence means no text
+# is adapted. IDs and category names are identification facts; the canonical link is the
+# definition.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: MCP01
+    summary: 'Token Mismanagement & Secret Exposure'
+    controls: [SEC-01, SEC-03]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'
+  - id: MCP02
+    summary: 'Privilege Escalation via Scope Creep'
+    controls: [AUTHZ-02]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'
+  - id: MCP03
+    summary: 'Tool Poisoning'
+    method: gap
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition; no v1 control relates to this category (runtime-AI scope is Batch X2)'
+  - id: MCP04
+    summary: 'Software Supply Chain Attacks & Dependency Tampering'
+    controls: [DEP-01, DEP-02]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'
+  - id: MCP05
+    summary: 'Command Injection & Execution'
+    controls: [WEB-01, CODE-01]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'
+  - id: MCP06
+    summary: 'Prompt Injection via Contextual Payloads'
+    method: gap
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition; no v1 control relates to this category (runtime-AI scope is Batch X2)'
+  - id: MCP07
+    summary: 'Insufficient Authentication & Authorization'
+    controls: [AUTH-01, AUTHZ-01]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'
+  - id: MCP08
+    summary: 'Lack of Audit and Telemetry'
+    controls: [OPS-01]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'
+  - id: MCP09
+    summary: 'Shadow MCP Servers'
+    method: gap
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition; no v1 control relates to this category (runtime-AI scope is Batch X2)'
+  - id: MCP10
+    summary: 'Context Injection & Over-Sharing'
+    controls: [WEB-01]
+    method: manual
+    relationship: related_risk
+    url: https://owasp.org/projects/mcp-top-10
+    note: 'mapped by reference only: the licence (CC-BY-NC-SA-4.0 per the project page) forbids adapted text; the id and category name identify the requirement, the link is the definition'

@@ -1,0 +1,84 @@
+schema: hardening/standard-mapping/v1
+standard_id: owasp-top-10
+edition: "2025"
+#
+# Requirement-level mapping (Batch S). All relationships are related_risk; nothing is
+# verified_coverage until an application is assessed against the requirement. The summaries
+# are SecHard paraphrases written for this mapping.
+#
+# Category names fetched from top10.owasp.org/2025/ on 2026-10-10 and recorded in upstream
+# sources; the test rejects any name outside the 2025 list.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: A01
+    summary: 'Broken Access Control (2025 list, fetched from the published edition)'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: manual
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired; the reference app proves the approach'
+  - id: A02
+    summary: 'Security Misconfiguration (2025 list, fetched from the published edition)'
+    controls: [WEB-02, DEPLOY-01]
+    recipes: [web/http-requirements, web/tls, deploy/environment]
+    method: automated
+    relationship: related_risk
+    note: 'the live recipe asserts declared security headers and redirects; TLS depth is the unwired tls_check gap'
+  - id: A03
+    summary: 'Software Supply Chain Failures (2025 list, fetched from the published edition)'
+    controls: [DEP-01, DEP-02, DEP-03, CI-01, CI-02]
+    recipes: [osv/lockfile, zizmor/workflows, ci/toolchain-pins, dependency/lockfile-policy]
+    method: automated
+    relationship: related_risk
+    note: 'advisory and workflow scanning are wired; pin policy recipes are declared but unwired'
+  - id: A04
+    summary: 'Cryptographic Failures (2025 list, fetched from the published edition)'
+    controls: [SEC-01, SEC-02, SEC-03]
+    recipes: [gitleaks/repository, gitleaks/history, build/client-assets, credentials/rotation-drill]
+    method: automated
+    relationship: related_risk
+    note: 'the cryptographic-failure face SecHard covers is credential exposure; algorithm and cipher depth is a gap'
+  - id: A05
+    summary: 'Injection (2025 list, fetched from the published edition)'
+    controls: [WEB-01, CODE-01]
+    recipes: [opengrep/rules, web/negative-inputs]
+    method: automated
+    relationship: related_risk
+    note: 'the wired static rules cover eval, shell interpolation, innerHTML, SSRF, and unsafe consumption (syntactic); full negative-input testing is unwired'
+  - id: A06
+    summary: 'Insecure Design (2025 list, fetched from the published edition)'
+    controls: [CTX-01, BIZ-01, ABUSE-01]
+    recipes: [manifest/validate, biz/transaction-integrity, abuse/resource-limits]
+    method: manual
+    relationship: related_risk
+    note: 'threat-model review and flow testing are manual/declared territory'
+  - id: A07
+    summary: 'Authentication Failures (2025 list, fetched from the published edition)'
+    controls: [AUTH-01, AUTH-02, AUTH-03]
+    recipes: [auth/session-behaviour, auth/recovery-isolation, web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+    note: 'session and recovery recipes are unwired; the implicit-grant static rule is wired (syntactic)'
+  - id: A08
+    summary: 'Software or Data Integrity Failures (2025 list, fetched from the published edition)'
+    controls: [CI-03, REL-01, OPS-02]
+    recipes: [gate/completeness, release/evidence-assembly]
+    method: manual
+    relationship: related_risk
+    note: 'the fail-closed gate machinery is the integrity control; release signing is not implemented'
+  - id: A09
+    summary: 'Security Logging and Alerting Failures (2025 list, fetched from the published edition)'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+    note: 'logging and alerting is manual evidence territory'
+  - id: A10
+    summary: 'Mishandling of Exceptional Conditions (2025 list, fetched from the published edition)'
+    controls: [QUAL-07, WEB-01]
+    recipes: [quality/error-handling, web/negative-inputs]
+    method: automated
+    relationship: related_risk
+    note: 'the error-handling rules flag swallowed failures (empty catch, unhandled rejection); the deeper fail-open review is manual'

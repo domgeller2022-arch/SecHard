@@ -2,6 +2,7 @@ import type { ControlDefinition } from '../domain/definitions.js';
 import type { CheckResult, ExecutionPlan, Finding, GateDecision, ReleaseEvidence, Severity } from '../domain/types.js';
 import { escapeMarkdown, redactSecrets } from '../evidence/redaction.js';
 import { explainFinding, type Confidence, type Effort } from './explanations.js';
+import { loadStandardMapping, type StandardMapping } from '../domain/standards-coverage.js';
 import type { Detection } from './detect.js';
 import type { ApprovedUrl } from './url-guard.js';
 
@@ -61,6 +62,8 @@ export interface AuditReport {
   readonly securityScore: { readonly score: number | null; readonly verdict: string };
   readonly qualityScore: { readonly score: number | null; readonly verdict: string };
   readonly fixFirst: readonly AnnotatedFinding[];
+  /** Kit-level per-standard coverage for the audited application's composed profiles (Batch S1.4). */
+  readonly standardsCoverage: readonly { readonly standard: string; readonly edition: string; readonly statement: string }[];
 }
 
 const SEVERITY_WEIGHT: Readonly<Record<Severity, number>> = {
@@ -237,9 +240,10 @@ export function buildAuditReport(input: AuditReportInput): AuditReport {
   const qual = qualityScore(input, quality);
   const coverage = countRan(input);
 
-  const json = buildJson(input, findings, fixFirst, sec, qual, could, coverage);
-  const markdown = buildMarkdown(input, security, quality, fixFirst, sec, qual, could, coverage);
-  const html = buildHtml(input, security, quality, fixFirst, sec, qual, could, coverage);
+  const standardsCoverage = standardsCoverageFor(input);
+  const json = buildJson(input, findings, fixFirst, sec, qual, could, coverage, standardsCoverage);
+  const markdown = buildMarkdown(input, security, quality, fixFirst, sec, qual, could, coverage, standardsCoverage);
+  const html = buildHtml(input, security, quality, fixFirst, sec, qual, could, coverage, standardsCoverage);
   const sarif = buildSarif(input, findings);
 
   return {
@@ -249,7 +253,37 @@ export function buildAuditReport(input: AuditReportInput): AuditReport {
     securityScore: sec,
     qualityScore: qual,
     fixFirst,
+    standardsCoverage,
   };
+}
+
+/**
+ * The per-application standards statement (S1.4): which requirements of each mapped standard the
+ * composed profiles could actually check for THIS application. The kit-level matrices say what the
+ * mappings contain; this says what ran for the app - a control that did not compose does not count.
+ */
+function standardsCoverageFor(input: AuditReportInput): { standard: string; edition: string; statement: string }[] {
+  const composed = new Set<string>();
+  for (const check of input.plan.expected_checks) {
+    for (const control of check.control_ids) composed.add(control);
+  }
+  const out: { standard: string; edition: string; statement: string }[] = [];
+  for (const standardId of ['asvs', 'owasp-top-10', 'owasp-api-top-10']) {
+    const loaded = loadStandardMapping(standardId);
+    if (loaded.mapping === undefined) continue;
+    const mapping: StandardMapping = loaded.mapping;
+    const applicable = mapping.requirements.filter((requirement) =>
+      (requirement.method === 'automated' || requirement.method === 'manual')
+      && requirement.controls.some((control) => composed.has(control)));
+    const automated = applicable.filter((requirement) => requirement.method === 'automated').length;
+    const manual = applicable.filter((requirement) => requirement.method === 'manual').length;
+    const l1 = standardId === 'asvs' ? mapping.requirements.filter((requirement) => requirement.level === 1) : undefined;
+    const statement = l1 === undefined
+      ? `${String(automated)} of ${String(mapping.requirements.length)} categories checkable automatically, ${String(manual)} by manual evidence, ${String(mapping.requirements.length - automated - manual)} not checked for this application`
+      : `L1: ${String(l1.filter((requirement) => requirement.method === 'automated' && requirement.controls.some((control) => composed.has(control))).length)} of ${String(l1.length)} checked automatically, ${String(l1.filter((requirement) => requirement.method === 'manual' && requirement.controls.some((control) => composed.has(control))).length)} manual, ${String(l1.length - l1.filter((requirement) => (requirement.method === 'automated' || requirement.method === 'manual') && requirement.controls.some((control) => composed.has(control))).length)} not checked`;
+    out.push({ standard: mapping.standard_id, edition: mapping.edition, statement });
+  }
+  return out;
 }
 
 // --- JSON ---------------------------------------------------------------------
@@ -262,6 +296,7 @@ function buildJson(
   qual: { score: number | null; verdict: string },
   could: readonly string[],
   coverage: { ran: number; planned: number },
+  standardsCoverage: readonly { standard: string; edition: string; statement: string }[],
 ): string {
   const document = {
     schema_version: 'audit-report/v1',
@@ -277,6 +312,7 @@ function buildJson(
     fix_first: fixFirst.map((finding) => redactFinding(finding)),
     findings: findings.map((finding) => redactFinding(finding)),
     could_not_check: could,
+    standards_coverage: standardsCoverage,
     gate: {
       decision: input.decision.satisfied ? 'satisfied' : 'blocked',
       blocking_reasons: input.decision.reasons.length,
@@ -309,6 +345,7 @@ function buildMarkdown(
   qual: { score: number | null; verdict: string },
   could: readonly string[],
   coverage: { ran: number; planned: number },
+  standardsCoverage: readonly { standard: string; edition: string; statement: string }[],
 ): string {
   const lines: string[] = [
     `# Security audit — ${safe(input.targetName)}`,
@@ -402,6 +439,16 @@ function buildMarkdown(
   }
 
   lines.push(
+    '## Standards coverage for this application', '',
+    'Which requirements of each mapped standard the composed profiles could actually check for THIS',
+    'application - the kit-level matrices in `controls/coverage/` say what the mappings contain; this',
+    'table says what ran.', '',
+    '| Standard | Edition | For this application |',
+    '| --- | --- | --- |',
+    ...standardsCoverage.map((entry) => `| ${entry.standard} | ${safe(entry.edition)} | ${safe(entry.statement)} |`),
+    '',
+    'Every requirement not counted here is visible in the coverage matrices as a gap with its reason.',
+    '',
     '## Gaps and coverage',
     '',
     `- Detected stack: \`${input.detection.stack.kind}\``,
@@ -447,6 +494,7 @@ function buildHtml(
   qual: { score: number | null; verdict: string },
   could: readonly string[],
   coverage: { ran: number; planned: number },
+  standardsCoverage: readonly { standard: string; edition: string; statement: string }[],
 ): string {
   const fixRows = fixFirst.map((finding, index) =>
     `<tr><td>${index + 1}</td><td class="${h(finding.severity)}">${h(finding.severity)}</td><td><code>${h(finding.location || '(no location)')}</code></td><td>${h(finding.title)}</td><td>${h(finding.effort)}</td><td>${h(finding.confidence)}</td></tr>`,
@@ -498,6 +546,10 @@ ${security.length === 0 ? '<p>No security findings were reported by the checks t
 ${quality.length === 0 ? `<p>${h(qual.score === null ? 'Not assessed: no quality check produced an answer (see "What we could not check").' : 'No quality findings among the quality checks that ran.')}</p>` : qualityBlocks}
 <h2>How the gate saw it</h2>
 <p>The same evaluation the gate produced, unchanged: decision <code>${h(input.decision.satisfied ? 'satisfied' : 'blocked')}</code> with ${h(String(input.decision.reasons.length))} blocking reason(s); ${h(String(input.decision.control_outcomes.filter((outcome) => outcome.outcome === 'satisfied').length))} of ${h(String(input.decision.control_outcomes.length))} applicable controls satisfied. An audit is advisory: a blocked gate here means &ldquo;requirements exist that source alone cannot satisfy&rdquo;, not &ldquo;the application failed&rdquo;.</p>
+<h2>Standards coverage for this application</h2>
+<p>Which requirements of each mapped standard the composed profiles could actually check for THIS application.</p>
+<table><tr><th>Standard</th><th>Edition</th><th>For this application</th></tr>
+${standardsCoverage.map((entry) => `<tr><td>${h(entry.standard)}</td><td>${h(entry.edition)}</td><td>${h(entry.statement)}</td></tr>`).join('\n')}</table>
 <footer>Generated from the same evaluation as the gate. Formatting does not change the decision.</footer>
 </body></html>
 `;

@@ -21,34 +21,35 @@ const BLUEPRINT_IDS = [
   'BIZ-01', 'DEPLOY-01', 'OPS-01', 'OPS-02', 'OPS-03', 'PRIV-01', 'REL-01', 'REL-02', 'EXC-01',
 ] as const;
 // D3's catalogue-versioning story: a new ID set never changes silently. Catalogue v2 added the
-// quality controls; this list is the deliberate record of what v2 added, and the test asserts the
-// migration note names exactly it.
+// quality controls; v3 added AUTH-03 (Batch S, RFC 9700). These lists are the deliberate record,
+// and the test asserts the migration note names exactly the latest change plus the full history.
 const CATALOGUE_V2_ADDITIONS = [
   'QUAL-02', 'QUAL-03', 'QUAL-04', 'QUAL-05', 'QUAL-06', 'QUAL-07', 'QUAL-08', 'QUAL-09',
   'QUAL-10', 'QUAL-11', 'QUAL-12', 'QUAL-13',
 ] as const;
+const CATALOGUE_V3_ADDITIONS = ['AUTH-03'] as const;
 
 describe('control catalogue', () => {
-  it('contains exactly the v1 blueprint IDs plus the v2 additions, with no duplicates', () => {
+  it('contains exactly the v1 blueprint IDs plus the v2 and v3 additions, with no duplicates', () => {
     const ids = controls.map((control) => control.id);
-    expect(ids).toHaveLength(BLUEPRINT_IDS.length + CATALOGUE_V2_ADDITIONS.length);
-    expect([...ids].sort()).toEqual([...BLUEPRINT_IDS, ...CATALOGUE_V2_ADDITIONS].sort());
+    expect(ids).toHaveLength(BLUEPRINT_IDS.length + CATALOGUE_V2_ADDITIONS.length + CATALOGUE_V3_ADDITIONS.length);
+    expect([...ids].sort()).toEqual([...BLUEPRINT_IDS, ...CATALOGUE_V2_ADDITIONS, ...CATALOGUE_V3_ADDITIONS].sort());
     expect(checkDuplicateIds(ids)).toEqual([]);
   });
 
-  it('carries a migration note that names exactly what the catalogue version added', () => {
+  it('carries a migration note that names exactly what the latest catalogue version added, with the full history', () => {
     // A catalogue whose size changed without a migration note is a silent release change; D3
     // exists to make that impossible.
-    expect(catalogue.catalogue_version).toBe(2);
-    expect(catalogue.migration?.changed_in).toBe(2);
-    expect([...(catalogue.migration?.added ?? [])].sort()).toEqual([...CATALOGUE_V2_ADDITIONS].sort());
+    expect(catalogue.catalogue_version).toBe(3);
+    expect(catalogue.migration?.changed_in).toBe(3);
+    expect([...(catalogue.migration?.added ?? [])].sort()).toEqual([...CATALOGUE_V3_ADDITIONS].sort());
     expect(catalogue.migration?.removed ?? []).toEqual([]);
     expect((catalogue.migration?.reason ?? '').length).toBeGreaterThan(40);
   });
 
-  it('keeps every v2 addition a draft that the owner has not yet approved', () => {
-    const additions = controls.filter((control) => (CATALOGUE_V2_ADDITIONS as readonly string[]).includes(control.id));
-    expect(additions).toHaveLength(CATALOGUE_V2_ADDITIONS.length);
+  it('keeps every v2 and v3 addition a draft that the owner has not yet approved', () => {
+    const additions = controls.filter((control) => ([...CATALOGUE_V2_ADDITIONS, ...CATALOGUE_V3_ADDITIONS] as readonly string[]).includes(control.id));
+    expect(additions).toHaveLength(CATALOGUE_V2_ADDITIONS.length + CATALOGUE_V3_ADDITIONS.length);
     for (const control of additions) {
       expect(control.review_status, control.id).toBe('draft');
       expect(control.reviewed_by, control.id).toBeUndefined();
@@ -79,16 +80,23 @@ describe('control catalogue', () => {
     const policy = loadPolicy({ appRoot: packageRoot(), policyRoot: packageRoot() });
     expect(policy.value?.approvals).toHaveLength(35);
     const states = resolveApprovals(controls, policy.value?.approvals ?? [], new Date());
-    // Batch W changed SEC-01's definition (its gitleaks recipes are `mixed`, because gitleaks
-    // reports bytes rather than files). That deliberately invalidated SEC-01's approval: the
-    // reviewed content is not the content that was approved. Every other control still resolves.
-    // Batch Q's twelve new quality controls are drafts with no approval records at all yet, so
-    // they resolve as unresolved too — release evaluation must block on them until the owner
-    // approves them. Batch D re-approves the whole sheet once the remediation batches stop
-    // changing definitions.
+    // Definition edits invalidate approvals by design: the digest is over the definition as
+    // reviewed, so content that changed since approval stops resolving. Three batches did that
+    // deliberately: Batch W changed SEC-01 (mixed coverage), Batch Q and Batch S added the
+    // quality controls and AUTH-03, and Batch S added WSTG citations and cheat-sheet references
+    // to fourteen v1 definitions (AUTH-01/02, AUTHZ-01..03, DATA-01, WEB-01, ABUSE-01, BIZ-01,
+    // AGT-03, DEP-02, REL-02, EXC-01, QUAL-01) - a citation is reviewable content. Release
+    // evaluation must block on all of them until the owner approves them; Batch D re-approves the
+    // whole sheet once the remediation batches stop changing definitions.
+    const WSTG_INVALIDATED = [
+      'AGT-03', 'AUTH-01', 'AUTH-02', 'AUTHZ-01', 'AUTHZ-02', 'AUTHZ-03', 'BIZ-01', 'DATA-01',
+      'DEP-02', 'EXC-01', 'QUAL-01', 'REL-02', 'WEB-01', 'ABUSE-01',
+    ] as const;
     const unresolved = states.filter((state) => !state.approved);
-    expect(unresolved.map((state) => state.control)).toEqual(['SEC-01', ...CATALOGUE_V2_ADDITIONS]);
-    expect(states.filter((state) => state.approved)).toHaveLength(34);
+    expect([...unresolved.map((state) => state.control)].sort()).toEqual(
+      ['SEC-01', ...WSTG_INVALIDATED, ...CATALOGUE_V2_ADDITIONS, ...CATALOGUE_V3_ADDITIONS].sort(),
+    );
+    expect(states.filter((state) => state.approved)).toHaveLength(20);
     // Self-review, not independent assurance. The unresolved SEC-01 has no valid approval to label.
     expect(states.filter((state) => state.approved).every((state) => state.self_review)).toBe(true);
   });

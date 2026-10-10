@@ -11,6 +11,7 @@ description: >-
 controls:
   - { control: AUTH-01 }
   - { control: AUTH-02 }
+  - { control: AUTH-03 }
   - { control: AUTHZ-01 }
   - { control: AUTHZ-02 }
   - { control: AUTHZ-03 }
@@ -50,6 +51,7 @@ support_constraints:
     not a configuration choice.
 permitted_exceptions:
   - { control: AUTH-01, policy: never }
+  - { control: AUTH-03, policy: never, note: "A broken authorization flow needs containment and remediation" }
   - { control: AUTH-02, policy: permitted, max_duration_days: 30 }
   - { control: AUTHZ-01, policy: never }
   - { control: AUTHZ-02, policy: never }

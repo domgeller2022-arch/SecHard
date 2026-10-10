@@ -248,6 +248,39 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     expect(parseOpengrepReport('{"results":[')).toMatchObject({ error: expect.stringContaining('not valid JSON') });
   });
 
+  // Batch S rules: each fires on its vulnerable fixture and stays silent on the fixed twin -
+  // the API Top 10 SSRF and unsafe-consumption rules, the RFC 9700 implicit-grant rule, and the
+  // Electron renderer configuration rules.
+  it('finds SSRF, unsafe consumption, implicit-grant, and Electron findings on their fixtures', async () => {
+    const cases: readonly { dir: string; vulnerable: readonly string[]; fixed: readonly string[] }[] = [
+      {
+        dir: 'api',
+        vulnerable: ['hardening.ssrf-request-derived-url', 'hardening.api-unvalidated-response-consumption'],
+        fixed: [],
+      },
+      { dir: 'oauth', vulnerable: ['hardening.oauth-implicit-grant'], fixed: [] },
+      {
+        dir: 'electron',
+        vulnerable: ['hardening.electron-node-integration', 'hardening.electron-context-isolation-off', 'hardening.electron-sandbox-off'],
+        fixed: [],
+      },
+    ];
+    for (const testCase of cases) {
+      for (const variant of ['vulnerable', 'fixed'] as const) {
+        const file = join(FIXTURES, testCase.dir, `${variant}.ts`);
+        const run = await runOpengrep(file, rules);
+        const parsed = parseOpengrepReport(run.json, { intendedScope: [file] });
+        expect('error' in parsed, `${testCase.dir}/${variant}`).toBe(false);
+        if ('error' in parsed) continue;
+        const found = new Set(parsed.findings.map((finding) => finding.rule_id));
+        const expected = variant === 'vulnerable' ? testCase.vulnerable : testCase.fixed;
+        for (const ruleId of testCase.vulnerable) {
+          expect(found.has(ruleId), `${testCase.dir}/${variant}: ${ruleId}`).toBe(expected.includes(ruleId));
+        }
+      }
+    }
+  });
+
   it('surfaces tool-reported errors as parser errors', () => {
     const parsed = parseOpengrepReport(JSON.stringify({ results: [], errors: [{ message: 'timeout on a.ts' }], paths: { scanned: ['a.ts'] } }));
     if ('error' in parsed) return;

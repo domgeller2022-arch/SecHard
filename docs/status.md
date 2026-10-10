@@ -1,6 +1,6 @@
 # Status
 
-> Generated from `docs/implementation-progress.md` (source SHA-256 `e3d756d515a2b4770fa7b8eb8f2b54369fc3a6c431a5c6607d3dd936ec45a1aa`) by
+> Generated from `docs/implementation-progress.md` (source SHA-256 `f2dfb2a9bfd9da7d84f1fa5e78a8b47cd06cec453f242cfe774d921668c0046b`) by
 > `node tools/generate-status.mjs`. Do not edit by hand: edit the progress record and regenerate.
 > A section appears here only when the record states its state; "verified" means the record's
 > stated acceptance checks ran, nothing more.
@@ -26,14 +26,19 @@
 | Batch W — Wire (remediation plan, 2026-10-08) | `verified` |
 | Batch U — Audit mode (2026-10-09) | `verified` |
 | Batch Q — Quality: "engineered, not vibe-coded" (2026-10-10) | `verified` |
+| Batch S — Standards at requirement level (2026-10-10) | `verified` |
 
 ## Open findings and blockers
 
 These are not generated: the authoritative list is in `docs/implementation-progress.md` and
-`CHANGELOG.md`. The short version, as of Batch Q:
+`CHANGELOG.md`. The short version, as of Batch S:
 
-- quality (Batch Q): six calibrated recipes wired, catalogue v2 (47 controls, QUAL-02..13 draft
-  pending owner approval, which blocks release evaluation); external-analyser recipes report
+- standards (Batch S): 518 requirement-level mapping entries across eight standards, generated
+  coverage matrices, a per-application standards statement in every audit; catalogue v3 (48
+  controls, AUTH-03 added); WSTG citations invalidated 14 v1 approvals deliberately - Batch D
+  re-approves the sheet;
+- quality (Batch Q): six calibrated recipes wired; the twelve QUAL definitions remain draft
+  pending owner approval, which blocks release evaluation; external-analyser recipes report
   unsupported with the tool named;
 - audit mode exists (Batch U) with stated limits: local folder only, `deep` equals `standard`
   until the isolation model exists, and Python static analysis is not run (JS/TS rule pack only);

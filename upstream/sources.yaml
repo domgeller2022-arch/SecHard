@@ -115,17 +115,24 @@ sources:
     canonical_url: https://github.com/OWASP/ASVS
     component: "OWASP Application Security Verification Standard"
     licence: "CC-BY-SA-4.0"
-    use_type: linking
+    use_type: adapting
     reviewed_release:
-      kind: version
-      value: "5.0.0 (5.0.1 next target, per the blueprint)"
-      verified_at: "2026-10-07T00:00:00Z"
+      kind: digest
+      value: "98c8fe911b9edb403af8ee05d3ce8201ecac2659e313b053890a62847cdcf680"
+      verified_at: "2026-10-10T00:00:00Z"
+      integrity_method: sha256_digest
     support_status: verified
     update_policy: "Requirement IDs are re-checked against the pinned edition before publication."
-    last_reviewed: "2026-10-07T00:00:00Z"
+    last_reviewed: "2026-10-10T00:00:00Z"
     notes: >-
-      Licence verified via the GitHub API on 2026-10-07. The repository's "latest" release is a
-      moving tag (published 2026-09-03), so a numbered edition must be pinned when mappings are
+      Licence verified via the GitHub API on 2026-10-07. Batch S vendored the official v5.0.0
+      requirement CSV (tag v5.0.0_release, SHA-256 recorded above) at
+      controls/mappings/data/asvs-5.0.0-en.csv so the requirement-level mapping is checkable
+      offline and the owner can review L1 against the actual text. CC BY-SA 4.0 requires
+      attribution and share-alike on redistribution: a licence review is a Batch D owner action
+      before any distribution. The mapping summaries are SecHard paraphrases; the standard's own
+      text is not reproduced in the mapping. The repository's "latest" release is a moving tag, so
+      a numbered edition must be pinned when mappings are
       reviewed; the blueprint's 5.0.0 is recorded as the intended edition and is not re-verified
       here. No v1 control claims ASVS coverage: every mapping is related_risk.
 
@@ -473,21 +480,37 @@ sources:
     notes: "Licence verified via the GitHub API on 2026-10-07. AI review is a review candidate generator; it cannot satisfy a check."
 
   - schema_version: source/v1
+    id: gorrion-production-readiness-checklist
+    canonical_url: https://github.com/gorrion-io/production-readiness-checklist
+    component: "Production readiness checklist (comparison project)"
+    licence: "MIT"
+    use_type: linking
+    reviewed_release: { kind: version, value: "comparison material only", verified_at: "2026-10-10T00:00:00Z" }
+    support_status: planned
+    update_policy: "Read for comparison before adding anything of our own; ideas are reviewed, text is not copied."
+    last_reviewed: "2026-10-10T00:00:00Z"
+    notes: >-
+      Batch S4 splits this project out of the representative checklist entry so each comparison
+      project has its own record, as the remediation plan requires. Its monitoring, cron, and
+      stack-trace items informed OPS-01 and WEB-02. None of its text is included here.
+
+  - schema_version: source/v1
     id: true-positive-checklists
     canonical_url: https://github.com/gorrion-io/production-readiness-checklist
-    component: "Comparison checklists (production-readiness-checklist and similar)"
-    licence: "MIT"
+    component: "Comparison checklists (vibe-check, vibe-security, preflight-checks, and similar)"
+    licence: "various; each checked before any use"
     use_type: linking
     reviewed_release: { kind: version, value: "comparison material only", verified_at: "2026-10-07T00:00:00Z" }
     support_status: planned
     update_policy: "Read for comparison before adding anything of our own; ideas are reviewed, text is not copied."
-    last_reviewed: "2026-10-07T00:00:00Z"
+    last_reviewed: "2026-10-10T00:00:00Z"
     notes: >-
-      This entry stands for the blueprint's list of checklist projects (vibe-check, vibe-security,
-      preflight-checks, production-readiness-checklist). One representative licence was verified via
-      the GitHub API on 2026-10-07; each project's own licence is checked before any of its material
-      is used, and none of their text is included here. The existence of a checklist is not evidence
-      of verified coverage.
+      This entry stands for the blueprint's remaining checklist projects (vibe-check, vibe-security,
+      preflight-checks); the canonical_url is the representative project's, recorded since the batch
+      that created this entry. Each project's own licence is checked before any of its material is
+      used, and none of their text is included here. The existence of a checklist is not evidence of
+      verified coverage. The astoj IaC project the plan names could not be identified from a URL and
+      is recorded in the Batch S checkpoint as a gap rather than guessed at.
   - schema_version: source/v1
     id: vibe-security-skill
     canonical_url: https://github.com/raroque/vibe-security-skill

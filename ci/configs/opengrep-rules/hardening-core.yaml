@@ -41,3 +41,95 @@ rules:
     metadata:
       hardening_controls: [WEB-01, CODE-01]
     pattern: $ELEMENT.innerHTML = $VALUE
+
+  # --- Batch S rules: API Top 10 (API7 SSRF, API10 unsafe consumption), RFC 9700 (implicit
+  # grant), and the MASVS/Electron first step. ASCII-only: the pinned opengrep reads local
+  # rule packs with a locale-dependent codec (recorded in the Batch Q checkpoint).
+
+  - id: hardening.ssrf-request-derived-url
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      A network request is made with a URL derived from request data. If the value can name any
+      host, this is a server-side request forgery path: an attacker chooses the destination.
+      Validate the destination against a protocol and host allowlist before fetching.
+    metadata:
+      hardening_controls: [WEB-01, CODE-01]
+    patterns:
+      - pattern: $FETCH($URL, ...)
+      - metavariable-regex:
+          metavariable: $FETCH
+          regex: ^(fetch|axios|got|\$\.\w+)$
+      - metavariable-regex:
+          metavariable: $URL
+          regex: .*\b(req|request|ctx|event|input)\.(query|params|body|searchParams|nextUrl|url)\b.*
+
+  - id: hardening.api-unvalidated-response-consumption
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: >-
+      An external response is returned to the caller as parsed data without any visible status or
+      shape validation. A failed or hostile third-party API response should never flow straight
+      back into application state or rendering. Check the response status and validate the payload
+      shape before returning it. Scope limit, stated: this is the direct-return shape only; a
+      response that is parsed into a variable and returned later is not caught in this build.
+    metadata:
+      hardening_controls: [WEB-01, CODE-01]
+    pattern-either:
+      - pattern: return await $X.json()
+      - pattern: return $X.json()
+
+  - id: hardening.oauth-implicit-grant
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      An implicit-grant response type hands tokens directly to the browser, where history, logs,
+      and any script can read them. RFC 9700 prohibits it: use the authorization code flow with
+      PKCE, where tokens stay on the server side.
+    metadata:
+      hardening_controls: [AUTH-03]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              {..., response_type: $V, ...}
+          - pattern: $X.response_type = $V
+      - metavariable-regex:
+          metavariable: $V
+          regex: ^['\"]?(token|id_token)['\"]?$
+
+  - id: hardening.electron-node-integration
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Electron nodeIntegration:true exposes Node APIs (filesystem, processes) to renderer code.
+      With any XSS in the renderer this is remote code execution on the user's machine. Keep
+      nodeIntegration off and use a preload script that exposes reviewed IPC instead.
+    metadata:
+      hardening_controls: [CODE-01, WEB-01]
+    pattern-either:
+      - pattern: '{nodeIntegration: true}'
+      - pattern: $X.nodeIntegration = true
+
+  - id: hardening.electron-context-isolation-off
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Electron contextIsolation:false shares the JavaScript context between the page and preload
+      scripts, so page code can reach privileged objects. Isolation must stay on.
+    metadata:
+      hardening_controls: [CODE-01, WEB-01]
+    pattern-either:
+      - pattern: '{contextIsolation: false}'
+      - pattern: $X.contextIsolation = false
+
+  - id: hardening.electron-sandbox-off
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: >-
+      Electron sandbox:false runs the renderer without the OS sandbox. Unless a preload genuinely
+      needs Node, leave the sandbox on; document the exception if one is required.
+    metadata:
+      hardening_controls: [CODE-01, WEB-01]
+    pattern-either:
+      - pattern: '{sandbox: false}'
+      - pattern: $X.sandbox = false

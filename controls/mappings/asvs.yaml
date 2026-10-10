@@ -1,0 +1,3426 @@
+schema: hardening/standard-mapping/v1
+standard_id: owasp-asvs
+edition: "5.0.0"
+source_data: controls/mappings/data/asvs-5.0.0-en.csv
+#
+# Requirement-level mapping (remediation-plan Batch S1/S2). Facts (IDs, levels, chapter names)
+# are imported from the official v5.0.0 CSV, vendored at source_data under CC BY-SA 4.0 with the
+# licence notice in upstream/sources.yaml. The summaries are SecHard's own paraphrases, written for
+# this mapping - the standard's text is not reproduced here.
+#
+# The rule from the review stands: every relationship is related_risk. Nothing is
+# verified_coverage until an application is actually assessed against the requirement.
+#
+# method semantics: automated = a wired recipe checks (a slice of) the requirement;
+# manual = a declared manual recipe accepts a validated operator attestation; gap = no coverage in
+# this build, with the reason recorded; not_applicable = applies only outside the v1 profiles.
+relationship: related_risk
+reviewed_by: mapping-agent (owner review pending)
+reviewed_at: "2026-10-10T00:00:00Z"
+requirements:
+  - id: V1.1.1
+    level: 2
+    section: V1.1
+    chapter: V1
+    summary: 'Decode untrusted input to canonical form exactly once, and only where that encoding is expected.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.1.2
+    level: 2
+    section: V1.1
+    chapter: V1
+    summary: 'Encode or escape output at the last step before the consuming interpreter, or via a safe wrapper.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.2.1
+    level: 1
+    section: V1.2
+    chapter: V1
+    summary: 'Use output encoding suited to the response context (HTML, XML, HTTP) for each part of the document.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+    note: 'the manual-boundaries recipe accepts an operator attestation of encoding practice'
+  - id: V1.2.2
+    level: 1
+    section: V1.2
+    chapter: V1
+    summary: 'Encode untrusted data by its URL context (query, path, fragment) when building URLs dynamically.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V1.2.3
+    level: 1
+    section: V1.2
+    chapter: V1
+    summary: 'Escape untrusted data embedded in generated JavaScript or JSON so it cannot change the script or document.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V1.2.4
+    level: 1
+    section: V1.2
+    chapter: V1
+    summary: 'Use parameterized queries, ORMs, or safe query builders for all database access.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V1.2.5
+    level: 1
+    section: V1.2
+    chapter: V1
+    summary: 'Prevent OS command injection: parameterized OS calls, never shell strings built from input.'
+    controls: [CODE-01]
+    recipes: [opengrep/rules]
+    method: automated
+    relationship: related_risk
+    note: 'the wired child-process rule flags shell commands built from interpolated values (syntactic)'
+  - id: V1.2.6
+    level: 2
+    section: V1.2
+    chapter: V1
+    summary: 'Prevent LDAP injection with parameterized or escaped directory queries.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.2.7
+    level: 2
+    section: V1.2
+    chapter: V1
+    summary: 'Prevent XPath injection with parameterized or precompiled queries.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.2.8
+    level: 2
+    section: V1.2
+    chapter: V1
+    summary: 'Configure LaTeX processors without shell escape and allowlist permitted commands.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.2.9
+    level: 2
+    section: V1.2
+    chapter: V1
+    summary: 'Escape regex special characters built from untrusted input.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.2.10
+    level: 3
+    section: V1.2
+    chapter: V1
+    summary: 'Escape cells and formulas to prevent CSV and spreadsheet formula injection (RFC 4180).'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.1
+    level: 1
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize untrusted rich HTML (WYSIWYG) with a maintained sanitisation library.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V1.3.2
+    level: 1
+    section: V1.3
+    chapter: V1
+    summary: 'Avoid eval and dynamic code execution (including template language evaluation) on untrusted input.'
+    controls: [CODE-01]
+    recipes: [opengrep/rules]
+    method: automated
+    relationship: related_risk
+    note: 'the wired no-eval rule flags eval and dynamic evaluation (syntactic)'
+  - id: V1.3.3
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize data by allowlist before passing it to a dangerous context.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.4
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Validate or sanitize scriptable SVG content to a safe tag and attribute subset.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.5
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize or disable user-supplied template or expression content (Markdown, CSS, XSL, BBCode).'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.6
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Prevent SSRF: validate untrusted destinations against a protocol and destination allowlist.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: automated
+    relationship: related_risk
+    note: 'the SSRF rule (Batch S) flags fetches of request-derived URLs (syntactic)'
+  - id: V1.3.7
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Do not build templates from untrusted input; separate data from template code.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.8
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize input used in JNDI lookups and disable remote class loading.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.9
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize content sent to memcache to prevent injection.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.10
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize format strings so untrusted input cannot become format directives.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.11
+    level: 2
+    section: V1.3
+    chapter: V1
+    summary: 'Sanitize input passed to mail systems against SMTP or IMAP header injection.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.3.12
+    level: 3
+    section: V1.3
+    chapter: V1
+    summary: 'Avoid exponential-backtracking regexes and sanitize input to prevent ReDoS.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.4.1
+    level: 2
+    section: V1.4
+    chapter: V1
+    summary: 'Use memory-safe string handling and copy operations to prevent buffer overflows.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.4.2
+    level: 2
+    section: V1.4
+    chapter: V1
+    summary: 'Validate sign and range to prevent integer overflows in calculations.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.4.3
+    level: 2
+    section: V1.4
+    chapter: V1
+    summary: 'Release allocated memory and clear dangling references to prevent use-after-free.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.5.1
+    level: 1
+    section: V1.5
+    chapter: V1
+    summary: 'Configure XML parsers restrictively; disable external entity resolution.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.5.2
+    level: 2
+    section: V1.5
+    chapter: V1
+    summary: 'Restrict deserialization of untrusted data to allowlisted types.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V1.5.3
+    level: 3
+    section: V1.5
+    chapter: V1
+    summary: 'Make all parsers of the same data type interpret input consistently.'
+    controls: [WEB-01, CODE-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, opengrep/rules]
+    method: gap
+    relationship: related_risk
+    note: 'no encoding-depth rule pack exists in v1; the wired statics cover eval, shell-command interpolation, and innerHTML only'
+  - id: V2.1.1
+    level: 1
+    section: V2.1
+    chapter: V2
+    summary: 'Document validation rules for each data item, including lengths and accepted ranges.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+    note: 'documentation review is the inventory/review manual recipe'
+  - id: V2.1.2
+    level: 2
+    section: V2.1
+    chapter: V2
+    summary: 'Document how combined data items are checked for logical and contextual consistency.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.1.3
+    level: 2
+    section: V2.1
+    chapter: V2
+    summary: 'Document business-logic limits and validations, per user and globally.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.2.1
+    level: 1
+    section: V2.2
+    chapter: V2
+    summary: 'Validate input against positive (allowlist) expectations for that field.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V2.2.2
+    level: 1
+    section: V2.2
+    chapter: V2
+    summary: 'Enforce input validation at a trusted server layer, never only in the client.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V2.2.3
+    level: 2
+    section: V2.2
+    chapter: V2
+    summary: 'Check that combinations of related data items are reasonable under defined rules.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.3.1
+    level: 1
+    section: V2.3
+    chapter: V2
+    summary: 'Process each user business flow only in its expected sequential order, without skipped steps.'
+    controls: [WEB-01, BIZ-01]
+    recipes: [web/negative-inputs, web/manual-boundaries, biz/transaction-integrity, biz/provider-webhooks]
+    method: manual
+    relationship: related_risk
+  - id: V2.3.2
+    level: 2
+    section: V2.3
+    chapter: V2
+    summary: 'Implement the documented business-logic limits in code.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.3.3
+    level: 2
+    section: V2.3
+    chapter: V2
+    summary: 'Use transactions so business operations complete entirely or roll back.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.3.4
+    level: 2
+    section: V2.3
+    chapter: V2
+    summary: 'Lock limited-quantity resources so they cannot be double-claimed.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.3.5
+    level: 3
+    section: V2.3
+    chapter: V2
+    summary: 'Require multi-user approval for high-value business flows.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.4.1
+    level: 2
+    section: V2.4
+    chapter: V2
+    summary: 'Apply anti-automation controls to functions vulnerable to bulk abuse.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V2.4.2
+    level: 3
+    section: V2.4
+    chapter: V2
+    summary: 'Enforce realistic human timing between transaction steps.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'business-logic validation has no wired recipe in v1; WEB-01 declares the negative-input recipe but it is not implemented'
+  - id: V3.1.1
+    level: 3
+    section: V3.1
+    chapter: V3
+    summary: 'Document the browser security features the application requires (HSTS, CSP, and similar).'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: V3.2.1
+    level: 1
+    section: V3.2
+    chapter: V3
+    summary: 'Prevent browsers from rendering responses in a different, dangerous context (content-type controls).'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted when the target inventory declares the required context headers (nosniff is in the reference app)'
+  - id: V3.2.2
+    level: 1
+    section: V3.2
+    chapter: V3
+    summary: 'Render text as text (textContent-style safe functions), never by injecting markup.'
+    controls: [CODE-01]
+    recipes: [opengrep/rules]
+    method: automated
+    relationship: related_risk
+    note: 'the wired innerHTML rule flags direct markup injection paths (syntactic)'
+  - id: V3.2.3
+    level: 3
+    section: V3.2
+    chapter: V3
+    summary: 'Avoid DOM clobbering with explicit declarations and strict typing in client code.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.3.1
+    level: 1
+    section: V3.3
+    chapter: V3
+    summary: 'Set Secure (and __Secure-/__Host- prefixes where applicable) on every cookie.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.3.2
+    level: 2
+    section: V3.3
+    chapter: V3
+    summary: 'Set each cookie SameSite according to its purpose.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.3.3
+    level: 2
+    section: V3.3
+    chapter: V3
+    summary: 'Use the __Host- prefix for cookies not designed to be shared across hosts.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.3.4
+    level: 2
+    section: V3.3
+    chapter: V3
+    summary: 'Set HttpOnly on cookies that client scripts must never read (such as sessions).'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.3.5
+    level: 3
+    section: V3.3
+    chapter: V3
+    summary: 'Keep cookie name and value under 4096 bytes.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.4.1
+    level: 1
+    section: V3.4
+    chapter: V3
+    summary: 'Send HSTS on every response.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted when the target inventory declares HSTS (the reference app deliberately omits it locally, recorded)'
+  - id: V3.4.2
+    level: 1
+    section: V3.4
+    chapter: V3
+    summary: 'Return a fixed CORS Access-Control-Allow-Origin, never reflecting request origin.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'assertable through the declared required_headers requirements; not part of the generated audit inventory'
+  - id: V3.4.3
+    level: 2
+    section: V3.4
+    chapter: V3
+    summary: 'Send a Content-Security-Policy header restricting what the browser may load and execute.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted when the target inventory declares CSP (the reference app ships one since Batch Q)'
+  - id: V3.4.4
+    level: 2
+    section: V3.4
+    chapter: V3
+    summary: 'Send X-Content-Type-Options: nosniff on all responses.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted when declared; the reference app requires nosniff in its inventory'
+  - id: V3.4.5
+    level: 2
+    section: V3.4
+    chapter: V3
+    summary: 'Set a Referrer-Policy that prevents leaking sensitive data to third parties.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted when declared (the reference app requires no-referrer)'
+  - id: V3.4.6
+    level: 2
+    section: V3.4
+    chapter: V3
+    summary: 'Use CSP frame-ancestors (or equivalent) to prevent framing of the application.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'assertable via declared headers; the reference app uses X-Frame-Options DENY and CSP frame-ancestors'
+  - id: V3.4.7
+    level: 3
+    section: V3.4
+    chapter: V3
+    summary: 'Configure a CSP violation reporting location.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.4.8
+    level: 3
+    section: V3.4
+    chapter: V3
+    summary: 'Send Cross-Origin-Opener-Policy on document responses.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted when declared (the reference app ships COOP since Batch Q)'
+  - id: V3.5.1
+    level: 1
+    section: V3.5
+    chapter: V3
+    summary: 'Do not rely on CORS preflight alone to protect sensitive requests.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.2
+    level: 1
+    section: V3.5
+    chapter: V3
+    summary: 'If preflight is relied on, verify the mechanism actually protects the functions in question.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.3
+    level: 1
+    section: V3.5
+    chapter: V3
+    summary: 'Use the appropriate HTTP methods (POST/PUT/PATCH/DELETE) for sensitive operations, never GET.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.4
+    level: 2
+    section: V3.5
+    chapter: V3
+    summary: 'Host separate applications on separate hostnames to preserve same-origin isolation.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.5
+    level: 2
+    section: V3.5
+    chapter: V3
+    summary: 'Discard postMessage events from untrusted origins or with invalid syntax.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.6
+    level: 3
+    section: V3.5
+    chapter: V3
+    summary: 'Do not enable JSONP anywhere.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.7
+    level: 3
+    section: V3.5
+    chapter: V3
+    summary: 'Do not include authorization-required data in script resources (XSSI).'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.5.8
+    level: 3
+    section: V3.5
+    chapter: V3
+    summary: 'Prevent authenticated resources being embedded on behalf of users without intent.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.6.1
+    level: 3
+    section: V3.6
+    chapter: V3
+    summary: 'Reference client assets from trusted hosts with integrity controls.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.7.1
+    level: 2
+    section: V3.7
+    chapter: V3
+    summary: 'Use only client-side technologies that are still supported and secure.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.7.2
+    level: 2
+    section: V3.7
+    chapter: V3
+    summary: 'Redirect to other domains only where documented and intended.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.7.3
+    level: 3
+    section: V3.7
+    chapter: V3
+    summary: 'Warn the user before redirecting outside the application, with a cancel option.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.7.4
+    level: 3
+    section: V3.7
+    chapter: V3
+    summary: 'Preload the site for HSTS.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V3.7.5
+    level: 3
+    section: V3.7
+    chapter: V3
+    summary: 'Behave as documented when a browser lacks required security features.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'cookie attributes and CORS mechanics are not asserted by any wired recipe; the live recipe asserts declared headers only'
+  - id: V4.1.1
+    level: 1
+    section: V4.1
+    chapter: V4
+    summary: 'Send a Content-Type header matching the actual response body content.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'asserted through the declared content-type and nosniff requirements'
+  - id: V4.1.2
+    level: 2
+    section: V4.1
+    chapter: V4
+    summary: 'Redirect HTTP to HTTPS only on user-facing endpoints, not on services.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.1.3
+    level: 2
+    section: V4.1
+    chapter: V4
+    summary: 'Treat intermediary-set headers as untrusted unless explicitly configured.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.1.4
+    level: 3
+    section: V4.1
+    chapter: V4
+    summary: 'Reject HTTP methods the application does not explicitly support.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.1.5
+    level: 3
+    section: V4.1
+    chapter: V4
+    summary: 'Add per-message signatures for high-value requests beyond transport protection.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.2.1
+    level: 2
+    section: V4.2
+    chapter: V4
+    summary: 'Parse HTTP message boundaries consistently across components.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.2.2
+    level: 3
+    section: V4.2
+    chapter: V4
+    summary: 'Keep Content-Length consistent with the framed body length.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.2.3
+    level: 3
+    section: V4.2
+    chapter: V4
+    summary: 'Reject connection-specific headers (Transfer-Encoding) in HTTP/2 and HTTP/3.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.2.4
+    level: 3
+    section: V4.2
+    chapter: V4
+    summary: 'Reject CR/LF in HTTP/2 and HTTP/3 header fields and values.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.2.5
+    level: 3
+    section: V4.2
+    chapter: V4
+    summary: 'Validate and sanitize URIs the application constructs to avoid malformed requests.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.3.1
+    level: 2
+    section: V4.3
+    chapter: V4
+    summary: 'Apply query allowlisting, depth, or cost analysis against GraphQL DoS.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.3.2
+    level: 2
+    section: V4.3
+    chapter: V4
+    summary: 'Disable GraphQL introspection in production unless the API is public.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.4.1
+    level: 1
+    section: V4.4
+    chapter: V4
+    summary: 'Use WSS for all WebSocket connections.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.4.2
+    level: 2
+    section: V4.4
+    chapter: V4
+    summary: 'Check the Origin header against an allowlist in the WebSocket handshake.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.4.3
+    level: 2
+    section: V4.4
+    chapter: V4
+    summary: 'Use dedicated tokens for WebSocket sessions meeting session-management requirements.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V4.4.4
+    level: 2
+    section: V4.4
+    chapter: V4
+    summary: 'Issue or validate WebSocket session tokens only through the authenticated HTTPS session.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'no HTTP-message-level or WebSocket recipe exists in v1'
+  - id: V5.1.1
+    level: 2
+    section: V5.1
+    chapter: V5
+    summary: 'Document permitted file types, extensions, and maximum sizes for each upload field.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.2.1
+    level: 1
+    section: V5.2
+    chapter: V5
+    summary: 'Enforce upload sizes the application can process without denial of service.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V5.2.2
+    level: 1
+    section: V5.2
+    chapter: V5
+    summary: 'Validate that file content matches its claimed type.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.2.3
+    level: 2
+    section: V5.2
+    chapter: V5
+    summary: 'Check compressed files for uncompressed size and file-count limits.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.2.4
+    level: 3
+    section: V5.2
+    chapter: V5
+    summary: 'Enforce per-user file count and size quotas.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.2.5
+    level: 3
+    section: V5.2
+    chapter: V5
+    summary: 'Reject archives containing symlinks unless specifically required.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.2.6
+    level: 3
+    section: V5.2
+    chapter: V5
+    summary: 'Reject images above a maximum pixel size (pixel flood).'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.3.1
+    level: 1
+    section: V5.3
+    chapter: V5
+    summary: 'Never execute uploaded or generated files as server-side programs from public folders.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.3.2
+    level: 1
+    section: V5.3
+    chapter: V5
+    summary: 'Build file paths from internally generated names, not user-submitted filenames.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+  - id: V5.3.3
+    level: 3
+    section: V5.3
+    chapter: V5
+    summary: 'Ignore user-provided paths in server-side file processing (zip slip).'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.4.1
+    level: 2
+    section: V5.4
+    chapter: V5
+    summary: 'Validate or ignore user-submitted filenames everywhere they appear.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.4.2
+    level: 2
+    section: V5.4
+    chapter: V5
+    summary: 'Encode or sanitize filenames in responses and attachments (RFC 6266).'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V5.4.3
+    level: 2
+    section: V5.4
+    chapter: V5
+    summary: 'Scan untrusted files with antivirus before serving.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: gap
+    relationship: related_risk
+    note: 'no file-handling recipe exists in v1'
+  - id: V6.1.1
+    level: 1
+    section: V6.1
+    chapter: V6
+    summary: 'Document rate limiting, anti-automation, and adaptive response for authentication.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+    note: 'the authentication-controls documentation is inventory/review material'
+  - id: V6.1.2
+    level: 2
+    section: V6.1
+    chapter: V6
+    summary: 'Keep a context-specific word list out of permitted passwords.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.1.3
+    level: 2
+    section: V6.1
+    chapter: V6
+    summary: 'Document every authentication pathway and its security controls.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: V6.2.1
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Require passwords of at least 8 characters (15 recommended).'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.2
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Let users change their password.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.3
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Require the current password when changing it.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.4
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Check new passwords against known-breached password lists.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.5
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Permit all character compositions in passwords; no forced periodic rotation.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.6
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Mask password entry with type=password.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.7
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Allow paste and password managers in password fields.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.8
+    level: 1
+    section: V6.2
+    chapter: V6
+    summary: 'Verify passwords exactly as received, without trimming or modifying.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.9
+    level: 2
+    section: V6.2
+    chapter: V6
+    summary: 'Allow passwords up to at least 64 characters.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.10
+    level: 2
+    section: V6.2
+    chapter: V6
+    summary: 'Never rotate passwords periodically; only on compromise or user action.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.11
+    level: 2
+    section: V6.2
+    chapter: V6
+    summary: 'Apply the context-specific word list when creating passwords.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.2.12
+    level: 2
+    section: V6.2
+    chapter: V6
+    summary: 'Check passwords against breached-password sets on registration and change.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.1
+    level: 1
+    section: V6.3
+    chapter: V6
+    summary: 'Implement credential stuffing and brute force defenses as documented.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.2
+    level: 1
+    section: V6.3
+    chapter: V6
+    summary: 'No enabled default accounts such as root or admin.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: manual
+    relationship: related_risk
+    note: 'the credential-inventory attestation names default accounts'
+  - id: V6.3.3
+    level: 2
+    section: V6.3
+    chapter: V6
+    summary: 'Require MFA (or combined factors) for higher-risk access.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.4
+    level: 2
+    section: V6.3
+    chapter: V6
+    summary: 'Leave no undocumented authentication pathway.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.5
+    level: 3
+    section: V6.3
+    chapter: V6
+    summary: 'Notify users of suspicious authentication attempts.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.6
+    level: 3
+    section: V6.3
+    chapter: V6
+    summary: 'Do not use email as an authentication factor.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.7
+    level: 3
+    section: V6.3
+    chapter: V6
+    summary: 'Notify users after authentication detail changes.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.3.8
+    level: 3
+    section: V6.3
+    chapter: V6
+    summary: 'Prevent user enumeration through authentication errors.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.4.1
+    level: 1
+    section: V6.4
+    chapter: V6
+    summary: 'Generate initial passwords and activation codes randomly per the password policy.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.4.2
+    level: 1
+    section: V6.4
+    chapter: V6
+    summary: 'Do not use password hints or knowledge-based secret questions.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.4.3
+    level: 2
+    section: V6.4
+    chapter: V6
+    summary: 'Reset forgotten passwords without bypassing MFA.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.4.4
+    level: 2
+    section: V6.4
+    chapter: V6
+    summary: 'Require equivalent identity proofing when an MFA factor is lost.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.4.5
+    level: 3
+    section: V6.4
+    chapter: V6
+    summary: 'Send renewal instructions in time before authentication mechanisms expire.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.4.6
+    level: 3
+    section: V6.4
+    chapter: V6
+    summary: 'Admins may initiate but never choose a user replacement credential.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.1
+    level: 2
+    section: V6.5
+    chapter: V6
+    summary: 'Make lookup secrets, out-of-band codes, and TOTPs single-use.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.2
+    level: 2
+    section: V6.5
+    chapter: V6
+    summary: 'Hash lookup secrets below 112 bits of entropy before storage.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.3
+    level: 2
+    section: V6.5
+    chapter: V6
+    summary: 'Generate lookup secrets, codes, and TOTP seeds with a CSPRNG.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.4
+    level: 2
+    section: V6.5
+    chapter: V6
+    summary: 'Give out-of-band codes and TOTPs at least 20 bits of entropy.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.5
+    level: 2
+    section: V6.5
+    chapter: V6
+    summary: 'Give out-of-band codes and TOTPs a defined short lifetime.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.6
+    level: 3
+    section: V6.5
+    chapter: V6
+    summary: 'Make every authentication factor revocable.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.7
+    level: 3
+    section: V6.5
+    chapter: V6
+    summary: 'Use biometrics only as a secondary factor.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.5.8
+    level: 3
+    section: V6.5
+    chapter: V6
+    summary: 'Base TOTP checks on a trusted time source, never client time.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.6.1
+    level: 2
+    section: V6.6
+    chapter: V6
+    summary: 'Do not use PSTN (SMS or voice) OTPs.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.6.2
+    level: 2
+    section: V6.6
+    chapter: V6
+    summary: 'Bind out-of-band codes to the original authentication request.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.6.3
+    level: 2
+    section: V6.6
+    chapter: V6
+    summary: 'Rate limit out-of-band code entry against brute force.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.6.4
+    level: 3
+    section: V6.6
+    chapter: V6
+    summary: 'Rate limit push notifications (push bombing) and use number matching.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.7.1
+    level: 3
+    section: V6.7
+    chapter: V6
+    summary: 'Store certificate verification material protected from modification.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.7.2
+    level: 3
+    section: V6.7
+    chapter: V6
+    summary: 'Use a challenge nonce of at least 64 bits, unique over the device lifetime.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.8.1
+    level: 2
+    section: V6.8
+    chapter: V6
+    summary: 'Prevent identity spoofing across multiple identity providers.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.8.2
+    level: 2
+    section: V6.8
+    chapter: V6
+    summary: 'Always validate digital signatures on authentication assertions (JWT, SAML).'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.8.3
+    level: 2
+    section: V6.8
+    chapter: V6
+    summary: 'Process SAML assertions exactly once within their validity period.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V6.8.4
+    level: 2
+    section: V6.8
+    chapter: V6
+    summary: 'Verify the IdP asserted authentication strength and recency where required.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'authentication-behaviour recipes are not wired; password-policy depth is untested in this build'
+  - id: V7.1.1
+    level: 2
+    section: V7.1
+    chapter: V7
+    summary: 'Document inactivity timeout and absolute session lifetime, appropriate to risk.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.1.2
+    level: 2
+    section: V7.1
+    chapter: V7
+    summary: 'Document the concurrent-session policy per account.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.1.3
+    level: 2
+    section: V7.1
+    chapter: V7
+    summary: 'Document session systems in federated or SSO ecosystems.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.2.1
+    level: 1
+    section: V7.2
+    chapter: V7
+    summary: 'Verify session tokens only in a trusted backend service.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.2.2
+    level: 1
+    section: V7.2
+    chapter: V7
+    summary: 'Use dynamically generated tokens for sessions, never static values.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.2.3
+    level: 1
+    section: V7.2
+    chapter: V7
+    summary: 'Generate reference tokens uniquely with a CSPRNG.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.2.4
+    level: 1
+    section: V7.2
+    chapter: V7
+    summary: 'Generate a fresh session token on every authentication and terminate the old one.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.3.1
+    level: 2
+    section: V7.3
+    chapter: V7
+    summary: 'Enforce an inactivity timeout requiring re-authentication.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.3.2
+    level: 2
+    section: V7.3
+    chapter: V7
+    summary: 'Enforce an absolute maximum session lifetime.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.4.1
+    level: 1
+    section: V7.4
+    chapter: V7
+    summary: 'Disallow further use of a session token after termination (logout or expiry).'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.4.2
+    level: 1
+    section: V7.4
+    chapter: V7
+    summary: 'Terminate all active sessions when the account is disabled or deleted.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.4.3
+    level: 2
+    section: V7.4
+    chapter: V7
+    summary: 'Offer to terminate other sessions after an authentication-factor change.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.4.4
+    level: 2
+    section: V7.4
+    chapter: V7
+    summary: 'Provide visible logout on every authenticated page.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.4.5
+    level: 2
+    section: V7.4
+    chapter: V7
+    summary: 'Let administrators terminate sessions per user or globally.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.5.1
+    level: 2
+    section: V7.5
+    chapter: V7
+    summary: 'Require full re-authentication before changing authentication-critical account data.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.5.2
+    level: 2
+    section: V7.5
+    chapter: V7
+    summary: 'Let users view and terminate their own active sessions.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.5.3
+    level: 3
+    section: V7.5
+    chapter: V7
+    summary: 'Require fresh authentication or secondary verification for highly sensitive transactions.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.6.1
+    level: 2
+    section: V7.6
+    chapter: V7
+    summary: 'Align session lifetime and termination between relying and identity providers.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V7.6.2
+    level: 2
+    section: V7.6
+    chapter: V7
+    summary: 'Create sessions only with user consent or explicit action.'
+    controls: [AUTH-01]
+    recipes: [auth/session-behaviour]
+    method: gap
+    relationship: related_risk
+    note: 'the session-behaviour recipe is not wired (the recorded open finding: genuine session expiry is untested)'
+  - id: V8.1.1
+    level: 1
+    section: V8.1
+    chapter: V8
+    summary: 'Document function- and data-level authorization rules.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.1.2
+    level: 2
+    section: V8.1
+    chapter: V8
+    summary: 'Document field-level read and write restrictions.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.1.3
+    level: 3
+    section: V8.1
+    chapter: V8
+    summary: 'Document environmental attributes (time, location) used in authorization.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.1.4
+    level: 3
+    section: V8.1
+    chapter: V8
+    summary: 'Document how contextual factors feed authorization decisions.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.2.1
+    level: 1
+    section: V8.2
+    chapter: V8
+    summary: 'Restrict function-level access to explicitly permitted consumers.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.2.2
+    level: 1
+    section: V8.2
+    chapter: V8
+    summary: 'Restrict data-level access to explicitly permitted consumers.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.2.3
+    level: 2
+    section: V8.2
+    chapter: V8
+    summary: 'Restrict field-level access to explicitly permitted consumers.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.2.4
+    level: 3
+    section: V8.2
+    chapter: V8
+    summary: 'Apply adaptive controls from contextual attributes (time, location, device).'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.3.1
+    level: 1
+    section: V8.3
+    chapter: V8
+    summary: 'Enforce authorization at a trusted layer, never only in the client.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.3.2
+    level: 3
+    section: V8.3
+    chapter: V8
+    summary: 'Apply authorization-relevant changes immediately or within documented bounds.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.3.3
+    level: 3
+    section: V8.3
+    chapter: V8
+    summary: 'Base object access on the originating subject, not an intermediary.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.4.1
+    level: 2
+    section: V8.4
+    chapter: V8
+    summary: 'Prevent cross-tenant effects in multi-tenant applications.'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V8.4.2
+    level: 3
+    section: V8.4
+    chapter: V8
+    summary: 'Layer security on administrative interfaces (identity, device posture).'
+    controls: [AUTHZ-01, AUTHZ-02, AUTHZ-03, DATA-01]
+    recipes: [authorization/ownership, authorization/role-and-tenant, authorization/security-fields, data/grants-and-policies]
+    method: gap
+    relationship: related_risk
+    note: 'authorization recipes are defined but not wired into check; the reference application proves the approach with its matrix tooling'
+  - id: V9.1.1
+    level: 1
+    section: V9.1
+    chapter: V9
+    summary: 'Validate the token signature or MAC before accepting a self-contained token.'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V9.1.2
+    level: 1
+    section: V9.1
+    chapter: V9
+    summary: 'Allowlist the token algorithms per context; reject everything else.'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V9.1.3
+    level: 1
+    section: V9.1
+    chapter: V9
+    summary: 'Take token verification keys only from trusted pre-configured sources.'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V9.2.1
+    level: 1
+    section: V9.2
+    chapter: V9
+    summary: 'Accept tokens only within their validity time span.'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V9.2.2
+    level: 2
+    section: V9.2
+    chapter: V9
+    summary: 'Validate the token type and intended purpose before use.'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V9.2.3
+    level: 2
+    section: V9.2
+    chapter: V9
+    summary: 'Accept only tokens issued for this service (audience).'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V9.2.4
+    level: 2
+    section: V9.2
+    chapter: V9
+    summary: 'Include an audience restriction when one key serves multiple audiences.'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: gap
+    relationship: related_risk
+    note: 'token validation is not inspected by any wired recipe; the client-asset classifier sees bundles, not validation logic'
+  - id: V10.1.1
+    level: 2
+    section: V10.1
+    chapter: V10
+    summary: 'Send tokens only to components that strictly need them.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+    note: 'the OAuth-flows attestation covers token handling and client configuration'
+  - id: V10.1.2
+    level: 2
+    section: V10.1
+    chapter: V10
+    summary: 'Accept authorization results only from the expected authorization server.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.2.1
+    level: 2
+    section: V10.2
+    chapter: V10
+    summary: 'Protect the code flow client against cross-site request forgery (state).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.2.2
+    level: 2
+    section: V10.2
+    chapter: V10
+    summary: 'Defend multi-server clients against mix-up attacks.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.2.3
+    level: 3
+    section: V10.2
+    chapter: V10
+    summary: 'Request only the scopes the client needs.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.3.1
+    level: 2
+    section: V10.3
+    chapter: V10
+    summary: 'Resource server accepts only tokens meant for it (audience).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.3.2
+    level: 2
+    section: V10.3
+    chapter: V10
+    summary: 'Enforce authorization from token claims of delegated authorization.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.3.3
+    level: 2
+    section: V10.3
+    chapter: V10
+    summary: 'Identify the unique user from the token only where the design requires it.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.3.4
+    level: 2
+    section: V10.3
+    chapter: V10
+    summary: 'Verify token authentication strength, method, and recency where required.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.3.5
+    level: 3
+    section: V10.3
+    chapter: V10
+    summary: 'Require sender-constraining to prevent stolen-token replay.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.1
+    level: 1
+    section: V10.4
+    chapter: V10
+    summary: 'Validate redirect URIs by exact match against a per-client allowlist.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.4.2
+    level: 1
+    section: V10.4
+    chapter: V10
+    summary: 'Make authorization codes single-use.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.3
+    level: 1
+    section: V10.4
+    chapter: V10
+    summary: 'Keep authorization codes short-lived (10 minutes for L1/L2).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.4
+    level: 1
+    section: V10.4
+    chapter: V10
+    summary: 'Allow each client only the grant types it needs (never implicit).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: automated
+    relationship: related_risk
+    note: 'the implicit-grant rule (Batch S) flags response_type token and id_token flows (syntactic)'
+  - id: V10.4.5
+    level: 1
+    section: V10.4
+    chapter: V10
+    summary: 'Mitigate refresh-token replay for public clients (sender-constraining).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.6
+    level: 2
+    section: V10.4
+    chapter: V10
+    summary: 'Require PKCE for the code grant against code interception.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.4.7
+    level: 2
+    section: V10.4
+    chapter: V10
+    summary: 'Control dynamic client registration against malicious clients.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.8
+    level: 2
+    section: V10.4
+    chapter: V10
+    summary: 'Give refresh tokens an absolute expiration.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.9
+    level: 2
+    section: V10.4
+    chapter: V10
+    summary: 'Let users revoke refresh and reference tokens.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.10
+    level: 2
+    section: V10.4
+    chapter: V10
+    summary: 'Authenticate confidential clients on backchannel requests.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.11
+    level: 2
+    section: V10.4
+    chapter: V10
+    summary: 'Assign each client only its required scopes.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.12
+    level: 3
+    section: V10.4
+    chapter: V10
+    summary: 'Allow each client only the response_mode it needs.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.13
+    level: 3
+    section: V10.4
+    chapter: V10
+    summary: 'Use the code grant with pushed authorization requests (PAR).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.14
+    level: 3
+    section: V10.4
+    chapter: V10
+    summary: 'Issue sender-constrained (proof-of-possession) access tokens.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.15
+    level: 3
+    section: V10.4
+    chapter: V10
+    summary: 'Keep authorization_details on the server side, not from the client.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.4.16
+    level: 3
+    section: V10.4
+    chapter: V10
+    summary: 'Require strong public-key client authentication for confidential clients.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.5.1
+    level: 2
+    section: V10.5
+    chapter: V10
+    summary: 'Mitigate ID token replay with the nonce check.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.5.2
+    level: 2
+    section: V10.5
+    chapter: V10
+    summary: 'Identify users from the sub claim, which must not be reassignable.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.5.3
+    level: 2
+    section: V10.5
+    chapter: V10
+    summary: 'Reject authorization-server impersonation attempts (iss validation).'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.5.4
+    level: 2
+    section: V10.5
+    chapter: V10
+    summary: 'Validate the ID token audience for this client.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: manual
+    relationship: related_risk
+  - id: V10.5.5
+    level: 2
+    section: V10.5
+    chapter: V10
+    summary: 'Protect back-channel logout against forced logout and JWT confusion.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.6.1
+    level: 2
+    section: V10.6
+    chapter: V10
+    summary: 'Allow only code-derived response modes; never token or id_token.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: automated
+    relationship: related_risk
+    note: 'the implicit-grant rule (Batch S) flags response modes that return tokens to the client (syntactic)'
+  - id: V10.6.2
+    level: 2
+    section: V10.6
+    chapter: V10
+    summary: 'Mitigate forced-logout denial of service with end-user confirmation.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.7.1
+    level: 2
+    section: V10.7
+    chapter: V10
+    summary: 'Obtain user consent per authorization request.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.7.2
+    level: 2
+    section: V10.7
+    chapter: V10
+    summary: 'Present clear information about what consent grants.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V10.7.3
+    level: 2
+    section: V10.7
+    chapter: V10
+    summary: 'Let users review, modify, and revoke consents.'
+    controls: [AUTH-03]
+    recipes: [web/oauth-flow, auth/oauth-flows]
+    method: gap
+    relationship: related_risk
+    note: 'authorization-server-side requirement; applies only to applications that are authorization servers - no v1 control'
+  - id: V11.1.1
+    level: 2
+    section: V11.1
+    chapter: V11
+    summary: 'Maintain a key-management policy and lifecycle.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.1.2
+    level: 2
+    section: V11.1
+    chapter: V11
+    summary: 'Keep an inventory of keys, algorithms, and certificates.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.1.3
+    level: 3
+    section: V11.1
+    chapter: V11
+    summary: 'Discover all cryptography instances in the system.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.1.4
+    level: 3
+    section: V11.1
+    chapter: V11
+    summary: 'Maintain a migration plan to new cryptographic standards.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.2.1
+    level: 2
+    section: V11.2
+    chapter: V11
+    summary: 'Use industry-validated cryptographic implementations.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.2.2
+    level: 2
+    section: V11.2
+    chapter: V11
+    summary: 'Design for crypto agility: replaceable algorithms and key lengths.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.2.3
+    level: 2
+    section: V11.2
+    chapter: V11
+    summary: 'Use primitives with at least 128 bits of security.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.2.4
+    level: 3
+    section: V11.2
+    chapter: V11
+    summary: 'Use constant-time cryptographic operations without short-circuits.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.2.5
+    level: 3
+    section: V11.2
+    chapter: V11
+    summary: 'Fail securely in cryptographic modules (no padding-oracle leaks).'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.3.1
+    level: 1
+    section: V11.3
+    chapter: V11
+    summary: 'Never use ECB mode or PKCS#1 v1.5 padding.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.3.2
+    level: 1
+    section: V11.3
+    chapter: V11
+    summary: 'Use approved ciphers and modes (such as AES-GCM).'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.3.3
+    level: 2
+    section: V11.3
+    chapter: V11
+    summary: 'Protect encrypted data against modification (authenticated encryption).'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.3.4
+    level: 3
+    section: V11.3
+    chapter: V11
+    summary: 'Never reuse nonces or IVs across keys and data.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.3.5
+    level: 3
+    section: V11.3
+    chapter: V11
+    summary: 'Combine encryption and MAC as encrypt-then-MAC.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.4.1
+    level: 1
+    section: V11.4
+    chapter: V11
+    summary: 'Use only approved hash functions for signatures, HMACs, and KDFs.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.4.2
+    level: 2
+    section: V11.4
+    chapter: V11
+    summary: 'Store passwords with an approved slow password-hashing function.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.4.3
+    level: 2
+    section: V11.4
+    chapter: V11
+    summary: 'Use collision-resistant hashes appropriate to the use.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.4.4
+    level: 2
+    section: V11.4
+    chapter: V11
+    summary: 'Derive keys with approved KDFs and adequate stretching parameters.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.5.1
+    level: 2
+    section: V11.5
+    chapter: V11
+    summary: 'Generate all unguessable values with a CSPRNG.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.5.2
+    level: 3
+    section: V11.5
+    chapter: V11
+    summary: 'Keep CSPRNG secure under heavy demand.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.6.1
+    level: 2
+    section: V11.6
+    chapter: V11
+    summary: 'Use approved algorithms for key generation and signatures.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.6.2
+    level: 3
+    section: V11.6
+    chapter: V11
+    summary: 'Use approved key-exchange mechanisms.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.7.1
+    level: 3
+    section: V11.7
+    chapter: V11
+    summary: 'Encrypt sensitive data in memory in use (full memory encryption).'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V11.7.2
+    level: 3
+    section: V11.7
+    chapter: V11
+    summary: 'Minimize data exposure during processing and encrypt immediately after.'
+    controls: []
+    recipes: []
+    method: gap
+    relationship: related_risk
+    note: 'no cryptographic statics control exists in v1; transport cryptography is WEB-02 and is deliberately separate'
+  - id: V12.1.1
+    level: 1
+    section: V12.1
+    chapter: V12
+    summary: 'Enable only current TLS versions (1.2, 1.3); no downgrade.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.1.2
+    level: 2
+    section: V12.1
+    chapter: V12
+    summary: 'Enable only recommended cipher suites, strongest preferred.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.1.3
+    level: 2
+    section: V12.1
+    chapter: V12
+    summary: 'Validate mTLS client certificates before trusting their identity.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.1.4
+    level: 3
+    section: V12.1
+    chapter: V12
+    summary: 'Enable certificate revocation checks (OCSP stapling).'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.1.5
+    level: 3
+    section: V12.1
+    chapter: V12
+    summary: 'Enable Encrypted Client Hello to protect SNI metadata.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.2.1
+    level: 1
+    section: V12.2
+    chapter: V12
+    summary: 'Use TLS for all client-facing HTTP, without fallback.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'the live recipe validates the certificate chain and expiry on every https fetch; protocol and cipher depth is the unwired tls_check gap'
+  - id: V12.2.2
+    level: 1
+    section: V12.2
+    chapter: V12
+    summary: 'Use publicly trusted certificates on external services.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'validated against the Node trust store by the live https fetch'
+  - id: V12.3.1
+    level: 2
+    section: V12.3
+    chapter: V12
+    summary: 'Use TLS for all inbound and outbound service connections.'
+    controls: [DEPLOY-01]
+    recipes: [deploy/environment, deploy/production-access]
+    method: manual
+    relationship: related_risk
+    note: 'the production-access attestation covers internal transport configuration'
+  - id: V12.3.2
+    level: 2
+    section: V12.3
+    chapter: V12
+    summary: 'Validate certificates in TLS clients before communicating.'
+    controls: [DEPLOY-01]
+    recipes: [deploy/environment, deploy/production-access]
+    method: manual
+    relationship: related_risk
+  - id: V12.3.3
+    level: 2
+    section: V12.3
+    chapter: V12
+    summary: 'Encrypt internal HTTP-based service traffic.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.3.4
+    level: 2
+    section: V12.3
+    chapter: V12
+    summary: 'Trust internal service certificates or pin them explicitly.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V12.3.5
+    level: 3
+    section: V12.3
+    chapter: V12
+    summary: 'Use strong authentication for intra-service communication.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: gap
+    relationship: related_risk
+    note: 'the tls_check recipe is not wired (testssl.sh unpinned, Batch X); certificate-chain validation is the only automated part'
+  - id: V13.1.1
+    level: 2
+    section: V13.1
+    chapter: V13
+    summary: 'Document all external communication dependencies.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: V13.1.2
+    level: 3
+    section: V13.1
+    chapter: V13
+    summary: 'Document maximum concurrent connections per dependency.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.1.3
+    level: 3
+    section: V13.1
+    chapter: V13
+    summary: 'Document resource-management strategies per external system.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.1.4
+    level: 3
+    section: V13.1
+    chapter: V13
+    summary: 'Document critical secrets and their rotation schedule.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: manual
+    relationship: related_risk
+  - id: V13.2.1
+    level: 2
+    section: V13.2
+    chapter: V13
+    summary: 'Protect backend communications that bypass the standard session mechanism.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.2.2
+    level: 2
+    section: V13.2
+    chapter: V13
+    summary: 'Authenticate backend component communications.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.2.3
+    level: 2
+    section: V13.2
+    chapter: V13
+    summary: 'Never use default credentials for service authentication.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.2.4
+    level: 2
+    section: V13.2
+    chapter: V13
+    summary: 'Allowlist the external systems the application may communicate with.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.2.5
+    level: 2
+    section: V13.2
+    chapter: V13
+    summary: 'Allowlist the destinations the server may request or load from.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.2.6
+    level: 3
+    section: V13.2
+    chapter: V13
+    summary: 'Follow documented per-connection configuration.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.3.1
+    level: 2
+    section: V13.3
+    chapter: V13
+    summary: 'Create, store, and destroy backend secrets in a secrets-management solution.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: manual
+    relationship: related_risk
+  - id: V13.3.2
+    level: 2
+    section: V13.3
+    chapter: V13
+    summary: 'Apply least privilege to secret access.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: manual
+    relationship: related_risk
+  - id: V13.3.3
+    level: 3
+    section: V13.3
+    chapter: V13
+    summary: 'Perform cryptographic operations in an isolated security module.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.3.4
+    level: 3
+    section: V13.3
+    chapter: V13
+    summary: 'Expire and rotate secrets per the documentation.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: manual
+    relationship: related_risk
+    note: 'the rotation-drill attestation covers the rotation schedule'
+  - id: V13.4.1
+    level: 1
+    section: V13.4
+    chapter: V13
+    summary: 'Deploy without source-control metadata (.git, .svn) or deny access to it.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.4.2
+    level: 2
+    section: V13.4
+    chapter: V13
+    summary: 'Disable debug modes in production.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.4.3
+    level: 2
+    section: V13.4
+    chapter: V13
+    summary: 'Do not expose directory listings.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.4.4
+    level: 2
+    section: V13.4
+    chapter: V13
+    summary: 'Disable the HTTP TRACE method in production.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.4.5
+    level: 2
+    section: V13.4
+    chapter: V13
+    summary: 'Do not expose documentation and monitoring endpoints unintentionally.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.4.6
+    level: 3
+    section: V13.4
+    chapter: V13
+    summary: 'Do not expose backend component versions.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V13.4.7
+    level: 3
+    section: V13.4
+    chapter: V13
+    summary: 'Serve only intended file extensions from the web tier.'
+    controls: [SEC-03]
+    recipes: [credentials/inventory, credentials/rotation-drill]
+    method: gap
+    relationship: related_risk
+    note: 'exposure probes (source control metadata, debug modes, directory listing) are deferred to Batch X by the remediation plan'
+  - id: V14.1.1
+    level: 2
+    section: V14.1
+    chapter: V14
+    summary: 'Identify and classify all sensitive data into protection levels.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+    note: 'data classification is declared in the application manifest and reviewed under inventory/review'
+  - id: V14.1.2
+    level: 2
+    section: V14.1
+    chapter: V14
+    summary: 'Document protection requirements per data protection level.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: V14.2.1
+    level: 1
+    section: V14.2
+    chapter: V14
+    summary: 'Keep sensitive data out of URLs and query strings.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.2
+    level: 2
+    section: V14.2
+    chapter: V14
+    summary: 'Prevent sensitive data being cached in shared server components.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.3
+    level: 2
+    section: V14.2
+    chapter: V14
+    summary: 'Do not send sensitive data to untrusted third parties or trackers.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.4
+    level: 2
+    section: V14.2
+    chapter: V14
+    summary: 'Enforce documented controls for encryption, retention, and access per classification.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.5
+    level: 3
+    section: V14.2
+    chapter: V14
+    summary: 'Cache only the expected content types; never sensitive data.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.6
+    level: 3
+    section: V14.2
+    chapter: V14
+    summary: 'Return the minimum sensitive data the function needs.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.7
+    level: 3
+    section: V14.2
+    chapter: V14
+    summary: 'Delete outdated sensitive data under a retention classification.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.2.8
+    level: 3
+    section: V14.2
+    chapter: V14
+    summary: 'Strip sensitive metadata from user-submitted files.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.3.1
+    level: 1
+    section: V14.3
+    chapter: V14
+    summary: 'Clear authenticated data from client storage after the session ends.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: gap
+    relationship: related_risk
+    note: 'data-flow and browser-storage depth is not inspected by any wired recipe beyond the client-bundle credential classifier'
+  - id: V14.3.2
+    level: 2
+    section: V14.3
+    chapter: V14
+    summary: 'Send anti-caching headers (no-store) with sensitive responses.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'the live recipe fails a private route that is publicly cacheable'
+  - id: V14.3.3
+    level: 2
+    section: V14.3
+    chapter: V14
+    summary: 'Keep sensitive data out of browser storage (localStorage, cookies).'
+    controls: [SEC-02]
+    recipes: [build/client-assets, build/leak-fixture]
+    method: automated
+    relationship: related_risk
+    note: 'the client-asset classifier covers privileged credentials in browser bundles; arbitrary sensitive values are out of scope'
+  - id: V15.1.1
+    level: 1
+    section: V15.1
+    chapter: V15
+    summary: 'Document risk-based remediation timeframes for vulnerable components.'
+    controls: [CTX-01]
+    recipes: [manifest/validate, inventory/review]
+    method: manual
+    relationship: related_risk
+  - id: V15.1.2
+    level: 2
+    section: V15.1
+    chapter: V15
+    summary: 'Maintain a third-party component inventory (SBOM) with verified sources.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.1.3
+    level: 2
+    section: V15.1
+    chapter: V15
+    summary: 'Document time- and resource-demanding functionality and its protections.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.1.4
+    level: 3
+    section: V15.1
+    chapter: V15
+    summary: 'Flag risky third-party libraries in documentation.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.1.5
+    level: 3
+    section: V15.1
+    chapter: V15
+    summary: 'Flag dangerous functionality in documentation.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.2.1
+    level: 1
+    section: V15.2
+    chapter: V15
+    summary: 'Only use components within the documented remediation timeframes.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: automated
+    relationship: related_risk
+    note: 'the advisory scan surfaces components with published advisories; the documented-timeframes policy itself is DEP-01 evidence'
+  - id: V15.2.2
+    level: 2
+    section: V15.2
+    chapter: V15
+    summary: 'Defend against loss of availability from resource-demanding functionality.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.2.3
+    level: 2
+    section: V15.2
+    chapter: V15
+    summary: 'Ship only required functionality to production.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.2.4
+    level: 3
+    section: V15.2
+    chapter: V15
+    summary: 'Take third-party components from the expected repositories.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.2.5
+    level: 3
+    section: V15.2
+    chapter: V15
+    summary: 'Add protections around documented dangerous functionality.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.3.1
+    level: 1
+    section: V15.3
+    chapter: V15
+    summary: 'Return only the required fields from data objects, never whole records.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.3.2
+    level: 2
+    section: V15.3
+    chapter: V15
+    summary: 'Do not follow redirects to external URLs unless intended.'
+    controls: [WEB-02]
+    recipes: [web/http-requirements, web/tls]
+    method: automated
+    relationship: related_risk
+    note: 'the live recipe reports a redirect to any host outside the approved list'
+  - id: V15.3.3
+    level: 2
+    section: V15.3
+    chapter: V15
+    summary: 'Limit accepted fields per action to prevent mass assignment.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.3.4
+    level: 2
+    section: V15.3
+    chapter: V15
+    summary: 'Propagate the original client IP only through trusted fields.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.3.5
+    level: 2
+    section: V15.3
+    chapter: V15
+    summary: 'Use strict typing, equality, and comparator operations.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.3.6
+    level: 2
+    section: V15.3
+    chapter: V15
+    summary: 'Prevent prototype pollution in JavaScript (Map/Set over object literals).'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.3.7
+    level: 2
+    section: V15.3
+    chapter: V15
+    summary: 'Defend against HTTP parameter pollution.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.4.1
+    level: 3
+    section: V15.4
+    chapter: V15
+    summary: 'Access shared objects safely in multi-threaded code.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.4.2
+    level: 3
+    section: V15.4
+    chapter: V15
+    summary: 'Make state checks and dependent actions atomic.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.4.3
+    level: 3
+    section: V15.4
+    chapter: V15
+    summary: 'Use consistent locking without deadlock or livelock.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V15.4.4
+    level: 3
+    section: V15.4
+    chapter: V15
+    summary: 'Prevent thread starvation with fair resource allocation.'
+    controls: [DEP-03]
+    recipes: [osv/lockfile]
+    method: gap
+    relationship: related_risk
+    note: 'no recipe covers this in v1; the adjacent control declares a recipe that is not implemented'
+  - id: V16.1.1
+    level: 2
+    section: V16.1
+    chapter: V16
+    summary: 'Keep an inventory of logging at every layer and what events are recorded.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+    note: 'logging and alerting is the OPS-01 manual evidence territory'
+  - id: V16.2.1
+    level: 2
+    section: V16.2
+    chapter: V16
+    summary: 'Include who, what, when, and where metadata in every log entry.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.2.2
+    level: 2
+    section: V16.2
+    chapter: V16
+    summary: 'Synchronise time sources; timestamp security events in UTC.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.2.3
+    level: 2
+    section: V16.2
+    chapter: V16
+    summary: 'Send logs only to the destinations in the inventory.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.2.4
+    level: 2
+    section: V16.2
+    chapter: V16
+    summary: 'Emit logs in a format the processor can correlate.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.2.5
+    level: 2
+    section: V16.2
+    chapter: V16
+    summary: 'Log according to each data item protection level; never log secrets.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.3.1
+    level: 2
+    section: V16.3
+    chapter: V16
+    summary: 'Log all authentication attempts with their metadata.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.3.2
+    level: 2
+    section: V16.3
+    chapter: V16
+    summary: 'Log failed authorization attempts.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.3.3
+    level: 2
+    section: V16.3
+    chapter: V16
+    summary: 'Log documented security events and control bypass attempts.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.3.4
+    level: 2
+    section: V16.3
+    chapter: V16
+    summary: 'Log unexpected errors and security-control failures.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.4.1
+    level: 2
+    section: V16.4
+    chapter: V16
+    summary: 'Encode log data to prevent log injection.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.4.2
+    level: 2
+    section: V16.4
+    chapter: V16
+    summary: 'Protect logs from unauthorized access and modification.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.4.3
+    level: 2
+    section: V16.4
+    chapter: V16
+    summary: 'Transmit logs to a logically separate system for analysis.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: manual
+    relationship: related_risk
+  - id: V16.5.1
+    level: 2
+    section: V16.5
+    chapter: V16
+    summary: 'Return generic messages on security-sensitive errors, with no internals.'
+    controls: [WEB-01]
+    recipes: [web/negative-inputs, web/manual-boundaries]
+    method: manual
+    relationship: related_risk
+    note: 'the manual-boundaries attestation covers error-message discipline'
+  - id: V16.5.2
+    level: 2
+    section: V16.5
+    chapter: V16
+    summary: 'Operate securely when external resource access fails (circuit breakers).'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: gap
+    relationship: related_risk
+    note: 'log-content depth is manual evidence territory; the automated slice is QUAL-07 empty-catch'
+  - id: V16.5.3
+    level: 2
+    section: V16.5
+    chapter: V16
+    summary: 'Fail closed on exceptions, never fail open.'
+    controls: [QUAL-07]
+    recipes: [quality/error-handling]
+    method: automated
+    relationship: related_risk
+    note: 'the error-handling rules flag swallowed failures (empty catch, unhandled rejection); the fail-open depth beyond that is manual review'
+  - id: V16.5.4
+    level: 3
+    section: V16.5
+    chapter: V16
+    summary: 'Define a last-resort handler for unhandled exceptions.'
+    controls: [OPS-01]
+    recipes: [ops/alert-delivery]
+    method: gap
+    relationship: related_risk
+    note: 'log-content depth is manual evidence territory; the automated slice is QUAL-07 empty-catch'
+  - id: V17.1.1
+    level: 2
+    section: V17.1
+    chapter: V17
+    summary: 'Restrict the TURN relay to non-reserved destination addresses.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.1.2
+    level: 3
+    section: V17.1
+    chapter: V17
+    summary: 'Protect the TURN service from resource exhaustion.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.1
+    level: 2
+    section: V17.2
+    chapter: V17
+    summary: 'Manage and protect the DTLS certificate key per policy.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.2
+    level: 2
+    section: V17.2
+    chapter: V17
+    summary: 'Use approved DTLS cipher suites and protection profiles.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.3
+    level: 2
+    section: V17.2
+    chapter: V17
+    summary: 'Check SRTP authentication at the media server.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.4
+    level: 2
+    section: V17.2
+    chapter: V17
+    summary: 'Process incoming media despite malformed SRTP packets.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.5
+    level: 3
+    section: V17.2
+    chapter: V17
+    summary: 'Process incoming media during SRTP packet floods.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.6
+    level: 3
+    section: V17.2
+    chapter: V17
+    summary: 'Prevent the DTLS ClientHello race condition.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.7
+    level: 3
+    section: V17.2
+    chapter: V17
+    summary: 'Keep recording working during media floods.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.2.8
+    level: 3
+    section: V17.2
+    chapter: V17
+    summary: 'Check the DTLS certificate against the SDP fingerprint.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.3.1
+    level: 2
+    section: V17.3
+    chapter: V17
+    summary: 'Process legitimate signaling during floods.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
+  - id: V17.3.2
+    level: 2
+    section: V17.3
+    chapter: V17
+    summary: 'Process legitimate signaling despite malformed messages.'
+    controls: []
+    recipes: []
+    method: not_applicable
+    relationship: related_risk
+    note: 'WebRTC is outside the v1 profiles; no feature declaration or recipe exists for it'
