@@ -169,9 +169,15 @@ describe('plan, check, gate, report end to end', () => {
     } else {
       expect(result.status).toBe(2);
       expect(result.stdout).toContain('execution error(s)');
-      const results = JSON.parse(readFileSync(join(runDir, 'results.json'), 'utf8')) as { outcome: string; diagnostic?: string }[];
-      const missingTool = results.find((entry) => entry.outcome === 'error' && /not available|absent|missing|fetch/.test(entry.diagnostic ?? '') === true);
-      expect(missingTool?.diagnostic, 'a missing tool must name itself in the error diagnostic').toBeTruthy();
+      const results = JSON.parse(readFileSync(join(runDir, 'results.json'), 'utf8')) as { check_id: string; outcome: string; diagnostic?: string }[];
+      // The expected diagnostic comes from the registry itself, not a paraphrase: the exact
+      // `reason: message` string resolveTool produces in THIS environment is the string the
+      // recipe must surface. (The first version of this assertion guessed the wording and CI -
+      // the only place the branch runs - showed the real one is `not_executable`.)
+      const availability = resolveTool('gitleaks');
+      const expectedDiagnostic = `${availability.reason}: ${availability.message}`;
+      const gitleaksError = results.find((entry) => entry.outcome === 'error' && entry.check_id.includes('gitleaks/repository'));
+      expect(gitleaksError?.diagnostic, 'a missing tool must surface the registry reason verbatim').toBe(expectedDiagnostic);
     }
     expect(result.stdout).toContain('produced');
 
