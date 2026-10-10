@@ -35,7 +35,15 @@ acceptance** — a monitoring gap, recorded here as a defect in the repository's
    assumed green because the previous one was.
 
 Suite after the fix: **535 unit + 8 integration + 32 scanner + 5 example tests**, all passing
-locally with tools; the no-tools branch of the two CLI tests is exercised on CI.
+locally with tools. **Verified green on GitHub**: `repo-checks` passed for `8ff7cc6` (run
+`38059518124`, 2026-10-10) — build and test (no tools fetched; both CLI-test branches pass),
+scanner self-scan (tools fetched; the full audit CLI acceptance runs there), workflow analysis,
+and hardening-gate all successful; the PR-only change report skipped by design. It took three
+pushes to get there, and each failure was fixed at its root: the branched tests and the SARIF
+relativization (first push), the missing-tool diagnostic asserted verbatim from the registry
+rather than paraphrased (second), and a union-narrowing typecheck error caused by committing
+without running `typecheck` — caught by CI's typecheck step, which is exactly what it is for
+(third).
 
 ### Batch S — standards at requirement level (10 October 2026)
 
