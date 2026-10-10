@@ -1834,8 +1834,9 @@ curation) and the release-side SLSA row are staged with recorded reasons.
     no unmapped ASVS id, no invalid chapter, levels checked against the vendored CSV, exact
     2025 Top-10 names, API1–API10 present, SSDF's 42 active tasks + 5 recorded consolidations,
     MCP link-only, every gap carrying a reason, every mapped control and recipe id existing.
-  - `pnpm run test:scanners` → **31 passing**; the six new opengrep rules verified against their
-    vulnerable fixtures and clean twins with the real pinned binary.
+  - `pnpm run test:scanners` → **32 passing** (31 previous + the adapters-test addition that runs
+    the six new rules against their fixtures); every rule fires on its vulnerable fixture and stays
+    silent on the clean twin, verified with the real pinned binary.
   - `pnpm run test:integration` → **8 passing**; `pnpm run test:example` → **5 passing**;
     `typecheck`, `typecheck:tools`, `lint` clean.
 - **S1 (data model).** `schemas/standard-mapping.schema.json` + `src/domain/standards-coverage.ts`
@@ -1914,9 +1915,10 @@ verified green run was Batch R's `6e5cec4`. The batch-w checkpoint's platform se
 the pull-request workflow as unverified but did not state that the push run itself was red.
 Recorded here as a process defect: a run nobody watched is a claim nobody checked.
 
-- **State:** `verified`. **`repo-checks` green on GitHub for `8ff7cc6` (run `38059518124`,
-  2026-10-10)**: build and test, scanner self-scan, workflow analysis, and hardening-gate all
-  successful; the PR-only change report skipped by design. Reaching green took three pushes; the
+- **State:** `verified`. **`repo-checks` green on GitHub for `8ff7cc6` (run `38059518124`) and
+  for the record push `1156546` (run `38060131083`), 2026-10-10**: build and test, scanner
+  self-scan, workflow analysis, and hardening-gate all successful; the PR-only change report
+  skipped by design. Reaching green took three pushes; the
   third failed on a typecheck error in the new test code that was committed without running
   `typecheck` first — recorded here because the repository's own rules say to run it, and CI was
   the place that caught it.

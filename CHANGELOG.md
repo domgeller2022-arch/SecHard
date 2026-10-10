@@ -43,7 +43,8 @@ pushes to get there, and each failure was fixed at its root: the branched tests 
 relativization (first push), the missing-tool diagnostic asserted verbatim from the registry
 rather than paraphrased (second), and a union-narrowing typecheck error caused by committing
 without running `typecheck` — caught by CI's typecheck step, which is exactly what it is for
-(third).
+(third.). The follow-up record push (`1156546`) is itself green (run `38060131083`), so the
+claim is true of HEAD at the time it was written, not only of the commit before it.
 
 ### Batch S — standards at requirement level (10 October 2026)
 
@@ -93,8 +94,10 @@ already licence-recorded; regenerating agent instructions deserves its own revie
 SLSA release row (no release exists; Batch D), the astoj comparison project (the plan names it
 without a URL; a guessed repository would be a fabricated source).
 
-Suite at this point: **535 unit + 8 integration + 31 scanner + 5 example tests**, all passing on
-Node 24.21.0.
+Suite at this point: **535 unit + 8 integration + 32 scanner + 5 example tests**, all passing on
+Node 24.21.0. (The S entry first recorded 31; the 32nd is the adapters-test addition that runs the
+six new rules against their fixtures — corrected when a later verification pass counted the suite
+rather than trusting the entry.)
 
 ### Batch Q — the quality section: "engineered, not vibe-coded" (10 October 2026)
 
