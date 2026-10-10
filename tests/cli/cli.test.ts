@@ -175,7 +175,9 @@ describe('plan, check, gate, report end to end', () => {
       // recipe must surface. (The first version of this assertion guessed the wording and CI -
       // the only place the branch runs - showed the real one is `not_executable`.)
       const availability = resolveTool('gitleaks');
-      const expectedDiagnostic = `${availability.reason}: ${availability.message}`;
+      // The union narrows on `available`; in this branch it is always the unavailable face, but
+      // the narrowing must be written out for the compiler to see it.
+      const expectedDiagnostic = availability.available ? '' : `${availability.reason}: ${availability.message}`;
       const gitleaksError = results.find((entry) => entry.outcome === 'error' && entry.check_id.includes('gitleaks/repository'));
       expect(gitleaksError?.diagnostic, 'a missing tool must surface the registry reason verbatim').toBe(expectedDiagnostic);
     }
