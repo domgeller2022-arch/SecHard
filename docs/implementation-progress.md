@@ -1915,10 +1915,12 @@ verified green run was Batch R's `6e5cec4`. The batch-w checkpoint's platform se
 the pull-request workflow as unverified but did not state that the push run itself was red.
 Recorded here as a process defect: a run nobody watched is a claim nobody checked.
 
-- **State:** `verified`. **`repo-checks` green on GitHub for `8ff7cc6` (run `38059518124`) and
-  for the record push `1156546` (run `38060131083`), 2026-10-10**: build and test, scanner
-  self-scan, workflow analysis, and hardening-gate all successful; the PR-only change report
-  skipped by design. Reaching green took three pushes; the
+- **State:** `verified`. **`repo-checks` green on GitHub for every push since the fix:
+  `8ff7cc6` (run `38059518124`), `1156546` (run `38060131083`), and the changelog-accuracy push
+  `2540089` (run `38062683122`), all on 2026-10-10**: build and test, scanner self-scan, workflow
+  analysis, and hardening-gate all successful; the PR-only change report skipped by design.
+  Pushes are now watched to completion every time - the process defect this section records is
+  closed by doing, not by intending. Reaching green took three pushes; the
   third failed on a typecheck error in the new test code that was committed without running
   `typecheck` first — recorded here because the repository's own rules say to run it, and CI was
   the place that caught it.
