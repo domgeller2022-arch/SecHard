@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Ajv2020 } from 'ajv/dist/2020.js';
@@ -349,4 +349,41 @@ describe('audit input guards', () => {
       server.kill();
     }
   }, 300_000);
+});
+
+describe('F-01/F-15: absolute audit targets still scope the console.log rule, and no report leaks the machine path', () => {
+  it('reports an app/ console.log from an absolute target, holds back scripts/, and relativizes every location', () => {
+    // The unique directory name is part of the acceptance: if the audit root leaks into any
+    // report format, this string is what the assertion finds.
+    const unique = `sechard-f15-${randomUUID().slice(0, 8)}`;
+    const root = join(scratch, 'apps', unique);
+    mkdirSync(join(root, 'app'), { recursive: true });
+    mkdirSync(join(root, 'scripts'), { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: unique, dependencies: { next: '14.0.0' } }, null, 2));
+    writeFileSync(join(root, 'app', 'x.ts'), 'export const log = (): void => { console.log("app"); };\n');
+    writeFileSync(join(root, 'scripts', 'y.ts'), 'console.log("scripts");\n');
+
+    const outDir = join(scratch, 'out', `run-${unique}`);
+    const run = cli(['audit', root, '--out', outDir, '--depth', 'quick'], scratch);
+    expect(run.status, run.stderr).toBe(0);
+
+    const results = JSON.parse(readFileSync(join(outDir, 'results.json'), 'utf8')) as AuditOutput['results'];
+    const quality = results.find((entry) => entry.check_id.includes('quality/error-handling'));
+    expect(quality, 'no quality/error-handling result').toBeDefined();
+
+    // F-01: the app/ finding is reported even though the target was passed as an absolute path.
+    const locations = ((quality?.findings ?? []) as { rule_id: string; location?: string }[])
+      .filter((finding) => finding.rule_id.includes('quality-console-log-production'))
+      .map((finding) => finding.location);
+    expect(locations, JSON.stringify(quality?.findings)).toEqual(['app/x.ts:1']);
+    // The scripts/ console.log is still held back by the reviewed scoping, with the count stated.
+    expect(locations.some((location) => (location ?? '').startsWith('scripts/'))).toBe(false);
+    expect(quality?.diagnostic ?? '').toContain('held back');
+
+    // F-15: no report format contains the audit root's absolute path.
+    for (const name of ['report.md', 'report.html', 'report.json', 'report.sarif', 'results.json']) {
+      const text = readFileSync(join(outDir, name), 'utf8');
+      expect(text, `${name} leaks the audit root`).not.toContain(root);
+    }
+  }, 600_000);
 });

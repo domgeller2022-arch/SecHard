@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildReport } from '../../src/commands/report.js';
+import { makeResult } from '../../src/commands/check.js';
 import { consoleSafe, renderMarkdown } from '../../src/commands/run.js';
 import { NOW, SOURCE_COMMIT, allPassing, planFor } from '../helpers/fixtures.js';
 import type { GateDecision } from '../../src/domain/types.js';
@@ -86,5 +87,49 @@ describe('console output cannot carry secrets or forged report lines', () => {
     expect(safe).not.toContain(SYNTHETIC_TOKEN);
     expect(safe).not.toContain('\n');
     expect(safe).toContain('[REDACTED]');
+  });
+});
+
+describe('F-15: every result location is relativized against the audit root at creation', () => {
+  it('strips the root from finding locations and scope files, keeps URLs and out-of-root paths, and is idempotent', () => {
+    const plan = planFor('pr');
+    const check = plan.expected_checks[0]!;
+    const root = `/tmp/sechard-f15-unit-${'a1b2'}`;
+    const result = makeResult(
+      check,
+      plan,
+      {
+        outcome: 'pass',
+        coverage: 'complete',
+        observed: 2,
+        files: [`${root}/lib/a.ts`, 'src/already-relative.ts'],
+        findings: [
+          { id: 'f1', tool: 'gitleaks', rule_id: 'x', severity: 'high', location: `${root}/app/x.ts` },
+          { id: 'f2', tool: 'http', rule_id: 'y', severity: 'low', location: 'https://example.com/route' },
+          { id: 'f3', tool: 'opengrep', rule_id: 'z', severity: 'low', location: '/elsewhere/outside.ts' },
+          { id: 'f4', tool: 'opengrep', rule_id: 'w', severity: 'low' },
+          { id: 'f5', tool: 'opengrep', rule_id: 'v', severity: 'low', location: 'app/relative.ts' },
+        ],
+      },
+      'run-relativize',
+      SOURCE_COMMIT,
+      NOW,
+      NOW,
+      root,
+    );
+
+    const findings = result.findings ?? [];
+    // Under the root: relativized. This is the F-01 root cause — an absolute prefix reads as ''
+    // to the console.log scoping rule and held back real findings in audit mode.
+    expect(findings[0]!.location).toBe('app/x.ts');
+    // A live HTTP finding is a URL, not a path.
+    expect(findings[1]!.location).toBe('https://example.com/route');
+    // Absolute but outside the root: rare, kept as-is rather than mangled.
+    expect(findings[2]!.location).toBe('/elsewhere/outside.ts');
+    // Absent stays absent.
+    expect(findings[3]).not.toHaveProperty('location');
+    // Idempotent: the SARIF writer relativizes again, and must be a no-op.
+    expect(findings[4]!.location).toBe('app/relative.ts');
+    expect(result.scope!.files).toEqual(['lib/a.ts', 'src/already-relative.ts']);
   });
 });

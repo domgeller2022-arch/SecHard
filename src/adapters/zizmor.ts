@@ -1,4 +1,5 @@
 import type { Finding } from '../domain/types.js';
+import { relativizeLocation } from '../evidence/redaction.js';
 import { isRecord, parseJsonReport, severityFromWord, stableFindingId, type AdapterOutcome } from './types.js';
 
 /**
@@ -27,7 +28,10 @@ interface ZizmorFinding {
   readonly ignored?: unknown;
 }
 
-export function parseZizmorReport(raw: string, options: { readonly intendedScope?: readonly string[] } = {}): AdapterOutcome | { error: string } {
+export function parseZizmorReport(
+  raw: string,
+  options: { readonly intendedScope?: readonly string[]; readonly appRoot?: string } = {},
+): AdapterOutcome | { error: string } {
   const parsed = parseJsonReport(raw, 'zizmor');
   if (!parsed.ok) return { error: parsed.error };
 
@@ -54,7 +58,12 @@ export function parseZizmorReport(raw: string, options: { readonly intendedScope
 
     for (const location of item.locations ?? []) {
       const path = location.symbolic?.key?.Local?.verbatim_path;
-      if (typeof path === 'string') auditedFiles.add(path);
+      if (typeof path === 'string') {
+        // zizmor names workflow files by absolute machine path. Ids, locations, and the recorded
+        // audited scope are all minted from the root-relative form, for the same reason as the
+        // opengrep adapter: the id must not embed the auditing host's layout.
+        auditedFiles.add(options.appRoot === undefined ? path : relativizeLocation(path, options.appRoot));
+      }
     }
 
     if (item.ignored === true) {
@@ -66,10 +75,11 @@ export function parseZizmorReport(raw: string, options: { readonly intendedScope
       typeof item.determinations?.severity === 'string' ? item.determinations.severity : undefined,
     );
     const primary = item.locations?.[0];
-    const path =
+    const rawPath =
       typeof primary?.symbolic?.key?.Local?.verbatim_path === 'string'
         ? primary.symbolic.key.Local.verbatim_path
         : undefined;
+    const path = rawPath === undefined || options.appRoot === undefined ? rawPath : relativizeLocation(rawPath, options.appRoot);
     const row = typeof primary?.concrete?.location?.start_point?.row === 'number' ? primary.concrete.location.start_point.row : undefined;
     const annotation = typeof primary?.symbolic?.annotation === 'string' ? primary.symbolic.annotation : undefined;
     const fix = typeof item.fixes?.[0]?.title === 'string' ? item.fixes[0].title : undefined;

@@ -227,6 +227,7 @@ export async function checkCommand(
         source.commit,
         startedAt,
         new Date(),
+        paths.appRoot,
       );
     }
 
@@ -250,6 +251,7 @@ export async function checkCommand(
         source.commit,
         startedAt,
         new Date(),
+        paths.appRoot,
       );
     }
 
@@ -271,6 +273,7 @@ export async function checkCommand(
         source.commit,
         startedAt,
         new Date(),
+        paths.appRoot,
       );
     }
 
@@ -295,7 +298,7 @@ export async function checkCommand(
         diagnostic: `recipe ${check.recipe} threw: ${(error as Error).message}`,
       };
     }
-    return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date());
+    return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date(), paths.appRoot);
   });
 
   // The CLI contract (02-implementation-plan): 0 satisfied, 1 blocked by unmet required work, 2 on

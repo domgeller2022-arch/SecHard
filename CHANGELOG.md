@@ -13,6 +13,39 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Fixed — audit locations were absolute, so the console.log scoping never fired and reports leaked the machine's layout (follow-up fix brief F-01/F-15, 12 October 2026)
+
+Follow-up-remediation Batch F1, first item. The follow-up audit found that audit mode passed
+absolute target paths through to every finding, so `runQualityErrors`' first-path-segment check
+read `''` and **held back every `console.log` finding in audit mode** — including one that logged
+a password — and only SARIF relativized locations, leaving `report.md`, `report.html`, and
+`report.json` carrying absolute machine paths.
+
+The fix puts relativization where it can only happen once per producer:
+
+- **Adapters mint ids from the root-relative form.** The opengrep and zizmor adapters take an
+  `appRoot` option and relativize paths before building the finding `id`, `location`, and the
+  recorded scanned-file scope — a finding id that embeds `/var/folders/...` is both a layout leak
+  in every report and unstable across machines.
+- **Diagnostics are scrubbed at result creation.** Recipe diagnostics quote paths ("no browser
+  build output found under <appRoot>"); `makeResult` now strips the audit root from them, the way
+  it already redacted secrets — the one boundary every result passes through.
+- **The audit report names the target, never locates it.** `report.json`'s `target` field and the
+  SARIF `AUDITROOT` base carry the directory's name, not a `file://` URI of the auditing host's
+  absolute path. The deleted `pathToFileUri` was exactly that leak.
+- `makeResult` also relativizes finding locations and `scope.files` for every recipe that has not
+  already done so (gitleaks, OSV, the internal quality rules), idempotent with the adapters.
+
+**Acceptance, all executed:** a new scanner-suite test audits a fixture at a unique absolute temp
+path and asserts the `app/` `console.log` finding is reported (`app/x.ts:1`), the `scripts/` one is
+still held back with the count stated, and none of `report.md`, `report.html`, `report.json`,
+`report.sarif`, or `results.json` contains the audit root's absolute path. A unit test pins the
+boundary itself: under-root paths relativize, `http(s)://` locations are untouched, absolute
+out-of-root paths are kept as-is, absent stays absent, and the pass is idempotent for the SARIF
+writer. Suites after the fix: **536 unit + 8 integration + 33 scanner + 5 example tests, all
+passing locally with tools; `repo-checks` has not yet been watched for this change (no push
+without the owner's go-ahead, per the work rules).**
+
 ### Fixed — the GitHub CI run, red since Batch W without anyone noticing (10 October 2026)
 
 The owner asked that everything be pushed; watching the resulting `repo-checks` run showed the

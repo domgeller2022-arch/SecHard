@@ -264,7 +264,7 @@ async function runOpengrepWithPack(context: RecipeContext, packRelativePath: str
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   if (run.outcome.exitCode !== 0) return errored(`opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
 
-  const parsed = parseOpengrepReport(run.outcome.stdout);
+  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot });
   if ('error' in parsed) return errored(parsed.error);
   if (parsed.scope.observed === 0) {
     return unsupported(`opengrep scanned no files in the application root; there is nothing for the ${packRuleId} rules to analyse`);
@@ -332,7 +332,10 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
     return errored(`zizmor exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
   }
 
-  const parsed = parseZizmorReport(run.outcome.stdout, { intendedScope: workflowFiles.map((name) => join(workflowsDir, name)) });
+  const parsed = parseZizmorReport(run.outcome.stdout, {
+    intendedScope: workflowFiles.map((name) => join(workflowsDir, name)),
+    appRoot: context.appRoot,
+  });
   if ('error' in parsed) return errored(parsed.error);
 
   return {

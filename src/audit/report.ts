@@ -300,7 +300,9 @@ function buildJson(
 ): string {
   const document = {
     schema_version: 'audit-report/v1',
-    target: input.target,
+    // The target is named, never located: an absolute machine path in a published report is the
+    // auditing host's layout, not information about the audited application.
+    target: input.targetName,
     generated_at: input.generatedAt.toISOString(),
     depth: input.depth,
     ...(input.url === undefined ? {} : { live_target: input.url }),
@@ -595,7 +597,10 @@ function buildSarif(input: AuditReportInput, findings: readonly AnnotatedFinding
           },
         ],
         originalUriBaseIds: {
-          AUDITROOT: { uri: pathToFileUri(input.target), description: { text: 'The audited directory' } },
+          // The base names the audited directory, never locates it on the auditing machine: a
+          // file:// URI of the absolute target path is exactly the leak the relativized artifact
+          // URIs exist to prevent.
+          AUDITROOT: { uri: input.targetName, description: { text: 'The audited directory' } },
         },
         results,
       },
@@ -639,9 +644,4 @@ function sarifUri(location: string, target: string): { uri: string; uriBaseId: s
   // An absolute path outside the target is unusual; it is kept as-is rather than mangled,
   // because inventing a relative form would misreport the location.
   return { uri: normalized.split('/').map(encodeURIComponent).join('/') };
-}
-
-function pathToFileUri(target: string): string {
-  const encoded = target.replace(/\\/g, '/').replace(/[\u0000-\u001f\u007f"<>^`{|}]/g, encodeURIComponent);
-  return `file://${encoded.startsWith('/') ? '' : '/'}${encoded}`;
 }

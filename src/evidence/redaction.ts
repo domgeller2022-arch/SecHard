@@ -31,6 +31,21 @@ export function containsSecretPattern(text: string): boolean {
 }
 
 /**
+ * Report locations are relative to the audited root. An absolute machine path in a published
+ * report leaks the auditing host's layout, and rules that key on the first path segment (the
+ * console.log scoping rule) read an absolute prefix as `''`, silently holding back findings in
+ * audit mode. Live HTTP findings are URLs, not paths; a location outside the root is rare and
+ * kept as-is rather than mangled. Already-relative locations pass through unchanged, so this is
+ * idempotent wherever it is applied twice (recipe intake and result creation).
+ */
+export function relativizeLocation(location: string, appRoot: string): string {
+  if (location.startsWith('http://') || location.startsWith('https://')) return location;
+  if (appRoot === '') return location;
+  if (location === appRoot) return '.';
+  return location.startsWith(`${appRoot}/`) ? location.slice(appRoot.length + 1) : location;
+}
+
+/**
  * Escapes text that came from a tool, a scanner, or an application file before it is written into
  * Markdown. Untrusted output is data: it must not be able to inject structure into a report that a
  * reviewer reads.
