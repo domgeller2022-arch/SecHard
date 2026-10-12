@@ -13,6 +13,55 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Fixed — leaked secrets were unranked, duplicated, and waivable (follow-up fix brief F-02, 12 October 2026)
+
+Follow-up-remediation Batch F1, item F-02. The defect was reproduced by the follow-up audit
+against `f3c9727`; every claim below was re-verified in the current tree before the change. The
+F-01/F-15 location fix this item builds on is recorded in the entry below.
+
+**F-02 — secret findings are classified, folded, and no longer waivable.** Gitleaks reported every
+credential as `unknown` with a generic title, so a Supabase service-role key was waivable by
+exception and four duplicate rows ranked below workflow hygiene. Now:
+
+- **A total classifier** (new `src/evidence/secret-severity.ts`) reads the matched line from the
+  source revision — never from the redacted report, which would put the value on disk — decodes
+  JWT role claims with the client-asset logic already in the codebase, and gives every secret
+  finding a severity (`critical` for privileged/live material, `high` for other credentials,
+  `low` for publishable/anon keys) and a plain-English title. Only the SHA-256 of the matched line
+  is stored (`secret_digest`); the value itself is never recorded. The classifier is total: no
+  secret finding leaves it `unknown`. A classifier-totality unit test and the scanner acceptance
+  test pin both properties.
+- **Repository/history folding**: the same secret found by both scans is one finding — kept once,
+  preferring the repository scan, annotated `also present in committed history` — instead of two
+  duplicate rows. (The repository scan is the newest commit's change set, matching its PR-time
+  purpose; the history scan covers everything older, and a secret removed from the worktree is
+  still found and classified critical by reading its own commit — the F-02 acceptance test proves
+  exactly that scenario too.)
+- **A waiver ban**: `policy/gate-policy.yaml` gains a `secrets` section
+  (`secret_scanners: [gitleaks, client-asset-inspection]`, `findings_never_waivable: true`), and
+  the evaluator refuses to apply any exception to a secret finding — keyed on
+  `category: 'secret'` **or** the policy's scanner list, so a classifier regression cannot reopen
+  the hole. Probes P7a (category path) and P7b (tool-list path) assert `waiver.forbidden`; SEC-01
+  is not a `never_exceptable` control and the probe findings are `unknown` severity, so the ban is
+  the only possible source of that reason.
+- **A reviewed false-positive path** (`A-4`): `.hardening/triage.yaml`, validated by a new
+  `triage/v1` schema, matched on rule + file + fingerprint (`secret_digest` when present, else the
+  finding's stable id). Only this record clears a finding: a `false_positive` label written into a
+  result file is now a blocking `finding.false_positive_unrecorded`, and because the fingerprint
+  is content-derived, a changed file reopens the finding automatically. Loader, evaluator, and
+  probes (matching record clears; stale fingerprint and wrong file do not) are all tested. Placed
+  under `.hardening/`, the record is subject to the base-branch-records rule, so a PR cannot
+  triage the findings it introduces.
+- **Ranking by exposure for every finding** (A-7): `fix these first` orders by severity, then by
+  exposure class — browser-shipped/live (`deployed-surface`) > committed history >
+  request-reachable source (API routes/handlers) > ordinary source and workflow hygiene — and the
+  report folds two rules reporting one location into one row, keeping both provenances and the
+  higher severity.
+
+**Verification.** All suites locally with tools: **554 unit + 8 integration + 35 scanner + 5
+example tests**, typecheck and lint clean. `repo-checks` has not yet been watched for this change
+(no push without the owner's go-ahead, per the work rules).
+
 ### Fixed — audit locations were absolute, so the console.log scoping never fired and reports leaked the machine's layout (follow-up fix brief F-01/F-15, 12 October 2026)
 
 Follow-up-remediation Batch F1, first item. The follow-up audit found that audit mode passed

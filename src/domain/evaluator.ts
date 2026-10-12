@@ -16,6 +16,7 @@ import type {
   Severity,
   Stage,
   ExecutionPlan,
+  TriageRecord,
 } from './types.js';
 
 export interface EvaluationInput {
@@ -40,6 +41,8 @@ export interface EvaluationInput {
   readonly results: readonly CheckResult[];
   readonly manualEvidence: readonly ManualEvidence[];
   readonly exceptions: readonly ExceptionRecord[];
+  /** Reviewed false-positive records: the only triage that clears a finding (F-02/A-4). */
+  readonly triages?: readonly TriageRecord[];
   /**
    * Owner approvals for the control definitions in use. Only release evaluation requires them.
    * Approval metadata is not present in reports written during development.
@@ -136,6 +139,8 @@ export function evaluate(input: EvaluationInput): GateDecision {
     blockingSeverities: resolveBlockingSeverities(input.policy),
     criticalNeverWaivable: input.policy.exceptions?.critical_findings_never_waivable !== false,
     highRequiresNonSelfAtRelease: input.policy.exceptions?.high_findings_require_non_self_approver_at_release !== false,
+    secretsNeverWaivable: input.policy.secrets?.findings_never_waivable !== false,
+    secretScanners: new Set(input.policy.secrets?.secret_scanners ?? ['gitleaks', 'client-asset-inspection']),
   };
 
   const controlOutcomes: ControlEvaluation[] = [];
@@ -161,6 +166,7 @@ export function evaluate(input: EvaluationInput): GateDecision {
       applicability: evaluateApplicability(definition.applicability, input.manifest as ManifestLike, input.environment),
       manual: manualByControl.get(controlId) ?? [],
       exceptions: usableExceptions,
+      triages: input.triages ?? [],
       stagePolicy,
       policy: input.policy,
       now: input.now,
@@ -199,9 +205,11 @@ export function evaluate(input: EvaluationInput): GateDecision {
   const aggregated = aggregateControlOutcomes(controlOutcomes);
 
   return {
-    // A decision can be satisfied with waivers, but only waivers: every other reason blocks, and a
-    // waived control is never reported as a pass.
-    satisfied: reasons.every((item) => item.code === 'waiver.applied') && aggregated.every(isAcceptable),
+    // A decision can be satisfied with waivers or recorded false positives, but only those: every
+    // other reason blocks, and a waived control is never reported as a pass.
+    satisfied:
+      reasons.every((item) => item.code === 'waiver.applied' || item.code === 'finding.false_positive_recorded') &&
+      aggregated.every(isAcceptable),
     stage: input.stage,
     environment: input.environment,
     reasons,
@@ -344,6 +352,10 @@ interface WaiverContext {
   readonly blockingSeverities: ReadonlySet<Severity>;
   readonly criticalNeverWaivable: boolean;
   readonly highRequiresNonSelfAtRelease: boolean;
+  /** Secret findings can never be waived, at any severity (gate-policy `secrets`). */
+  readonly secretsNeverWaivable: boolean;
+  /** Tools whose findings are secret exposures even when `category` is unset. */
+  readonly secretScanners: ReadonlySet<string>;
 }
 
 interface CheckContext {
@@ -351,6 +363,7 @@ interface CheckContext {
   readonly applicability: 'applicable' | 'not_applicable' | 'unknown';
   readonly manual: readonly ManualEvidence[];
   readonly exceptions: ReadonlyMap<string, ExceptionRecord>;
+  readonly triages: readonly TriageRecord[];
   readonly stagePolicy: StagePolicy;
   readonly policy: GatePolicy;
   readonly now: Date;
@@ -468,7 +481,7 @@ function evaluateCheck(
   const waivable = result.outcome === 'pass' || result.outcome === 'fail';
 
   for (const finding of result.findings ?? []) {
-    const evaluated = evaluateFinding(finding, check, waivable ? context.exceptions : NO_EXCEPTIONS, context.waiver);
+    const evaluated = evaluateFinding(finding, check, waivable ? context.exceptions : NO_EXCEPTIONS, context.triages, context.waiver);
     reasons.push(...evaluated.reasons);
     waiverRefs.push(...evaluated.waiver_refs);
   }
@@ -477,7 +490,11 @@ function evaluateCheck(
     return build(controlId, check.check_id, definition, 'waived', result.coverage, satisfiedChecks, reasons, waiverRefs);
   }
 
-  const hasFailure = reasons.some((item) => item.code !== 'evidence.fixture_origin_noted');
+  // A reviewed false-positive note is the record of a cleared finding, not a failure (F-02/A-4):
+  // the check still passes and the note stays visible, like a waiver.
+  const hasFailure = reasons.some(
+    (item) => item.code !== 'evidence.fixture_origin_noted' && item.code !== 'finding.false_positive_recorded',
+  );
   if (hasFailure || result.outcome !== 'pass') {
     if (!hasFailure) {
       reasons.push(
@@ -777,10 +794,29 @@ function evaluateFinding(
   finding: Finding,
   check: ExpectedCheck,
   exceptions: ReadonlyMap<string, ExceptionRecord>,
+  triages: readonly TriageRecord[],
   waiver: WaiverContext,
 ): { reasons: Reason[]; waiver_refs: string[] } {
   const controlIds = finding.control_ids ?? check.control_ids;
   const found = findException(finding, check, controlIds, exceptions, waiver);
+
+  // A reviewed triage record is the only false-positive path (F-02/A-4). It clears the finding as
+  // a visible, non-blocking note, and it revalidates: the record names the finding's fingerprint,
+  // so changed content stops matching and the finding returns.
+  const triage = matchTriageRecord(finding, triages);
+  if (triage !== undefined) {
+    return {
+      reasons: [
+        reason('finding.false_positive_recorded', `${finding.id} is recorded as a false positive by ${triage.reviewer} (${triage.id}): ${triage.reason}`, {
+          control_ids: controlIds,
+          check_id: check.check_id,
+          finding_id: finding.id,
+          severity: finding.severity,
+        }),
+      ],
+      waiver_refs: [],
+    };
+  }
 
   if (found.exception !== undefined) {
     const exception = found.exception;
@@ -812,12 +848,13 @@ function evaluateFinding(
           }),
         ];
 
-  // A triage label with no stated reason is not triage. This applies whatever the severity is.
-  if (finding.triage === 'false_positive' && (finding.triage_reason ?? '').length < 10) {
+  // A false-positive label written into a result file is not triage: only a reviewed record
+  // clears a finding (F-02/A-4). A bare label never does, whatever reason it carries.
+  if (finding.triage === 'false_positive') {
     return {
       reasons: [
         ...forbidden,
-        reason('finding.false_positive_unsupported', `${finding.id} is marked a false positive without a stated reason`, {
+        reason('finding.false_positive_unrecorded', `${finding.id} carries a false-positive label from a result file; only a reviewed .hardening/triage.yaml record can clear a finding`, {
           control_ids: controlIds,
           check_id: check.check_id,
           finding_id: finding.id,
@@ -931,10 +968,34 @@ function findException(
       continue;
     }
 
+    // A leaked secret needs rotation and history containment, not acceptance (fix brief F-02).
+    // Keyed on the category marker AND the policy's secret-scanner list together: a classifier
+    // regression that drops `category` must not reopen the hole that probe P7b guards.
+    if (waiver.secretsNeverWaivable && (finding.category === 'secret' || waiver.secretScanners.has(finding.tool))) {
+      forbidden = 'a secret exposure can never be waived; it needs rotation and history containment, not acceptance';
+      continue;
+    }
+
     return { exception };
   }
 
   return forbidden === undefined ? {} : { forbidden };
+}
+
+/**
+ * A triage record matches on rule, file, and fingerprint — never on rule alone, which would clear
+ * every instance of a rule across the repository. The fingerprint is the finding's
+ * `secret_digest` when present, otherwise its stable id; because both derive from the matched
+ * content, a changed file stops matching and the finding returns without anyone remembering to
+ * revoke the record.
+ */
+function matchTriageRecord(finding: Finding, triages: readonly TriageRecord[]): TriageRecord | undefined {
+  if (triages.length === 0) return undefined;
+  const file = (finding.location ?? '').replace(/:\d+$/, '');
+  const fingerprint = finding.secret_digest ?? finding.id;
+  return triages.find(
+    (record) => record.triage === 'false_positive' && record.rule_id === finding.rule_id && record.file === file && record.finding_fingerprint === fingerprint,
+  );
 }
 
 /**

@@ -10,7 +10,7 @@ import { loadCatalogue, type ControlDefinition, type Profile } from '../domain/d
 import { loadToolchain, platformKey } from '../execution/registry.js';
 import { sha256Hex } from '../evidence/digest.js';
 import type { ApprovalRecord } from '../domain/approval.js';
-import type { AssessmentRecord, ExceptionRecord, GatePolicy, ManualEvidence } from '../domain/types.js';
+import type { AssessmentRecord, ExceptionRecord, GatePolicy, ManualEvidence, TriageRecord } from '../domain/types.js';
 import type { ManifestRecord } from '../domain/types.js';
 
 export interface Paths {
@@ -46,6 +46,8 @@ export interface LoadedConsumer {
   readonly assessments: readonly AssessmentRecord[];
   readonly exceptions: readonly ExceptionRecord[];
   readonly manualEvidence: readonly ManualEvidence[];
+  /** Reviewed false-positive records; the only triage that clears a finding. */
+  readonly triages: readonly TriageRecord[];
 }
 
 /** Issues that should be visible to the owner but do not make a record unusable. */
@@ -60,6 +62,7 @@ const CONSUMER_FILES = {
   assessments: '.hardening/assessments.yaml',
   exceptions: '.hardening/exceptions.yaml',
   manualEvidence: '.hardening/manual-evidence.yaml',
+  triage: '.hardening/triage.yaml',
   policyLock: '.hardening/policy-lock.json',
 } as const;
 
@@ -174,7 +177,7 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
     // A missing or unparsable manifest is reported on its own. Continuing would produce a wall of
     // derived complaints that all trace back to this one missing record.
     if (loadedManifest.issues[0]?.code === 'input.not_found') {
-      return { issues: loadedManifest.issues, value: { assessments: [], exceptions: [], manualEvidence: [] } };
+      return { issues: loadedManifest.issues, value: { assessments: [], exceptions: [], manualEvidence: [], triages: [] } };
     }
     issues.push(...loadedManifest.issues);
   } else if (loadedManifest.data !== undefined) {
@@ -211,6 +214,20 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
       if (result.valid) manualEvidence.push(record);
     }
     issues.push(...checkDuplicateIds(loadedManual.data.records.map((record) => record.id), manualFile));
+  }
+
+  // Reviewed false-positive records (F-02/A-4): the only triage that clears a finding. A missing
+  // file is normal; a malformed record is an issue, never silently ignored.
+  const triages: TriageRecord[] = [];
+  const triageFile = join(recordsRoot, CONSUMER_FILES.triage);
+  const loadedTriages = loadDocument<{ triages?: TriageRecord[] }>(triageFile);
+  if (loadedTriages.issues.length === 0 && loadedTriages.data?.triages !== undefined) {
+    for (const record of loadedTriages.data.triages) {
+      const result = validateAgainstSchema('triage', record, triageFile);
+      issues.push(...result.issues);
+      if (result.valid) triages.push(record);
+    }
+    issues.push(...checkDuplicateIds(loadedTriages.data.triages.map((record) => record.id), triageFile));
   }
 
   const assessments: AssessmentRecord[] = [];
@@ -288,6 +305,7 @@ export function loadConsumer(paths: Paths, selectedProfiles: readonly string[]):
       assessments,
       exceptions,
       manualEvidence,
+      triages,
     },
     issues,
     warnings,

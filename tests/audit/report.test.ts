@@ -63,7 +63,20 @@ const decision: GateDecision = {
 
 const evidence = {} as ReleaseEvidence;
 
-function resultFor(recipe: string, findings: readonly { id: string; rule: string; severity: Severity; tool: string; title: string; location: string }[]): CheckResult {
+function resultFor(
+  recipe: string,
+  findings: readonly {
+    id: string;
+    rule: string;
+    severity: Severity;
+    tool: string;
+    title: string;
+    location: string;
+    category?: 'secret';
+    commit?: string;
+    detail?: string;
+  }[],
+): CheckResult {
   return {
     schema_version: 'check-result/v1',
     run_id: 'audit-test',
@@ -87,6 +100,9 @@ function resultFor(recipe: string, findings: readonly { id: string; rule: string
       severity: finding.severity,
       title: finding.title,
       location: finding.location,
+      ...(finding.category === undefined ? {} : { category: finding.category }),
+      ...(finding.commit === undefined ? {} : { commit: finding.commit }),
+      ...(finding.detail === undefined ? {} : { detail: finding.detail }),
       control_ids: ['SEC-01'],
       triage: 'unresolved' as const,
     })),
@@ -251,5 +267,51 @@ describe('SARIF output', () => {
     ]));
     expect(report.sarif).not.toContain('snippet');
     expect(report.sarif).not.toContain('region');
+  });
+});
+
+describe('A-7: exposure orders every finding at equal severity, and duplicate locations fold to one row', () => {
+  it('ranks a committed-history secret above a request-reachable finding above repository hygiene', () => {
+    const results = [
+      resultFor('gitleaks/repository', [
+        { id: 'f-workflow', rule: 'unpinned-action', severity: 'high', tool: 'zizmor', title: 'unpinned action', location: '.github/workflows/ci.yml' },
+        { id: 'f-api', rule: 'sql-injection', severity: 'high', tool: 'opengrep', title: 'injection in a handler', location: 'app/api/users/route.ts' },
+        {
+          id: 'f-history',
+          rule: 'jwt',
+          severity: 'high',
+          tool: 'gitleaks',
+          title: 'service-role key',
+          location: '.env:1',
+          category: 'secret',
+          commit: 'c0ffee'.padEnd(40, '0'),
+        },
+      ]),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    expect(report.findings.map((finding) => finding.id)).toEqual(['f-history', 'f-api', 'f-workflow']);
+    expect(report.findings[0]?.exposure).toBe('committed-history');
+    expect(report.findings[1]?.exposure).toBe('request-reachable');
+    expect(report.findings[2]?.exposure).toBe('source');
+  });
+
+  it('folds two rules reporting one location into one row, keeping both provenances and the higher severity', () => {
+    const results = [
+      resultFor('opengrep/rules', [
+        { id: 'f-regex', rule: 'hardening.ssrf-regex', severity: 'medium', tool: 'opengrep', title: 'ssrf (regex)', location: 'app/api/proxy/route.ts:9' },
+        { id: 'f-taint', rule: 'hardening.taint-ssrf', severity: 'high', tool: 'opengrep', title: 'ssrf (taint)', location: 'app/api/proxy/route.ts:9' },
+        { id: 'f-other', rule: 'hardening.xss', severity: 'medium', tool: 'opengrep', title: 'xss elsewhere', location: 'app/api/proxy/route.ts:12' },
+      ]),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    const atSameLine = report.findings.filter((finding) => finding.location === 'app/api/proxy/route.ts:9');
+    expect(atSameLine).toHaveLength(1);
+    expect(atSameLine[0]?.severity).toBe('high');
+    // Both provenances stay visible on the one row: the kept rule names the row; the folded one
+    // is in the detail.
+    expect(atSameLine[0]?.rule_id).toBe('hardening.ssrf-regex');
+    expect(atSameLine[0]?.detail ?? '').toContain('hardening.taint-ssrf');
+    // A different line is a different finding and is not folded.
+    expect(report.findings.some((finding) => finding.location === 'app/api/proxy/route.ts:12')).toBe(true);
   });
 });

@@ -9,6 +9,7 @@ import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
 import { inspectBrowserAssets } from '../build/client-assets.js';
+import { annotateSecretFindings, splitLocation } from '../evidence/secret-severity.js';
 import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
 import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
@@ -149,6 +150,29 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
   const parsed = parseGitleaksReport(raw, { stderr: run.outcome.stderr, intendedScope: files.slice(0, MAX_FILES_RECORDED) });
   if ('error' in parsed) return errored(`${parsed.error}; the raw report digest is ${digestOf(raw).slice(0, 12)}…`);
 
+  // Classification (F-02). The matched text is read from the source revision, never from the
+  // redacted report: the repository scan reads the worktree, the history scan reads the finding's
+  // own commit and falls back to the worktree when the secret survived to HEAD. Values are never
+  // stored — only their digest is recorded — so no secret material is written anywhere by this.
+  const lineAt = (content: string | undefined, location: string | undefined): string | undefined => {
+    const parts = splitLocation(location);
+    if (content === undefined || parts?.line === undefined) return undefined;
+    return content.split('\n')[parts.line - 1]?.trimEnd();
+  };
+  const annotated = annotateSecretFindings(parsed.findings, (finding) => {
+    const parts = splitLocation(finding.location);
+    if (parts === undefined) return undefined;
+    if (!headOnly && finding.commit !== undefined) {
+      const committed = lineAt(gitOutput(worktree, ['show', `${finding.commit}:${parts.file}`]), finding.location);
+      if (committed !== undefined && committed.length > 0) return committed;
+    }
+    try {
+      return lineAt(readFileSync(join(worktree, parts.file), 'utf8'), finding.location);
+    } catch {
+      return undefined;
+    }
+  });
+
   return {
     outcome: 'pass',
     coverage: parsed.coverage,
@@ -156,7 +180,7 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
     // not files, so coverage stays partial: this is why the control is classified `mixed`.
     observed: files.length,
     files: files.slice(0, MAX_FILES_RECORDED),
-    findings: parsed.findings,
+    findings: annotated,
     tool: toolIdentity('gitleaks'),
     reportPath,
     reportDigest: digestOf(raw),

@@ -76,6 +76,20 @@ exceptions:
     (self_review: false). Findings on a control that is never_exceptable or marked `never` by the
     selected profile cannot be waived at all, whatever scope the exception uses.
 
+secrets:
+  # The tools whose findings are secret exposures. The classifier marks what it reads with
+  # `category: secret`; this list is the belt-and-braces, so a classifier regression cannot make a
+  # leaked credential waivable. Both sources are enforced by the evaluator.
+  secret_scanners: [gitleaks, client-asset-inspection]
+  # A leaked credential needs rotation and history containment, not acceptance: a secret finding of
+  # any severity — critical, high, or unknown — can never be waived by an exception record. The
+  # reviewed false-positive path for test or example values is the consumer triage record, not a
+  # waiver.
+  findings_never_waivable: true
+  notes: >-
+    Added 2026-10-11 (follow-up fix brief F-02). Before this, an unknown-severity secret finding
+    could be waived by any exception, and the gate passed with a live service-role key exposed.
+
 coverage:
   # Zero findings is meaningful only when expected scope was examined.
   require_expected_scope_for_pass: true

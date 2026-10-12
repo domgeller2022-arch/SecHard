@@ -488,7 +488,9 @@ describe('findings block regardless of a friendly label', () => {
     expect(decision.reasons.some((item) => item.code === 'finding.unknown_severity_untriaged')).toBe(true);
   });
 
-  it('accepts unknown severity once explicitly triaged with a reason', () => {
+  it('does not accept a false-positive label from a result file, whatever reason it carries', () => {
+    // A-4: only a reviewed .hardening/triage.yaml record clears a finding. A label written into a
+    // result file is not triage — the reviewed record path is tested in probes.test.ts.
     const decision = withFinding(planFor('pr'), {
       id: 'f1',
       tool: 'osv-scanner',
@@ -497,6 +499,8 @@ describe('findings block regardless of a friendly label', () => {
       triage: 'false_positive',
       triage_reason: 'Dev-only transitive package, confirmed against the lockfile',
     });
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'finding.false_positive_unrecorded')).toBe(true);
     expect(decision.reasons.some((item) => item.code === 'finding.unknown_severity_untriaged')).toBe(false);
   });
 
@@ -508,7 +512,7 @@ describe('findings block regardless of a friendly label', () => {
       severity: 'high',
       triage: 'false_positive',
     });
-    expect(decision.reasons.some((item) => item.code === 'finding.false_positive_unsupported')).toBe(true);
+    expect(decision.reasons.some((item) => item.code === 'finding.false_positive_unrecorded')).toBe(true);
   });
 
   it('does not block a finding already triaged as fixed', () => {

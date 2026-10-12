@@ -64,6 +64,7 @@ export function parseGitleaksReport(raw: string, options: GitleaksOptions = {}):
     const line = typeof item.StartLine === 'number' ? item.StartLine : undefined;
     const fingerprint = typeof item.Fingerprint === 'string' ? item.Fingerprint : undefined;
     const entropy = typeof item.Entropy === 'number' ? item.Entropy : undefined;
+    const commit = typeof item.Commit === 'string' ? item.Commit : undefined;
 
     findings.push({
       id: stableFindingId(['gitleaks', ruleId, file, line, fingerprint]),
@@ -73,6 +74,7 @@ export function parseGitleaksReport(raw: string, options: GitleaksOptions = {}):
       severity: 'unknown',
       ...(file === undefined ? {} : { location: line === undefined ? file : `${file}:${line}` }),
       ...(fingerprint === undefined ? {} : { resource: fingerprint }),
+      ...(commit === undefined ? {} : { commit }),
       detail: `secret material detected${entropy === undefined ? '' : ` (entropy ${entropy.toFixed(2)})`}; value redacted`,
       redacted: true,
       triage: 'unresolved',

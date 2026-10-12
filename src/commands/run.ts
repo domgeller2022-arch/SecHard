@@ -10,6 +10,7 @@ import { evaluate } from '../domain/evaluator.js';
 import { loadConsumer, loadPolicy, recordsRootFor, resolveSourceIdentity, type LoadedPolicy, type Paths } from './io.js';
 import { buildReport } from './report.js';
 import { escapeMarkdown, redactSecrets } from '../evidence/redaction.js';
+import { dedupeSecretFindings } from '../evidence/secret-severity.js';
 import type { ApplicabilityRule } from '../domain/applicability.js';
 import type { PlanInput } from '../domain/planner.js';
 import type { AssessmentRecord, CheckResult, ExecutionPlan, GateDecision, ManifestRecord, ReleaseEvidence } from '../domain/types.js';
@@ -204,7 +205,7 @@ export async function checkCommand(
   // Independent checks run concurrently with a bounded pool. One recipe failing never stops the
   // others: each handler is isolated and converts its own failure into an error result.
   const planned = plan.expected_checks.filter((check) => check.execution?.mode !== 'manual');
-  const results = await runPool(planned, 4, async (check) => {
+  const rawResults = await runPool(planned, 4, async (check) => {
     const startedAt = new Date();
 
     // The built-in record-consistency recipe is internal: it re-reads the policy records and
@@ -300,6 +301,11 @@ export async function checkCommand(
     }
     return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date(), paths.appRoot);
   });
+
+  // The repository and history scans report the same committed secret (F-02): it is one finding,
+  // kept once — preferring the repository scan — and noted as also present in history, not two
+  // duplicate rows ranked below workflow hygiene.
+  const results = dedupeSecretFindings(rawResults);
 
   // The CLI contract (02-implementation-plan): 0 satisfied, 1 blocked by unmet required work, 2 on
   // execution or evidence errors. `check` runs everything it safely can and still exits nonzero when
@@ -414,6 +420,7 @@ export function gateCommand(
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
     exceptions: consumer.value?.exceptions ?? [],
+    triages: consumer.value?.triages ?? [],
     assessments: consumer.value?.assessments ?? [],
     approvals: policy.approvals,
     controlDefinitions: policy.controls,

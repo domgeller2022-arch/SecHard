@@ -100,10 +100,13 @@ function auditApp(target: string, extra: readonly string[] = []): AuditOutput {
   return output;
 }
 
-const findingsFor = (results: AuditOutput['results'], recipe: string): { rule_id: string }[] => {
+const findingsFor = (
+  results: AuditOutput['results'],
+  recipe: string,
+): { rule_id: string; severity?: string; category?: string; detail?: string }[] => {
   const result = results.find((entry) => entry.check_id.includes(recipe));
   expect(result, `no result for ${recipe}`).toBeDefined();
-  return ((result?.findings ?? []) as { rule_id: string }[]);
+  return ((result?.findings ?? []) as { rule_id: string; severity?: string; category?: string; detail?: string }[]);
 };
 
 const appCache = new Map<string, string>();
@@ -161,8 +164,18 @@ describe('hardening audit on three sample applications', () => {
     expect(audit.run.status, audit.run.stderr).toBe(0);
     expect(audit.results.filter((result) => result.outcome === 'error')).toEqual([]);
 
-    expect(findingsFor(audit.results, 'gitleaks/repository').length).toBeGreaterThan(0);
-    expect(findingsFor(audit.results, 'gitleaks/history').length).toBeGreaterThan(0);
+    const repositorySecrets = findingsFor(audit.results, 'gitleaks/repository');
+    expect(repositorySecrets.length).toBeGreaterThan(0);
+    // One commit of history: every history finding duplicates the repository scan, so F-02 folds
+    // it into the repository finding — one row per secret, with the history noted — rather than
+    // reporting the same secret twice.
+    expect(findingsFor(audit.results, 'gitleaks/history').length).toBe(0);
+    expect(
+      repositorySecrets.some((finding) => (finding.detail ?? '').includes('also present in committed history')),
+      JSON.stringify(repositorySecrets),
+    ).toBe(true);
+    // F-02: classified, never `unknown`, with the category marker.
+    expect(repositorySecrets.every((finding) => finding.severity !== 'unknown' && finding.category === 'secret')).toBe(true);
     expect(findingsFor(audit.results, 'opengrep/rules').length).toBeGreaterThan(0);
     expect(findingsFor(audit.results, 'zizmor/workflows').length).toBeGreaterThan(0);
     expect(findingsFor(audit.results, 'osv/lockfile').length).toBeGreaterThan(0);
@@ -264,10 +277,15 @@ describe('audit depth semantics', () => {
     const deep = auditApp(app, ['--depth', 'deep']);
     expect(deep.run.status, deep.run.stderr).toBe(0);
     expect(deep.report).toContain('same set as standard in this build');
-    // Everything standard runs still ran: the history scan produced its real result.
-    const history = deep.results.find((entry) => entry.check_id.includes('gitleaks/history'));
+    // Everything standard runs still ran: the history scan produced its real result — it examined
+    // the tracked-file inventory (never an empty scope), and its findings are covered, folded into
+    // the repository rows (single-commit fixture, F-02) or reported as their own.
+    const history = deep.results.find((entry) => entry.check_id.includes('gitleaks/history')) as
+      | { outcome?: string; scope?: { observed?: number } }
+      | undefined;
     expect(history?.outcome).toBe('pass');
-    expect((history?.findings ?? []).length).toBeGreaterThan(0);
+    expect(history?.scope?.observed ?? 0).toBeGreaterThan(0);
+    expect(findingsFor(deep.results, 'gitleaks/repository').length).toBeGreaterThan(0);
   }, 600_000);
 });
 
@@ -384,6 +402,120 @@ describe('F-01/F-15: absolute audit targets still scope the console.log rule, an
     for (const name of ['report.md', 'report.html', 'report.json', 'report.sarif', 'results.json']) {
       const text = readFileSync(join(outDir, name), 'utf8');
       expect(text, `${name} leaks the audit root`).not.toContain(root);
+    }
+  }, 600_000);
+});
+
+describe('F-02: leaked secrets are classified, de-duplicated across repository and history, and readable', () => {
+  // Synthetic, non-functional credentials composed at runtime (the repository's technique):
+  // a structurally valid service-role JWT and a Stripe live-format key. None of these is issued
+  // by any provider.
+  const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const jwt = (role: string): string => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ role, iss: 'supabase' })}.${'a'.repeat(43)}`;
+  const serviceRoleJwt = jwt('service_role');
+  const anonJwt = jwt('anon');
+  const stripeLive = `sk_live_${'51Hq8xYz3kT' + '4mLpQ9wRz' + '7vNsA2bC'}`;
+  const envWithStripe = [
+    `SUPABASE_SERVICE_ROLE_KEY=${serviceRoleJwt}`,
+    `NEXT_PUBLIC_SUPABASE_ANON_KEY=${anonJwt}`,
+    `STRIPE_SECRET_KEY=${stripeLive}`,
+    '',
+  ].join('\n');
+
+  interface SecretFinding {
+    rule_id: string;
+    severity?: string;
+    category?: string;
+    title?: string;
+    detail?: string;
+    secret_digest?: string;
+    commit?: string;
+    location?: string;
+  }
+
+  function makeApp(name: string): string {
+    const root = join(scratch, 'apps', name);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name, dependencies: { next: '14.0.0' } }, null, 2));
+    writeFileSync(join(root, '.env'), envWithStripe);
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: root });
+    execFileSync('git', ['config', 'user.name', 'fixture'], { cwd: root });
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    execFileSync('git', ['commit', '-q', '-m', 'add configuration'], { cwd: root });
+    return root;
+  }
+
+  function auditFindings(root: string): { repository: SecretFinding[]; history: SecretFinding[] } {
+    const outDir = join(scratch, 'out', `run-f02-${randomUUID().slice(0, 8)}`);
+    const run = cli(['audit', root, '--out', outDir, '--depth', 'standard'], scratch);
+    expect(run.status, run.stderr).toBe(0);
+    const results = JSON.parse(readFileSync(join(outDir, 'results.json'), 'utf8')) as AuditOutput['results'];
+    return {
+      repository: findingsFor(results, 'gitleaks/repository') as SecretFinding[],
+      history: findingsFor(results, 'gitleaks/history') as SecretFinding[],
+    };
+  }
+
+  it('classifies the service-role key and the Stripe live key critical, exactly one row each, with history folded in', () => {
+    // The brief's scenario: the secrets were introduced in the newest commit, so both the
+    // repository scan (the newest commit's changes) and the history scan report them, and the
+    // duplicates must be folded into one row with the history noted.
+    const { repository, history } = auditFindings(makeApp(`sechard-f02-fresh-${randomUUID().slice(0, 8)}`));
+
+    const serviceRole = repository.find((finding) => (finding.title ?? '').includes('service-role'));
+    expect(serviceRole, JSON.stringify(repository)).toBeDefined();
+    expect(serviceRole?.severity).toBe('critical');
+    expect(serviceRole?.category).toBe('secret');
+    expect(serviceRole?.secret_digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(serviceRole?.detail ?? '').toContain('also present in committed history');
+    // The digest is recorded; the value itself appears nowhere on the finding.
+    expect(JSON.stringify(repository)).not.toContain(serviceRoleJwt);
+    expect(JSON.stringify(repository)).not.toContain(stripeLive);
+
+    // Exactly one row for the service-role key and one for the Stripe key: the history copies are
+    // folded, not repeated.
+    expect(repository.filter((finding) => (finding.title ?? '').includes('service-role'))).toHaveLength(1);
+    expect(repository.filter((finding) => finding.rule_id === 'stripe-access-token')).toHaveLength(1);
+    expect(repository.find((finding) => finding.rule_id === 'stripe-access-token')?.severity).toBe('critical');
+    expect(history, 'history duplicates must be folded').toHaveLength(0);
+
+    // The anon key is informational, not a leak: low, same category, still visible.
+    const anon = repository.find((finding) => (finding.title ?? '').includes('anon/publishable'));
+    expect(anon?.severity).toBe('low');
+
+    // Totality: no gitleaks finding is left unknown or uncategorized.
+    for (const finding of repository) {
+      expect(finding.severity, JSON.stringify(finding)).not.toBe('unknown');
+      expect(finding.category).toBe('secret');
+    }
+  }, 600_000);
+
+  it('finds and classifies a secret that only exists in history by reading its own commit', () => {
+    // A second commit removes the Stripe key from the worktree. It must still be reported —
+    // classified critical by reading the line from the commit that introduced it, not by
+    // guessing from the rule id.
+    const root = makeApp(`sechard-f02-removed-${randomUUID().slice(0, 8)}`);
+    writeFileSync(join(root, '.env'), envWithStripe.split('\n').filter((line) => !line.startsWith('STRIPE_SECRET_KEY')).join('\n'));
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    execFileSync('git', ['commit', '-q', '-m', 'remove stripe key'], { cwd: root });
+
+    const { repository, history } = auditFindings(root);
+
+    const stripe = history.find((finding) => finding.rule_id === 'stripe-access-token');
+    expect(stripe, JSON.stringify(history)).toBeDefined();
+    expect(stripe?.severity).toBe('critical');
+    expect(stripe?.category).toBe('secret');
+    expect(stripe?.commit).toMatch(/^[0-9a-f]{40}$/);
+    expect((stripe?.detail ?? '') + (stripe?.title ?? '')).not.toContain(stripeLive);
+    // The service-role key survived to HEAD but is not part of the newest commit's change, so only
+    // the history scan reports it — still critical, with its introducing commit recorded.
+    const serviceRole = history.find((finding) => (finding.title ?? '').includes('service-role'));
+    expect(serviceRole?.severity).toBe('critical');
+    expect(serviceRole?.commit).toMatch(/^[0-9a-f]{40}$/);
+    for (const finding of [...repository, ...history]) {
+      expect(finding.severity, JSON.stringify(finding)).not.toBe('unknown');
+      expect(finding.category).toBe('secret');
     }
   }, 600_000);
 });

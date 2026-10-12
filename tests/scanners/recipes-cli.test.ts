@@ -75,15 +75,25 @@ describe('the wired recipes produce real detections through the CLI', () => {
       outcome: string;
       findings?: { rule_id: string }[];
     }[];
-    const findingsFor = (recipe: string): { rule_id: string }[] => {
+    const findingsFor = (recipe: string): { rule_id: string; severity?: string; category?: string; detail?: string }[] => {
       const result = results.find((entry) => entry.check_id.includes(recipe));
       expect(result, `no result for ${recipe}`).toBeDefined();
       expect(result?.outcome, `${recipe} must produce an answer`).toBe('pass');
-      return result?.findings ?? [];
+      return (result?.findings ?? []) as { rule_id: string; severity?: string; category?: string; detail?: string }[];
     };
 
-    expect(findingsFor('gitleaks/repository').length, 'gitleaks/repository').toBeGreaterThan(0);
-    expect(findingsFor('gitleaks/history').length, 'gitleaks/history').toBeGreaterThan(0);
+    const repositorySecrets = findingsFor('gitleaks/repository');
+    expect(repositorySecrets.length, 'gitleaks/repository').toBeGreaterThan(0);
+    // One commit of history: every history finding duplicates the repository scan, and F-02 folds
+    // it into the repository finding — one row per secret, with the history noted — instead of
+    // reporting the same secret twice.
+    expect(findingsFor('gitleaks/history').length, 'gitleaks/history').toBe(0);
+    expect(
+      repositorySecrets.some((finding) => (finding.detail ?? '').includes('also present in committed history')),
+      JSON.stringify(repositorySecrets),
+    ).toBe(true);
+    // F-02: every secret finding is classified — never `unknown` — with the category marker set.
+    expect(repositorySecrets.every((finding) => finding.severity !== 'unknown' && finding.category === 'secret')).toBe(true);
     expect(findingsFor('opengrep/rules').length, 'opengrep/rules').toBeGreaterThan(0);
     expect(findingsFor('zizmor/workflows').length, 'zizmor/workflows').toBeGreaterThan(0);
     expect(findingsFor('osv/lockfile').length, 'osv/lockfile').toBeGreaterThan(0);
