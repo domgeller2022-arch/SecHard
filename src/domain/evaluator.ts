@@ -1013,7 +1013,7 @@ function findException(
  * content, a changed file stops matching and the finding returns without anyone remembering to
  * revoke the record.
  */
-function matchTriageRecord(finding: Finding, triages: readonly TriageRecord[]): TriageRecord | undefined {
+export function matchTriageRecord(finding: Finding, triages: readonly TriageRecord[]): TriageRecord | undefined {
   if (triages.length === 0) return undefined;
   const file = (finding.location ?? '').replace(/:\d+$/, '');
   const fingerprint = finding.secret_digest ?? finding.id;

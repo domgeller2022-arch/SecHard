@@ -86,6 +86,20 @@ export type ReleaseEvidence = {
     readonly self_review?: boolean;
     readonly expires_at: string;
   }[];
+  /**
+   * Reviewed false-positive records (F-02/A-4). Reported as their own section: a cleared finding
+   * stays visible with the record that cleared it, and a record with no current finding is shown
+   * as stale rather than silently dropped.
+   */
+  readonly recorded_false_positives?: readonly {
+    readonly id: string;
+    readonly rule_id: string;
+    readonly file: string;
+    readonly reviewer: string;
+    readonly reason: string;
+    readonly reviewed_at: string;
+    readonly matched_finding?: string;
+  }[];
   readonly outstanding: readonly {
     readonly id: string;
     readonly severity: Severity;

@@ -187,6 +187,14 @@ service-role key and the Stripe live key, `critical`, one row each. P7a and P7b 
 `waiver.forbidden` (section 7). The totality test passes. A `false_positive` triage record clears
 a planted false alarm; the same record added in the PR that introduces the finding does not.
 
+**Status note (12 October 2026, F1 checkpoint).** The Appendix-A "top two rows" acceptance is
+**pending the F2 corpus** (F-12) — the corpus does not exist yet, so that measurement has not been
+made and no claim is made. The equivalent properties are already pinned by the F-02 scanner tests:
+the service-role key and the Stripe live key are classified `critical`, reported exactly once each
+(repository/history folded), and the exposure ordering that puts them ahead of workflow hygiene at
+equal severity is unit-tested in the report suite. The full Appendix-A before/after run lands with
+F2.
+
 **Owner review.** O-1 (waiver ban scope), and the severity classes themselves are
 security-relevant hardening — list at checkpoint.
 

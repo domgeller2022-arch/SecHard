@@ -270,6 +270,14 @@ function couldNotCheck(input: AuditReportInput): string[] {
   }
   items.push(...manualObligations);
 
+  // The secret scans run in git mode: they cover committed content and history, never the working
+  // tree. When the tree has uncommitted changes, say so — an unstated exclusion is how a secret
+  // sitting in an uncommitted file goes unnoticed while the report implies the scans looked.
+  if (input.plan.inputs.source_dirty === true) {
+    items.push(
+      'WORKING TREE: this audit ran against a tree with uncommitted changes. The secret scans cover committed content and history only; credentials in uncommitted or untracked files are not reported by them',
+    );
+  }
 
   if (input.depth === 'quick') {
     items.push('DEPTH: quick mode does not run the git-history secret scan, the browser-bundle inspection, or live HTTP checks; rerun without --depth quick for those');

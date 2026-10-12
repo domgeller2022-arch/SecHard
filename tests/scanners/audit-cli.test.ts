@@ -70,6 +70,17 @@ function treeDigest(root: string): string {
   return hash.digest('hex');
 }
 
+interface GitleaksSecretFinding {
+  rule_id: string;
+  severity?: string;
+  category?: string;
+  title?: string;
+  detail?: string;
+  secret_digest?: string;
+  commit?: string;
+  location?: string;
+}
+
 interface AuditOutput {
   readonly run: RunResult;
   readonly outDir: string;
@@ -517,5 +528,72 @@ describe('F-02: leaked secrets are classified, de-duplicated across repository a
       expect(finding.severity, JSON.stringify(finding)).not.toBe('unknown');
       expect(finding.category).toBe('secret');
     }
+  }, 600_000);
+});
+
+describe('secret coverage over time and in the working tree (owner query, 12 October 2026)', () => {
+  it('finds a secret committed several commits ago at standard depth, states the uncommitted-content exclusion, and does not report an untracked secret', () => {
+    // Synthetic, non-functional credentials composed at runtime.
+    const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const jwt = (role: string, signature: string): string =>
+      `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ role, iss: 'supabase' })}.${signature.repeat(43)}`;
+    const oldSecret = jwt('service_role', 'a');
+    const untrackedSecret = jwt('service_role', 'b');
+
+    const unique = `sechard-q1-${randomUUID().slice(0, 8)}`;
+    const root = join(scratch, 'apps', unique);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: unique, dependencies: { next: '14.0.0' } }, null, 2));
+    writeFileSync(join(root, '.env'), `OLD_SERVICE_ROLE=${oldSecret}\n`);
+
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    execFileSync('git', ['config', 'user.email', 'fixture@example.invalid'], { cwd: root });
+    execFileSync('git', ['config', 'user.name', 'fixture'], { cwd: root });
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    execFileSync('git', ['commit', '-q', '-m', 'c1: add configuration'], { cwd: root });
+    // Two later commits that touch neither the secret file nor anything secret.
+    writeFileSync(join(root, 'notes-one.txt'), 'unrelated\n');
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    execFileSync('git', ['commit', '-q', '-m', 'c2: unrelated'], { cwd: root });
+    writeFileSync(join(root, 'notes-two.txt'), 'unrelated too\n');
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    execFileSync('git', ['commit', '-q', '-m', 'c3: unrelated'], { cwd: root });
+
+    // An uncommitted, untracked file holding a second secret: git-mode scans never see it, and
+    // the report must say so rather than imply the scans looked (F-02 follow-up).
+    const untrackedLine = `const K = "${untrackedSecret}";`;
+    writeFileSync(join(root, 'scratch-untracked.js'), `${untrackedLine}\n`);
+
+    const standard = auditApp(root, ['--depth', 'standard']);
+    expect(standard.run.status, standard.run.stderr).toBe(0);
+
+    // Found: the secret committed several commits ago, via the history scan, with its commit.
+    const historySecrets = findingsFor(standard.results, 'gitleaks/history') as GitleaksSecretFinding[];
+    expect(historySecrets, JSON.stringify(historySecrets)).toHaveLength(1);
+    expect(historySecrets[0]?.title ?? '').toContain('service-role');
+    expect(historySecrets[0]?.severity).toBe('critical');
+    expect(historySecrets[0]?.commit).toMatch(/^[0-9a-f]{40}$/);
+
+    // Not found: the untracked secret. Asserted by location and by the digest of its line, so a
+    // future scan that finds it honestly fails this test and updates the statement.
+    const untrackedDigest = createHash('sha256').update(untrackedLine).digest('hex');
+    const allGitleaksFindings = [
+      ...findingsFor(standard.results, 'gitleaks/repository'),
+      ...findingsFor(standard.results, 'gitleaks/history'),
+    ] as GitleaksSecretFinding[];
+    expect(allGitleaksFindings.some((finding) => (finding.location ?? '').includes('scratch-untracked'))).toBe(false);
+    expect(allGitleaksFindings.some((finding) => finding.secret_digest === untrackedDigest)).toBe(false);
+
+    // Stated: the working-tree exclusion, because the tree has uncommitted changes.
+    expect(standard.report).toContain('WORKING TREE:');
+    expect(standard.report).toContain('credentials in uncommitted or untracked files are not reported');
+
+    // Quick depth: the history scan is excluded and the report states it; neither secret is
+    // reported, which is the honest quick-mode contract rather than a silent miss.
+    const quick = auditApp(root, ['--depth', 'quick']);
+    expect(quick.run.status, quick.run.stderr).toBe(0);
+    expect(findingsFor(quick.results, 'gitleaks/repository')).toHaveLength(0);
+    expect(quick.report).toContain('quick mode does not run the git-history secret scan');
+    expect(quick.report).toContain('WORKING TREE:');
   }, 600_000);
 });

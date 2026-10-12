@@ -628,6 +628,7 @@ export function reportCommand(
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
     exceptions: consumer.value?.exceptions ?? [],
+    triages: consumer.value?.triages ?? [],
     appId: consumer.value?.manifest?.id ?? 'unknown',
     ...(options.appName === undefined ? {} : { appName: options.appName }),
     sourceCommit: plan.inputs.source_commit,
@@ -726,6 +727,18 @@ export function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: numb
       const reasons = (outcome.reasons ?? []).filter((item) => item.includes('waiver.applied')).join('; ');
       lines.push(
         `| ${reportSafe(outcome.control)} | ${outcome.outcome} | ${(outcome.waiver_refs ?? []).map((ref) => reportSafe(ref)).join(', ')} | ${reportSafe(reasons || '-')} |`,
+      );
+    }
+  }
+
+  // Recorded false positives are their own section: a cleared finding stays visible with the
+  // record that cleared it, and a record matching nothing now is shown as stale — the content
+  // changed, so the finding is back and the record needs review (F-02/A-4).
+  if ((evidence.recorded_false_positives ?? []).length > 0) {
+    lines.push('', '## Recorded false positives', '', '| Record | Rule | File | Reviewer | Reason | Current finding |', '| --- | --- | --- | --- | --- | --- |');
+    for (const entry of evidence.recorded_false_positives ?? []) {
+      lines.push(
+        `| ${reportSafe(entry.id)} | ${reportSafe(entry.rule_id)} | ${reportSafe(entry.file)} | ${reportSafe(entry.reviewer)} | ${reportSafe(entry.reason)} | ${entry.matched_finding === undefined ? 'none — content changed since review?' : `\`${reportSafe(entry.matched_finding)}\``} |`,
       );
     }
   }

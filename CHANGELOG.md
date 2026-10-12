@@ -92,8 +92,14 @@ exception and four duplicate rows ranked below workflow hygiene. Now:
   higher severity.
 
 **Verification.** All suites locally with tools: **554 unit + 8 integration + 35 scanner + 5
-example tests**, typecheck and lint clean. `repo-checks` has not yet been watched for this change
-(no push without the owner's go-ahead, per the work rules).
+example tests**, typecheck and lint clean. The F1 wrap-up adds the owner-query coverage test and
+the triage report section; measured after it: **557 unit + 8 integration + 36 scanner + 5 example
+tests**.
+
+**Pending, stated rather than implied:** the brief's Appendix-A acceptance for F-02 (the
+service-role and Stripe live keys as the top two "fix these first" rows in the test app's report)
+is **pending the F2 development corpus** (F-12). Its equivalent properties are pinned by the
+scanner tests above; the corpus measure lands with F2 and no claim is made before it does.
 
 ### Fixed — audit locations were absolute, so the console.log scoping never fired and reports leaked the machine's layout (follow-up fix brief F-01/F-15, 12 October 2026)
 
