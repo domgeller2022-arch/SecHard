@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allPassing, evaluateWith, exceptionFor, planFor, resultIndexForControl, triageFor } from '../helpers/fixtures.js';
+import { allManual, allPassing, evaluateWith, exceptionFor, planFor, resultIndexForControl, triageFor } from '../helpers/fixtures.js';
 import type { CheckResult, ExecutionPlan, Finding } from '../../src/domain/types.js';
 
 /**
@@ -41,6 +41,8 @@ describe('P7a: an unknown-severity secret marked by category can never be waived
     const decision = evaluateWith({
       plan,
       results,
+      // F-03: the manual companions are supplied so the secret finding is the only variable.
+      manualEvidence: allManual(plan),
       exceptions: [exceptionFor(validScopeFor('f-secret-unknown'))],
     });
 
@@ -66,6 +68,7 @@ describe('P7b: a gitleaks finding with no category can never be waived', () => {
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       exceptions: [exceptionFor(validScopeFor('f-secret-uncategorized'))],
     });
 
@@ -92,6 +95,7 @@ describe('A-4: a reviewed triage record clears a finding; a stale fingerprint re
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       triages: [triageFor({ rule_id: 'generic-api-key', file: 'src/config.ts', finding_fingerprint: 'd'.repeat(64) })],
     });
     expect(decision.satisfied).toBe(true);
@@ -106,6 +110,7 @@ describe('A-4: a reviewed triage record clears a finding; a stale fingerprint re
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       triages: [triageFor({ rule_id: 'generic-api-key', file: 'src/config.ts', finding_fingerprint: '0'.repeat(64) })],
     });
     expect(decision.satisfied).toBe(false);
@@ -118,8 +123,43 @@ describe('A-4: a reviewed triage record clears a finding; a stale fingerprint re
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       triages: [triageFor({ rule_id: 'generic-api-key', file: 'docs/example.md', finding_fingerprint: 'd'.repeat(64) })],
     });
     expect(decision.satisfied).toBe(false);
+  });
+});
+
+describe('M1: mixed controls are never satisfied by partial tool output alone', () => {
+  // The follow-up audit's reproduction: every tool result `coverage: partial` and no manual
+  // evidence left these controls satisfied, because nothing required the human half. F-03 plans
+  // the manual companion; without evidence the control is unmet with `manual.missing`.
+  const MIXED_ONLY_CONTROLS = ['SEC-01', 'CI-01', 'GOV-01', 'WEB-01', 'AGT-01'] as const;
+
+  it('reports each mixed control unmet with manual.missing when no manual evidence exists', () => {
+    const plan = planFor('pr');
+    const results = allPassing(plan).map((result) => ({ ...result, coverage: 'partial' as const }));
+    const decision = evaluateWith({ plan, results });
+
+    for (const control of MIXED_ONLY_CONTROLS) {
+      const outcome = decision.control_outcomes.find((item) => item.control === control);
+      expect(outcome, `${control} must be in the pr plan`).toBeDefined();
+      expect(outcome?.outcome, control).toBe('unmet');
+      expect(outcome?.reasons.some((reason) => reason.code === 'manual.missing'), control).toBe(true);
+    }
+  });
+
+  it('satisfies them once current manual evidence exists for the companions', () => {
+    const plan = planFor('pr');
+    const results = allPassing(plan).map((result) => ({ ...result, coverage: 'partial' as const }));
+    const decision = evaluateWith({ plan, results, manualEvidence: allManual(plan) });
+
+    for (const control of MIXED_ONLY_CONTROLS) {
+      const outcome = decision.control_outcomes.find((item) => item.control === control);
+      expect(outcome?.outcome, control).toBe('satisfied');
+    }
+    // No claim about the whole decision here: blanket `partial` coverage also trips
+    // coverage.incomplete_pass on automated methods that require complete coverage, which is the
+    // correct separate behaviour. M1 is about the five mixed controls and their manual half.
   });
 });

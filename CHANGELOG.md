@@ -13,6 +13,39 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Fixed — "mixed" controls passed on partial tool output with no manual evidence (follow-up fix brief F-03, 12 October 2026)
+
+Follow-up-remediation Batch F1, item F-03; the last item of the batch. Probe M1 reproduced it:
+with every tool result `coverage: partial` and no manual evidence, SEC-01, CI-01, GOV-01, WEB-01,
+and AGT-01 came out `satisfied` — the implementation plan's definition says mixed means tool
+evidence **plus** reviewed manual evidence, and nothing enforced the second half. ("Mixed" was
+reduced to `required_coverage: partial`, which partial tool output satisfies.)
+
+Now the planner gives every mixed method a manual companion check: the control's declared manual
+recipe when it has one, else `<recipe>/review` (for SEC-01's scans, "review the findings and
+record triage" — finding triage is the manual half of secret scanning). A control that declares
+its own manual-attestation method already names the human half and does not get a duplicate
+companion. The evaluator needed no new aggregation: an unmet companion makes the control `unmet`
+with `manual.missing`, which is exactly what M1 asserts — the control is never satisfied by the
+tool half alone.
+
+**Stage behaviour** per owner decision O-10's recommended default (`plan` addendum A-5): the
+companion is **required and blocking at release**; at other stages it is planned and evaluated and
+reports as awaiting manual review — the control is `unmet` (never silently satisfied) but the
+decision does not block on it unless the selected profile requires `manual_attestation` at that
+stage. Without this, every adopting PR would have blocked until 24 attestations existed and every
+audit report would have gained 24 new "failures"; the audit's reproduction needed the control
+never-satisfied state, and that is kept.
+
+**Acceptance, all executed:** the M1 probe asserts the five controls `unmet` with
+`manual.missing` and satisfied once current evidence exists; the consumer contract test asserts
+companions are planned at pr with `required: false` and required at release; every check-count
+assertion across the suites was updated to count companions honestly (executed checks only where
+the assertion is about executed results; manual companions counted as their own obligations).
+Suites after the change: **556 unit + 8 integration + 35 scanner + 5 example tests**, typecheck
+and lint clean. `repo-checks` has not yet been watched for this change (no push without the
+owner's go-ahead, per the work rules).
+
 ### Fixed — leaked secrets were unranked, duplicated, and waivable (follow-up fix brief F-02, 12 October 2026)
 
 Follow-up-remediation Batch F1, item F-02. The defect was reproduced by the follow-up audit

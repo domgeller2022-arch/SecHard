@@ -204,12 +204,36 @@ export function evaluate(input: EvaluationInput): GateDecision {
   // count. The worst check outcome governs; a waiver is acceptable only when no check is unmet.
   const aggregated = aggregateControlOutcomes(controlOutcomes);
 
+  // F-03 stage behaviour (O-10): a manual companion planned by the planner for a mixed method is
+  // evaluated at every stage — the control is never satisfied without it — but outside release it
+  // does not block the decision unless the profile made it required (in which case it is not in
+  // this set). An unmet control whose only failures are those optional companions is "awaiting
+  // manual review", reported as unmet with its manual.missing reasons.
+  const optionalManualChecks = new Set(
+    input.plan.expected_checks
+      .filter((check) => check.execution?.mode === 'manual' && check.required === false)
+      .map((check) => check.check_id),
+  );
+  const isOptionalManualReason = (item: Reason): boolean =>
+    input.stage !== 'release' &&
+    item.code.startsWith('manual.') &&
+    item.check_id !== undefined &&
+    optionalManualChecks.has(item.check_id);
+  const awaitingManualReview = (control: ControlEvaluation): boolean =>
+    input.stage !== 'release' &&
+    control.outcome === 'unmet' &&
+    control.reasons.length > 0 &&
+    control.reasons.every(isOptionalManualReason);
+
   return {
-    // A decision can be satisfied with waivers or recorded false positives, but only those: every
-    // other reason blocks, and a waived control is never reported as a pass.
+    // A decision can be satisfied with waivers, recorded false positives, or manual companions
+    // awaiting review outside release; every other reason blocks, and a waived control is never
+    // reported as a pass.
     satisfied:
-      reasons.every((item) => item.code === 'waiver.applied' || item.code === 'finding.false_positive_recorded') &&
-      aggregated.every(isAcceptable),
+      reasons.every(
+        (item) =>
+          item.code === 'waiver.applied' || item.code === 'finding.false_positive_recorded' || isOptionalManualReason(item),
+      ) && aggregated.every((control) => isAcceptable(control) || awaitingManualReview(control)),
     stage: input.stage,
     environment: input.environment,
     reasons,

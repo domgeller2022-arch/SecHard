@@ -259,8 +259,22 @@ describe('manual requirements are planned and enforced at release, not at pr', (
     expect(ids.has('SEC-03')).toBe(true);
   });
 
-  it('does not require manual evidence at a pull request', () => {
-    expect(manualChecks(planFor('pr'))).toEqual([]);
+  it('plans the human half at a pull request without blocking on it', () => {
+    // F-03: a mixed method carries a manual companion at every stage — the control is never
+    // satisfied by the tool half alone — but at pr the companion is not required: an unmet
+    // companion reports as awaiting review and the decision does not block because of it.
+    const pr = planFor('pr');
+    const companions = manualChecks(pr);
+    expect(companions.length).toBeGreaterThan(0);
+    expect(companions.every((check) => check.required === false)).toBe(true);
+    expect(manualChecks(planFor('release')).every((check) => check.required === true)).toBe(true);
+
+    const decision = evaluateWith({ plan: pr, results: allPassing(pr) });
+    expect(decision.satisfied).toBe(true);
+    const awaiting = decision.control_outcomes.filter(
+      (outcome) => outcome.outcome === 'unmet' && outcome.reasons.some((reason) => reason.code === 'manual.missing'),
+    );
+    expect(awaiting.length).toBeGreaterThan(0);
   });
 
   it('blocks a release when a required manual record is missing', () => {

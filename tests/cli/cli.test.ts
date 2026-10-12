@@ -232,11 +232,11 @@ describe('plan, check, gate, report end to end', () => {
       control_outcomes: { outcome: string }[];
     };
     expect(evidence.decision.outcome).toBe('blocked');
-    // At a pull request the profile requires no manual evidence, so every expected check is an
-    // executed one. Manual requirements appear at release, where they must be met by attestation.
+    // F-03: mixed methods carry a manual companion at pr — planned, but not required at this
+    // stage, so it has no result and reports as awaiting review; executed checks all have one.
     const executed = evidence.expected_checks.filter((check) => check.method !== 'manual_attestation');
     expect(evidence.results.length).toBe(executed.length);
-    expect(evidence.expected_checks.some((check) => check.method === 'manual_attestation')).toBe(false);
+    expect(evidence.expected_checks.some((check) => check.method === 'manual_attestation')).toBe(true);
     expect(evidence.decision.kit_readiness).toBe('pending');
     expect(evidence.decision.application_production_readiness).toBe('pending');
 
@@ -347,6 +347,23 @@ describe('a satisfied decision is reachable and exits 0', () => {
       evidence_origin: 'actual_tool' as const,
     }));
 
+    // F-03: "complete evidence" includes the human half — attestations for every manual
+    // companion the plan carries at this stage.
+    const manualEvidenceRecords = plan.expected_checks
+      .filter((check) => check.execution?.mode === 'manual')
+      .map((check, index) => ({
+        schema_version: 'manual-evidence/v1' as const,
+        id: `ME-DEMO-${String(index)}`,
+        control: check.control_ids[0] ?? 'CTX-01',
+        recipe: check.recipe,
+        operator: { identity: 'operator', independent_of_owner: false },
+        observed_at: '2026-10-06T10:00:00Z',
+        target: { environment: 'local' as const },
+        scope_fingerprint: 'fp-demo',
+        outcome: 'pass' as const,
+        expires_at: '2026-12-01T00:00:00Z',
+      }));
+
     const decision = evaluate({
       stage: 'operations',
       environment: 'local',
@@ -358,7 +375,7 @@ describe('a satisfied decision is reachable and exits 0', () => {
       })),
       plan,
       results,
-      manualEvidence: [],
+      manualEvidence: manualEvidenceRecords,
       exceptions: [],
       policy,
       now: NOW,
