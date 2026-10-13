@@ -499,7 +499,6 @@ describe('F-02: leaked secrets are classified, de-duplicated across the three se
     expect(run.status, run.stderr).toBe(0);
     const results = JSON.parse(readFileSync(join(outDir, 'results.json'), 'utf8')) as AuditOutput['results'];
     return {
-    outDir,
       files: findingsFor(results, 'gitleaks/files') as SecretFinding[],
       repository: findingsFor(results, 'gitleaks/repository') as SecretFinding[],
       history: findingsFor(results, 'gitleaks/history') as SecretFinding[],
