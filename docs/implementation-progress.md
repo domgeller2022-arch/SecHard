@@ -1944,8 +1944,13 @@ Recorded here as a process defect: a run nobody watched is a claim nobody checke
 
 ## F-02 follow-ups — current-files secret scanning (owner's auditor, 2026-10-13)
 
-- **State:** `awaiting_external_verification` (code and local checks complete; `repo-checks` not
-  yet watched — no push without the owner's go-ahead).
+- **State:** `awaiting_external_verification` (the owner's auditor's re-check). Pushed as
+  `70d7eea` and **`repo-checks` run `38349891581` watched to completion on 2026-10-13**:
+  build and test, scanner self-scan, and workflow analysis successful; the security-test and
+  sensitive-path change report failed — the review requirement (F-14) working as designed, its
+  review being the auditor's pending re-check — and hardening-gate fails only by aggregating it.
+  Same shape as every security-change push since F-14 landed; recorded here so a red nobody
+  explains never becomes the norm.
 - **Batch:** F1 follow-ups, made a condition for starting F2 by the owner's independent auditor
   after their re-check of Batch F1. The auditor confirmed F-01/F-15, F-02, and F-03 working and
   rejected two behaviours as gaps: non-git folders got no secret scan at all, and quick mode /
@@ -1999,6 +2004,5 @@ Recorded here as a process defect: a run nobody watched is a claim nobody checke
   auditor's acceptance scenarios through the compiled CLI (`.git` removed, quick depth after two
   commits, untracked file at every depth, database URL critical, exposure grading both cases).
   Exact suite counts are recorded in `CHANGELOG.md`.
-- **Next step:** owner reviews, push, `repo-checks` watched to completion, run ID reported; F1 is
-  then recorded complete. **F2 does not start until the owner's auditor re-checks** (owner
-  instruction, 13 October 2026).
+- **Next step:** the run record is committed; **F2 does not start until the owner's auditor
+  re-checks** (owner instruction, 13 October 2026).

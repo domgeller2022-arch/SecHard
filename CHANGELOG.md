@@ -99,9 +99,14 @@ an uncommitted, untracked file containing a key is reported at quick, standard, 
 graded medium as a local file per the owner's exposure rule, while committed and tracked secrets
 stay critical — with the history scan's duplicates folded into one row; and a `.env` database URL
 with an embedded password is reported critical by the new rule. Suites after the change: **559
-unit + 8 integration + 42 scanner + 5 example tests**, typecheck and lint clean. `repo-checks`
-has not yet been watched for this change (no push without the owner's go-ahead, per the work
-rules); F1 is recorded complete once these pass on CI, and F2 then has the auditor's go-ahead.
+unit + 8 integration + 42 scanner + 5 example tests**, typecheck and lint clean. **`repo-checks`
+run `38349891581` (commit `70d7eea`) watched to completion on 2026-10-13: build and test,
+scanner self-scan, and workflow analysis all successful on GitHub's Linux runners; the
+security-test and sensitive-path change report failed, which is the review requirement (F-14)
+working as designed — a security-test change requires human review, and that review is the
+owner's auditor's pending re-check; hardening-gate fails only by aggregating it.** F1 is
+recorded complete on the substantive checks; **F2 does not start until the auditor re-checks**
+(owner instruction, 13 October 2026).
 
 ### Fixed — "mixed" controls passed on partial tool output with no manual evidence (follow-up fix brief F-03, 12 October 2026)
 
