@@ -1,4 +1,5 @@
 import type { Finding } from '../domain/types.js';
+import { sha256Hex } from '../evidence/digest.js';
 import { relativizeLocation } from '../evidence/redaction.js';
 import { isRecord, parseJsonReport, severityFromRuleLevel, stableFindingId, type AdapterOutcome } from './types.js';
 
@@ -113,7 +114,9 @@ export function parseOpengrepReport(
       severity,
       ...(relativePath === undefined ? {} : { location: line === undefined ? relativePath : `${relativePath}:${line}` }),
       ...(fingerprint === undefined ? {} : { resource: fingerprint }),
-      ...(typeof item.extra?.lines === 'string' ? { detail: `matched: ${item.extra.lines.trim()}` } : {}),
+      // A-03 (PR-04): the matched source line is never persisted — it can carry secret material
+      // from the audited tree. The match identity is the digest; the location says where to look.
+      ...(typeof item.extra?.lines === 'string' ? { detail: `matched line digest: ${sha256Hex(item.extra.lines)}` } : {}),
       ...(controls.length === 0 ? {} : { control_ids: controls }),
       triage: 'unresolved',
     });

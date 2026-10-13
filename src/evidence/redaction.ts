@@ -16,6 +16,14 @@ const SECRET_PATTERNS: readonly { readonly name: string; readonly pattern: RegEx
   { name: 'generic-assigned-secret', pattern: /\b(?:api[_-]?key|secret|password|passwd|token|credential)\b\s*[:=]\s*["']?[A-Za-z0-9/+_-]{16,}["']?/gi },
   { name: 'supabase-service-role', pattern: /\bsb_secret_[A-Za-z0-9_-]{16,}\b/g },
   { name: 'supabase-legacy-jwt', pattern: /\beyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9[A-Za-z0-9._-]{40,}\b/g },
+  // Batch R1 (A-03): the audit republished these provider values in saved reports because no
+  // pattern matched them. Kept alongside the classifier's provider list.
+  { name: 'stripe-secret', pattern: /\b[sr]k_(?:live|test)_[A-Za-z0-9]{10,}\b/g },
+  { name: 'stripe-publishable', pattern: /\bpk_(?:live|test)_[A-Za-z0-9]{10,}\b/g },
+  { name: 'openai-key', pattern: /\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}\b/g },
+  { name: 'anthropic-key', pattern: /\bsk-ant-[A-Za-z0-9_-]{20,}\b/g },
+  { name: 'database-url-with-credentials', pattern: /\b(?:postgres(?:ql)?|mysql|redis|mongodb(?:\+srv)?):\/\/[^\s\/@]+:[^\s\/@]+@/g },
+  { name: 'google-api-key', pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g },
 ];
 
 export function redactSecrets(text: string): string {

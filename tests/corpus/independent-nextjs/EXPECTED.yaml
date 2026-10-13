@@ -1,0 +1,105 @@
+# Calibration manifest (workstream M, Batch R1) — established BEFORE detection tuning, per the
+# plan review. One expectation per Appendix A seed, measured through `hardening audit` on a
+# composed copy of this corpus. Status values:
+#   fires        — the rule reported the seed at the pinned baseline commit
+#   pending-A16  — the detection shape is Batch R3 work (audit finding A-16); the corpus file for
+#                  it will be added with its safe twin when the rule lands
+#   pending-tool — measured by one of the four staged analysers (jscpd, Lizard, Knip,
+#                  dependency-cruiser, Batch R5); these sit outside the 30 until the analyser
+#                  lands, and the denominator reconciliation is disclosed at F2 completion
+# Baseline: measured at the R1 checkpoint commit; misses and exclusions are disclosed here and in
+# the checkpoint, never silently dropped and never absorbed by changing the denominator.
+
+baseline:
+  # Measured at the F2 checkpoint commit (b71a073), before Batch R1; the R1 checkpoint re-measures
+  # through the same method and updates these numbers with the manifest as the denominator.
+  measured_at: "2026-10-13"
+  method: "hardening audit --depth standard on a composed copy (secret shapes composed at runtime)"
+  security_reported: 26
+  security_denominator: 31
+  quality_reported: 12
+  quality_denominator: 30
+
+security_seeds:
+  # request-data taint + pattern rules (F-04/F-05)
+  - { rule_id: hardening.taint-sql-injection,            file: app/api/users/route.ts,            note: "concatenated form",      status: fires }
+  - { rule_id: hardening.taint-sql-injection,            file: app/api/users/route.ts,            note: "interpolated form",      status: fires }
+  - { rule_id: hardening.taint-ssrf-fetch,               file: app/api/proxy/route.ts,                                             status: fires }
+  - { rule_id: hardening.taint-open-redirect,            file: app/api/login/route.ts,                                             status: fires }
+  - { rule_id: hardening.path-traversal-concat,          file: utils/admin.ts,                                                     status: fires }
+  - { rule_id: hardening.child-process-exec-interpolation, file: utils/admin.ts,                                                   status: fires }
+  - { rule_id: hardening.no-eval,                        file: utils/admin.ts,                                                     status: fires }
+  - { rule_id: hardening.taint-xss-innerhtml,            file: app/dashboard/page.tsx,            note: "stored XSS from rows",   status: fires }
+  - { rule_id: hardening.nonliteral-html-sink,           file: components/ChatBox.tsx,            note: ">= medium",              status: fires }
+  - { rule_id: hardening.weak-password-hash,             file: app/api/login/route.ts,                                             status: fires }
+  - { rule_id: hardening.jwt-none-alg,                   file: app/api/login/route.ts,            note: "sign",                   status: fires }
+  - { rule_id: hardening.jwt-none-alg,                   file: app/api/login/route.ts,            note: "verify",                 status: fires }
+  - { rule_id: hardening.jwt-hardcoded-secret,           file: app/api/login/route.ts,            note: "sign",                   status: fires }
+  - { rule_id: hardening.jwt-hardcoded-secret,           file: app/api/login/route.ts,            note: "verify",                 status: fires }
+  - { rule_id: hardening.weak-random-token,              file: app/api/login/route.ts,                                             status: fires }
+  - { rule_id: hardening.insecure-cookie,                file: app/api/login/route.ts,                                             status: fires }
+  - { rule_id: hardening.cors-wildcard-credentials,      file: app/api/login/route.ts,                                             status: fires }
+  - { rule_id: hardening.logging-secret-value,           file: app/api/login/route.ts,                                             status: fires }
+  - { rule_id: hardening.client-ai-sdk,                  file: components/ChatBox.tsx,                                             status: fires }
+  - { rule_id: hardening.dangerous-next-config,          file: next.config.js,                    note: "source maps",            status: fires }
+  - { rule_id: hardening.dangerous-next-config,          file: next.config.js,                    note: "ignoreBuildErrors",      status: fires }
+  - { rule_id: hardening.dangerous-next-config,          file: next.config.js,                    note: "ignoreDuringBuilds",     status: fires }
+  - { rule_id: hardening.stripe-webhook-unverified,      file: app/api/webhook/route.ts,          note: "critical BIZ-01",        status: fires }
+  # Supabase migration rules (F-06 static half)
+  - { rule_id: supabase.rls-missing,                     file: supabase/migrations/0001_init.sql,                                  status: fires }
+  - { rule_id: supabase.permissive-policy,               file: supabase/migrations/0001_init.sql,                                  status: fires }
+  - { rule_id: supabase.grant-anon-write,                file: supabase/migrations/0001_init.sql,                                  status: fires }
+  - { rule_id: supabase.security-definer-search-path,    file: supabase/migrations/0001_init.sql,                                  status: fires }
+  - { rule_id: supabase.public-bucket,                   file: supabase/migrations/0001_init.sql,                                  status: fires }
+  # secret classifier rows
+  - { rule_id: database-url-with-password,               file: .env,                                                               status: fires }
+  - { rule_id: stripe-access-token,                      file: .env,                                                               status: fires }
+  - { rule_id: jwt,                                      file: lib/supabase.ts,                   note: "service-role literal",   status: fires }
+
+security_shapes_pending_A16:
+  # Audit finding A-16: detection shapes the rules promise but do not yet catch. Each lands in
+  # Batch R3 with its safe twin and moves into security_seeds.
+  - { shape: "interpolated-template XSS not reachable from request data", status: pending-A16 }
+  - { shape: "FormData read in the split `const body = await request.formData()` form", status: pending-A16 }
+  - { shape: "Python SQL built into an assigned variable before execute", status: pending-A16 }
+  - { shape: "Python requests.get / send_file request-sourced URLs and paths", status: pending-A16 }
+  - { shape: "session cookie set without httpOnly/secure attributes at all", status: pending-A16 }
+
+quality_seeds:
+  - { rule_id: tell.narration-comment,              file: utils/format.ts,                  status: pending-F08 }
+  - { rule_id: tell.narration-comment,              file: lib/money.ts,                     status: pending-F08 }
+  - { rule_id: tell.narration-comment,              file: lib/supabase.ts,                  status: pending-F08 }
+  - { rule_id: tell.narration-comment,              file: app/api/users/route.ts,           status: pending-F08 }
+  - { rule_id: tell.narration-comment,              file: components/ChatBox.tsx,           status: pending-F08 }
+  - { rule_id: tell.emoji-in-source,                file: components/ChatBox.tsx,           status: fires }
+  - { rule_id: any-type,                            file: app/api/users/route.ts,           status: fires }
+  - { rule_id: any-type,                            file: app/api/login/route.ts,           status: fires }
+  - { rule_id: any-type,                            file: utils/format.ts,                  status: fires }
+  - { rule_id: any-type,                            file: app/dashboard/page.tsx,           status: fires }
+  - { rule_id: tell.floating-promise,               file: app/dashboard/page.tsx,           status: fires }
+  - { rule_id: hardening.quality-empty-catch,       file: app/dashboard/page.tsx,           status: pending-cap }
+  - { rule_id: tell.placeholder-comment,            file: app/dashboard/page.tsx,           note: "TODO",                 status: fires }
+  - { rule_id: tell.placeholder-comment,            file: app/dashboard/page.tsx,           note: "In a real implementation", status: fires }
+  - { rule_id: tell.commented-out-code,             file: app/dashboard/page.tsx,           status: pending-cap }
+  - { rule_id: tell.debugger-statement,             file: app/dashboard/page.tsx,           status: fires }
+  - { rule_id: tell.hardcoded-local-url,            file: app/dashboard/page.tsx,           status: pending-cap }
+  - { rule_id: hardening.quality-console-log-production, file: app/api/login/route.ts,      status: fires }
+  - { rule_id: hardening.quality-console-log-production, file: app/dashboard/page.tsx,      status: pending-cap }
+  - { rule_id: focused-test,                        file: tests/app.test.ts,                status: fires }
+  - { rule_id: skipped-test,                        file: tests/app.test.ts,                status: fires }
+  - { rule_id: tautological-assertion,              file: tests/app.test.ts,                status: pending-cap }
+  - { rule_id: assertion-free-test,                 file: tests/app.test.ts,                status: pending-cap }
+  - { rule_id: no-changelog,                        file: .,                                status: fires }
+  - { rule_id: no-licence,                          file: package.json,                     status: fires }
+  - { rule_id: duplicate-role,                      file: package.json,                     note: "moment+dayjs, axios+node-fetch; no-lockfile variant", status: fires }
+  - { rule_id: quality.mock-data,                   file: app/dashboard/page.tsx,           status: pending-cap }
+  - { rule_id: quality.swallowed-supabase-error,    file: app/dashboard/page.tsx,           status: pending-cap }
+  - { rule_id: readme-phantom-scripts,              file: README.md,                        status: pending-cap }
+
+quality_seeds_pending_tool:
+  # Appendix A items measured by the staged analysers (Batch R5); outside the 30 until they land.
+  - { rule_id: quality/dead-code (knip),            file: utils/format.ts,                  note: "legacyFormatter" }
+  - { rule_id: quality/duplication (jscpd),         file: "utils/format.ts + lib/money.ts", note: "formatPrice/formatMoney clone" }
+  - { rule_id: quality/complexity (lizard),         file: app/dashboard/page.tsx,           note: "computeScore" }
+  - { rule_id: quality/module-structure (dependency-cruiser), file: app/dashboard/page.tsx, note: "data access in UI" }
+  - { rule_id: quality/dead-code (knip),            file: package.json,                     note: "unused left-pad dependency" }

@@ -1,4 +1,5 @@
 import { packageRoot } from '../validation/schema.js';
+import { diffSafetyArgs } from '../execution/git-hardening.js';
 import { loadReviewManifest, reviewEntryFor, runGit, type GitRunner } from './review-manifest.js';
 
 /**
@@ -61,7 +62,7 @@ export function buildChangeReport(options: ChangeReportOptions): ChangeReport {
   const run = options.runGitImpl ?? runGit;
   const findings: ChangeFinding[] = [];
 
-  const nameStatus = run(cwd, ['diff', '--name-status', `${options.base}...${head}`]);
+  const nameStatus = run(cwd, ['diff', ...diffSafetyArgs(), '--name-status', `${options.base}...${head}`]);
   if (nameStatus === undefined) {
     return {
       base: options.base,
@@ -95,7 +96,7 @@ export function buildChangeReport(options: ChangeReportOptions): ChangeReport {
     }
   }
 
-  const diff = run(cwd, ['diff', '--unified=0', `${options.base}...${head}`, '--', 'tests']) ?? '';
+  const diff = run(cwd, ['diff', ...diffSafetyArgs(), '--unified=0', `${options.base}...${head}`, '--', 'tests']) ?? '';
   const capped = diff.slice(0, options.maxDiffBytes ?? 2_000_000);
   if (capped.length < diff.length) {
     findings.push({

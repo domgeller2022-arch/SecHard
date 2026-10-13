@@ -1,6 +1,7 @@
-import { mkdirSync } from 'node:fs';
-import { basename, join, relative, resolve } from 'node:path';
+import { lstatSync, mkdirSync, realpathSync, rmSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { redactSecrets } from '../evidence/redaction.js';
 import { stringify as stringifyYaml } from 'yaml';
 import { detectStackAndFeatures, type Detection } from '../audit/detect.js';
 import { buildAuditReport, type Depth } from '../audit/report.js';
@@ -114,14 +115,47 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
   const target = resolve(options.target);
   const out = resolve(options.out ?? join(process.cwd(), `sechard-audit-${options.now.toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`));
 
-  if (isInside(target, out)) {
+  // A-02 / PR-03: output confinement is resolved against real paths — an output symlink (or a
+  // symlinked ancestor) pointing into the audited tree must be rejected before anything is
+  // created. The deepest existing ancestor is resolved, because the output directory itself
+  // typically does not exist yet. A concurrent link swap between this check and later writes is
+  // explicitly out of scope and documented here: the audit never writes inside the target, and
+  // every written artifact goes through writeAtomic under the checked prefix.
+  const targetReal = realpathSync(target);
+  // Walk up with lstat (never following links) to the deepest existing ancestor, then resolve it.
+  // A symlink that resolves nowhere (dangling) cannot be proven confined: refuse.
+  let probe = out;
+  for (;;) {
+    try {
+      lstatSync(probe);
+      break;
+    } catch {
+      const parent = dirname(probe);
+      if (parent === probe) break;
+      probe = parent;
+    }
+  }
+  let outBaseReal: string;
+  try {
+    outBaseReal = join(realpathSync(probe), relative(probe, out));
+  } catch {
+    return {
+      exitCode: 2,
+      stdout: [],
+      stderr: [
+        'audit: the output path could not be resolved to a real location (dangling symlink?), refusing',
+        `  out ${out}`,
+      ],
+    };
+  }
+  if (isInside(targetReal, outBaseReal)) {
     return {
       exitCode: 2,
       stdout: [],
       stderr: [
         'audit: the output directory must live outside the audited project',
-        `  target ${target}`,
-        `  out    ${out}`,
+        `  target ${target} (real: ${targetReal})`,
+        `  out    ${out} (resolves to ${outBaseReal})`,
         '  Audit mode never writes to the audited project; pass --out pointing outside it.',
       ],
     };
@@ -288,11 +322,28 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     json: join(out, 'report.json'),
     sarif: join(out, 'report.sarif'),
   };
-  writeAtomic(reportPaths.markdown, report.markdown);
-  writeAtomic(reportPaths.html, report.html);
-  writeAtomic(reportPaths.json, report.json);
-  writeAtomic(reportPaths.sarif, report.sarif);
-  writeJson(join(out, 'evidence.json'), built.evidence);
+  // A-03 (PR-04): the persistence boundary. Findings are redacted at intake, but the report is
+  // the last line of defence before bytes hit disk: every artifact is scrubbed with the provider
+  // patterns (including values not assigned to a variable named "secret"), and raw scanner
+  // output is not retained in ordinary mode at all. writeAtomic already uses 0600; that is an
+  // additional protection, never the control.
+  const scrubbed = {
+    markdown: redactSecrets(report.markdown),
+    html: redactSecrets(report.html),
+    json: redactSecrets(report.json),
+    sarif: redactSecrets(report.sarif),
+  };
+  writeAtomic(reportPaths.markdown, scrubbed.markdown);
+  writeAtomic(reportPaths.html, scrubbed.html);
+  writeAtomic(reportPaths.json, scrubbed.json);
+  writeAtomic(reportPaths.sarif, scrubbed.sarif);
+  writeAtomic(join(out, 'evidence.json'), redactSecrets(JSON.stringify(built.evidence, null, 2) + '\n'));
+
+  // A-03 (PR-04): raw scanner output is not retained in ordinary audit mode — raw reports can
+  // contain secret material from the audited tree even after provider scrubbing (an arbitrary
+  // hardcoded secret has no known prefix). The parsed findings and the per-report digests are
+  // already recorded on each result, so provenance survives without the bytes.
+  rmSync(join(out, 'raw'), { recursive: true, force: true });
 
   const errored = (checked.results ?? []).filter((result: CheckResult) => result.outcome === 'error');
   const bySeverity = new Map<string, number>();

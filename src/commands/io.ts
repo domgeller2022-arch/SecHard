@@ -7,6 +7,7 @@ import { confineReference, isRemoteReference } from '../validation/paths.js';
 import { validateAgainstSchema } from '../validation/schema.js';
 import { checkDuplicateIds, checkReference } from '../validation/semantic.js';
 import { loadCatalogue, type ControlDefinition, type Profile } from '../domain/definitions.js';
+import { gitHardeningArgs } from '../execution/git-hardening.js';
 import { loadToolchain, platformKey } from '../execution/registry.js';
 import { sha256Hex } from '../evidence/digest.js';
 import type { ApprovalRecord } from '../domain/approval.js';
@@ -356,7 +357,8 @@ function runGit(cwd: string, args: readonly string[]): string | undefined {
   const executable = gitExecutable();
   if (executable === undefined) return undefined;
   try {
-    const stdout = execFileSync(executable, [...args], {
+    // A-01: the audited tree's own .git/config can execute code (core.fsmonitor); harden every call.
+    const stdout = execFileSync(executable, [...gitHardeningArgs(), ...args], {
       cwd,
       encoding: 'utf8',
       timeout: 10_000,

@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Finding } from '../domain/types.js';
 
@@ -34,7 +34,8 @@ function readMigrationFiles(appRoot: string): MigrationFile[] {
   for (const name of entries.slice(0, MAX_MIGRATION_FILES)) {
     const full = join(dir, name);
     try {
-      if (!statSync(full).isFile()) continue;
+      // A-02: never follow symlinks out of the audited tree.
+      if (!lstatSync(full).isFile()) continue;
       files.push({ path: full, location: `supabase/migrations/${name}`, text: readFileSync(full, 'utf8').slice(0, MAX_MIGRATION_BYTES) });
     } catch {
       continue;

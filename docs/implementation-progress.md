@@ -2039,3 +2039,24 @@ Recorded here as a process defect: a run nobody watched is a claim nobody checke
   clean.
 - **Next step:** commit, push, watch `repo-checks` to completion, report the run ID; the auditor's
   re-check gates Batch F3.
+
+
+---
+
+## Batch R1 — protect the operator and the audited tree (full-audit remediation, 2026-10-14)
+
+- **State:** implemented, unit-verified; scanners suite runs in this push. Checkpoint:
+  `docs/checkpoints/batch-r1.md`.
+- **Authority:** owner authorised R1 + workstream M ("go ahead") after the plan review
+  (PR-01..PR-05) was folded into the remediation plan v2.
+- **Counterexamples first:** git-hardening test proves the unhardened diff executes a repo helper
+  (marker) then the hardened path does not and keeps the patch; confinement tests prove the
+  symlink/realpath behaviours; redaction tests prove the provider patterns; the A-03 end-to-end
+  assertion proves no secret bytes in persisted artifacts and no raw retention.
+- **Files:** git-hardening module (new), both Git runners + change-report diffs hardened, gitleaks
+  child env hardened, detection walk lstat/no-symlink with recorded skips, migration reader
+  lstat, audit output real-path confinement with dangling refusal, persistence-boundary scrub +
+  no raw retention in audit mode, provider patterns extended, opengrep matched line -> digest,
+  restore drill rewritten, corpus EXPECTED manifest (31/30 + baseline), tests, docs.
+- **Checks:** 569 unit, typecheck + lint clean; scanners in this push.
+- **Next:** push, watch `repo-checks`, report run ID; R2 on the owner's word.

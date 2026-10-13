@@ -192,6 +192,15 @@ describe('hardening audit on three sample applications', () => {
     ).toBe(true);
     // F-02: classified, never `unknown`, with the category marker.
     expect(filesSecrets.every((finding) => finding.severity !== 'unknown' && finding.category === 'secret')).toBe(true);
+
+    // A-03 (Batch R1): no secret material from the audited tree reaches the persisted artifacts,
+    // and raw scanner output is not retained in ordinary audit mode.
+    const artifacts = (['report.md', 'report.json', 'report.sarif', 'evidence.json'] as const)
+      .map((name) => readFileSync(join(audit.outDir as string, name), 'utf8'))
+    const blob = artifacts.join('\n');
+    expect(blob).not.toContain('AKIAQ7Z2XW9PLM4NVK8T');
+    expect(blob).not.toContain('ghp_Qz3vN8pR2mXwL7yK5tJ1aB4cD9eF6gH0iJ2k');
+    expect(existsSync(join(audit.outDir as string, 'raw')), 'raw scanner output must not be retained in audit mode').toBe(false);
     expect(findingsFor(audit.results, 'opengrep/rules').length).toBeGreaterThan(0);
     expect(findingsFor(audit.results, 'zizmor/workflows').length).toBeGreaterThan(0);
     expect(findingsFor(audit.results, 'osv/lockfile').length).toBeGreaterThan(0);
@@ -490,6 +499,7 @@ describe('F-02: leaked secrets are classified, de-duplicated across the three se
     expect(run.status, run.stderr).toBe(0);
     const results = JSON.parse(readFileSync(join(outDir, 'results.json'), 'utf8')) as AuditOutput['results'];
     return {
+    outDir,
       files: findingsFor(results, 'gitleaks/files') as SecretFinding[],
       repository: findingsFor(results, 'gitleaks/repository') as SecretFinding[],
       history: findingsFor(results, 'gitleaks/history') as SecretFinding[],

@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node
 import { dirname, join, relative } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parseGitleaksReport } from '../adapters/gitleaks.js';
+import { gitConfigEnv, gitHardeningArgs } from './git-hardening.js';
 import { loadTargetInventory, runHttpChecks } from '../adapters/http.js';
 import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
@@ -93,7 +94,8 @@ function gitOutput(cwd: string, args: readonly string[]): string | undefined {
   const git = resolveTool('git');
   if (!git.available) return undefined;
   try {
-    const stdout = execFileSync(git.executable, [...args], {
+    // A-01: harden against the audited tree's own Git configuration executing code.
+    const stdout = execFileSync(git.executable, [...gitHardeningArgs(), ...args], {
       cwd,
       encoding: 'utf8',
       timeout: 30_000,
@@ -258,7 +260,9 @@ async function runGitleaksDir(context: RecipeContext): Promise<RecipeOutcome> {
     '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks-dir.toml'),
   ];
 
-  const run = await runTool('gitleaks', args, { cwd: context.appRoot, timeoutMs: 600_000 });
+  // A-01/PR-02: gitleaks runs its own `git` inside the audited tree; inject the hardened config
+  // through the environment so the child's Git cannot execute repository-configured helpers.
+  const run = await runTool('gitleaks', args, { cwd: context.appRoot, timeoutMs: 600_000, env: { ...gitConfigEnv() } });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   if (run.outcome.exitCode !== 0) {
     return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);

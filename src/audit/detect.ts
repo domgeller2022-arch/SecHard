@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 /**
@@ -74,7 +74,7 @@ export interface WalkedFile {
 
 /** Bounded, read-only walk. Skips dependency and build directories entirely. Exported: the quality
  * scanners use the same bounded walk and the same skip rules. */
-export function walk(root: string): WalkedFile[] {
+export function walk(root: string, onSkippedLink?: (path: string, target: string) => void): WalkedFile[] {
   const files: WalkedFile[] = [];
   const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
   while (queue.length > 0 && files.length < MAX_WALK_FILES) {
@@ -89,10 +89,23 @@ export function walk(root: string): WalkedFile[] {
       if (files.length >= MAX_WALK_FILES) break;
       if (SKIP_DIRS.has(entry)) continue;
       const full = join(dir, entry);
+      // A-02 input confinement: lstat — symlinks are never followed (a link out of the tree must
+      // not pull outside content into the scan) and non-regular files are never read. The
+      // concurrent link-swap race is documented as out of scope in the walk's doc comment.
       let stats;
       try {
-        stats = statSync(full);
+        stats = lstatSync(full);
       } catch {
+        continue;
+      }
+      if (stats.isSymbolicLink()) {
+        let linkTarget: string | undefined;
+        try {
+          linkTarget = readlinkSync(full);
+        } catch {
+          linkTarget = undefined;
+        }
+        onSkippedLink?.(full, linkTarget ?? '?');
         continue;
       }
       if (stats.isDirectory()) {
@@ -217,7 +230,9 @@ export function detectStackAndFeatures(root: string): Detection {
     throw new Error(`audit target is not a directory: ${root}`);
   }
 
-  const files = walk(root);
+  // A-02: symlinks are never followed; each skip is recorded so the scope statement stays honest.
+  const skippedLinks: string[] = [];
+  const files = walk(root, (path, target) => skippedLinks.push(`${rel(root, path)} -> ${target}`));
   const { parsed: packageJson } = readPackageJson(root);
   const stack = detectStackFromEvidence(root, files, packageJson);
 
@@ -306,6 +321,9 @@ export function detectStackAndFeatures(root: string): Detection {
   }
   if (sourceFiles.length > scanLimit) {
     gaps.push(`the import scan covered ${scanLimit} of ${sourceFiles.length} source files (bounded walk); feature detection beyond that is unknown`);
+  if (skippedLinks.length > 0) {
+    gaps.push(`symlinks not followed: ${skippedLinks.slice(0, 5).join(', ')}${skippedLinks.length > 5 ? ` and ${String(skippedLinks.length - 5)} more` : ''}`);
+  }
   }
 
   // Undetected features stay unknown — never `disabled`, which the catalogue treats as a claim.
