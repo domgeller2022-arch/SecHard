@@ -46,24 +46,6 @@ rules:
   # grant), and the MASVS/Electron first step. ASCII-only: the pinned opengrep reads local
   # rule packs with a locale-dependent codec (recorded in the Batch Q checkpoint).
 
-  - id: hardening.ssrf-request-derived-url
-    languages: [typescript, javascript]
-    severity: ERROR
-    message: >-
-      A network request is made with a URL derived from request data. If the value can name any
-      host, this is a server-side request forgery path: an attacker chooses the destination.
-      Validate the destination against a protocol and host allowlist before fetching.
-    metadata:
-      hardening_controls: [WEB-01, CODE-01]
-    patterns:
-      - pattern: $FETCH($URL, ...)
-      - metavariable-regex:
-          metavariable: $FETCH
-          regex: ^(fetch|axios|got|\$\.\w+)$
-      - metavariable-regex:
-          metavariable: $URL
-          regex: .*\b(req|request|ctx|event|input)\.(query|params|body|searchParams|nextUrl|url)\b.*
-
   - id: hardening.api-unvalidated-response-consumption
     languages: [typescript, javascript]
     severity: WARNING

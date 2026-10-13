@@ -9,11 +9,12 @@ import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
 import { inspectBrowserAssets } from '../build/client-assets.js';
-import { annotateSecretFindings, gradeLocalFileFinding, splitLocation } from '../evidence/secret-severity.js';
+import { annotateSecretFindings, gradeIgnoredFileFinding, gradeUntrackedFinding, splitLocation } from '../evidence/secret-severity.js';
 import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
 import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
 import { loadQualityThresholds } from '../quality/thresholds.js';
+import { analyzeMigrations } from '../security/migrations.js';
 import { resolveTool, runTool, type ToolAvailability } from './registry.js';
 import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from '../domain/types.js';
 
@@ -291,24 +292,37 @@ async function runGitleaksDir(context: RecipeContext): Promise<RecipeOutcome> {
     }
   });
 
-  // Exposure grading (owner decision with the F-02 follow-up, 13 October 2026): inside a git
-  // repository, a secret in a file git does not track is a local-file risk, not an exposed one —
-  // graded medium with the "keep it out of git and client code" explanation. Critical stays for
-  // tracked files; the fold restores it when a committed duplicate proves the secret reached
-  // history. A target with no git at all is never downgraded: nothing there is tracked or
-  // committed, so the tree is the whole truth and the classifier's grade stands. When trackedness
-  // cannot be determined, nothing is downgraded — the safe direction is to keep the severity.
+  // Exposure grading (owner decisions, 13 October 2026): inside a git repository, the file's
+  // relation to git decides the grade. Tracked files keep the classifier's grade (the content is
+  // in the repository). Untracked files are graded down, but by how far the next `git add` is:
+  // gitignored files are a local-file risk (medium — git add will not pick them up), while
+  // untracked files that are not gitignored will be committed by the next `git add -A` and are
+  // graded high. A target with no git at all is never graded down: nothing there is tracked or
+  // committed, so the tree is the whole truth and the classifier's grade stands. When git cannot
+  // answer, nothing is graded down — the safe direction is to keep the severity.
   const isGitWorktree = worktreeRoot(context.appRoot) !== undefined;
   const trackedListing = isGitWorktree ? gitOutput(context.appRoot, ['ls-files']) : undefined;
   const tracked = trackedListing === undefined
     ? undefined
     : new Set(trackedListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
-  const graded = tracked === undefined
-    ? annotated
-    : annotated.map((finding) => {
-        const parts = splitLocation(finding.location);
-        return parts !== undefined && !tracked.has(parts.file) ? gradeLocalFileFinding(finding) : finding;
-      });
+  let graded = annotated;
+  if (tracked !== undefined) {
+    const untrackedFiles = [...new Set(annotated.flatMap((finding) => {
+      const parts = splitLocation(finding.location);
+      if (parts === undefined || tracked.has(parts.file)) return [];
+      return [parts.file];
+    }))];
+    // One batched check-ignore: the paths it echoes are the ignored ones. An empty answer (exit 1
+    // or an error) means none of the given paths is ignored, and those files grade high — the
+    // conservative direction when git cannot say.
+    const ignoredListing = untrackedFiles.length === 0 ? '' : gitOutput(context.appRoot, ['check-ignore', '--', ...untrackedFiles]) ?? '';
+    const ignored = new Set(ignoredListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
+    graded = annotated.map((finding) => {
+      const parts = splitLocation(finding.location);
+      if (parts === undefined || tracked.has(parts.file)) return finding;
+      return ignored.has(parts.file) ? gradeIgnoredFileFinding(finding) : gradeUntrackedFinding(finding);
+    });
+  }
 
   return {
     outcome: 'pass',
@@ -439,8 +453,44 @@ async function runOpengrepWithPack(context: RecipeContext, packRelativePath: str
   };
 }
 
-const runOpengrep = (context: RecipeContext): Promise<RecipeOutcome> =>
-  runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
+/**
+ * The Supabase migration rules (Batch F2, fix brief F-06): the six reviewed SQL rule families
+ * over `supabase/migrations/*.sql`, implemented as an internal statement-shape analyser
+ * (`src/security/migrations.ts`) so no SQL parser dependency enters the pack. The DATA-01
+ * catalogue entry declared this recipe before it existed; it reports `unsupported` until now.
+ */
+const runMigrationInventory = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const result = analyzeMigrations(context.appRoot);
+  return Promise.resolve(qualityOutcome('migration-inventory', result.findings, result.filesRead.length,
+    'statement-shape rules over supabase/migrations/*.sql; no SQL parser is used, and only the reviewed shapes are claimed'));
+};
+
+const runOpengrep = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  // Two reviewed packs run in one check: the core pack (F-01) and the detection-depth pack
+  // (Batch F2 — taint and pattern rules). Findings merge; the packs are independent scans, so a
+  // pack that finds nothing does not mask the other's findings.
+  const core = await runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
+  const depth = await runOpengrepWithPack(context, 'detection-depth.yaml', 'security');
+  // A pack that is unsupported (no files to analyse at all) is fine as long as the other ran;
+  // the combined result is a pass when at least one pack scanned files.
+  const passes = [core, depth].filter((outcome) => outcome.outcome === 'pass');
+  if (passes.length === 0) return core.outcome === 'error' ? core : depth;
+  const mergedFindings = passes.flatMap((outcome) => outcome.findings ?? []);
+  const observed = Math.max(...passes.map((outcome) => outcome.observed ?? 0));
+  const files = [...new Set(passes.flatMap((outcome) => outcome.files ?? []))];
+  const diagnostics = [core, depth]
+    .map((outcome) => (outcome.outcome === 'pass' ? outcome.diagnostic : outcome.diagnostic))
+    .filter((note): note is string => note !== undefined && note.length > 0);
+  return {
+    outcome: 'pass',
+    coverage: passes.some((outcome) => outcome.coverage === 'partial') ? 'partial' : 'complete',
+    observed,
+    files: files.slice(0, MAX_FILES_RECORDED),
+    findings: mergedFindings,
+    tool: { ...toolIdentity('opengrep'), rule_pack: 'ci/configs/opengrep-rules/{hardening-core,detection-depth}.yaml' },
+    ...(diagnostics.length === 0 ? {} : { diagnostic: diagnostics.join('; ') }),
+  };
+};
 
 /**
  * The console-log rule scopes to production source directories by convention (src, app, lib,
@@ -482,7 +532,7 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
   }
   if (workflowFiles.length === 0) return unsupported(`${workflowsDir} contains no workflow files`);
 
-  const run = await runTool('zizmor', ['--format', 'json', '--no-progress', workflowsDir], { cwd: root, timeoutMs: 120_000 });
+  const run = await runTool('zizmor', ['--format', 'json', '--no-progress', '--persona', 'auditor', workflowsDir], { cwd: root, timeoutMs: 120_000 });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   // zizmor exits 14 when it reports findings; both are completed executions.
   if (run.outcome.exitCode !== 0 && run.outcome.exitCode !== 14) {
@@ -632,6 +682,7 @@ export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'quality/test-quality': runTestQuality,
   'quality/vibe-tells': runVibeTells,
   'quality/repo-hygiene': runRepoHygiene,
+  'data/migration-inventory': runMigrationInventory,
   'quality/dependency-health': runDependencyHealth,
 };
 

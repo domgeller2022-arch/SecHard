@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { annotateSecretFindings, classifySecret, dedupeSecretFindings, LOCAL_FILE_SECRET_NOTE, splitLocation } from '../../src/evidence/secret-severity.js';
+import { annotateSecretFindings, classifySecret, dedupeSecretFindings, gradeIgnoredFileFinding, gradeUntrackedFinding, IGNORED_FILE_SECRET_NOTE, UNTRACKED_FILE_SECRET_NOTE, splitLocation } from '../../src/evidence/secret-severity.js';
 import type { CheckResult, Finding } from '../../src/domain/types.js';
 
 /**
@@ -149,7 +149,7 @@ describe('dedupeSecretFindings: the same secret is one finding, annotated, not r
       title: 'Supabase service-role key in a local file (not committed to git): it bypasses all row-level security',
       location: '.env.local:1',
       secret_digest: 'a'.repeat(64),
-      detail: `secret material detected; value redacted; ${LOCAL_FILE_SECRET_NOTE}`,
+      detail: `secret material detected; value redacted; ${IGNORED_FILE_SECRET_NOTE}`,
     };
     const historyDuplicate: Finding = {
       ...localFinding,
@@ -169,6 +169,65 @@ describe('dedupeSecretFindings: the same secret is one finding, annotated, not r
     expect(merged?.findings?.[0]?.title).toBe('Supabase service-role key exposed: it bypasses all row-level security');
     expect(merged?.findings?.[0]?.detail).not.toContain('local file');
     expect(merged?.findings?.[0]?.detail).toContain('also present in committed history');
+  });
+
+  it('grades a gitignored file medium and an untracked-not-ignored file high, leaving low rows alone', () => {
+    // The owner's two exposure tiers: gitignored files are a local-file risk (medium); untracked
+    // files that are not gitignored will be committed by the next git add -A (high). Publishable
+    // (low) rows stay informational wherever they sit.
+    const privileged: Finding = {
+      id: 'p',
+      tool: 'gitleaks',
+      rule_id: 'jwt',
+      severity: 'critical',
+      title: 'Supabase service-role key exposed: it bypasses all row-level security',
+      location: 'x:1',
+      detail: 'secret material detected; value redacted',
+    };
+    const ignored = gradeIgnoredFileFinding(privileged);
+    expect(ignored.severity).toBe('medium');
+    expect(ignored.title).toContain('in a local file (not committed to git)');
+    expect(ignored.detail).toContain(IGNORED_FILE_SECRET_NOTE);
+
+    const untracked = gradeUntrackedFinding(privileged);
+    expect(untracked.severity).toBe('high');
+    expect(untracked.title).toContain('in an untracked file (git add will commit it)');
+    expect(untracked.detail).toContain(UNTRACKED_FILE_SECRET_NOTE);
+
+    const alreadyHigh = gradeUntrackedFinding({ ...privileged, severity: 'high' });
+    expect(alreadyHigh.severity).toBe('high');
+
+    const publishable = gradeUntrackedFinding({ ...privileged, severity: 'low' });
+    expect(publishable).toEqual({ ...privileged, severity: 'low' });
+  });
+
+  it('restores a high untracked row to critical when history proves the secret was committed', () => {
+    const untrackedFinding: Finding = {
+      id: 'files-2',
+      tool: 'gitleaks',
+      rule_id: 'jwt',
+      severity: 'high',
+      title: 'Supabase service-role key in an untracked file (git add will commit it): it bypasses all row-level security',
+      location: 'notes.js:1',
+      secret_digest: 'b'.repeat(64),
+      detail: `secret material detected; value redacted; ${UNTRACKED_FILE_SECRET_NOTE}`,
+    };
+    const historyDuplicate: Finding = {
+      ...untrackedFinding,
+      id: 'hist-2',
+      commit: 'c0ffee',
+      severity: 'critical',
+      title: 'Supabase service-role key exposed: it bypasses all row-level security',
+      detail: 'secret material detected; value redacted',
+    };
+    const results = dedupeSecretFindings([
+      resultFor('gitleaks/files', [untrackedFinding]),
+      resultFor('gitleaks/history', [historyDuplicate]),
+    ]);
+    const merged = results.find((result) => result.recipe === 'gitleaks/files');
+    expect(merged?.findings?.[0]?.severity).toBe('critical');
+    expect(merged?.findings?.[0]?.title).toBe('Supabase service-role key exposed: it bypasses all row-level security');
+    expect(merged?.findings?.[0]?.detail).not.toContain('git add');
   });
 
   it('falls back to the line number without a digest, and leaves unmatched findings alone', () => {

@@ -604,9 +604,9 @@ describe('secret coverage over time and in the working tree (owner query, supers
     expect(standard.run.status, standard.run.stderr).toBe(0);
 
     // Found, one row each: the old committed secret (history folded in, critical — it is in the
-    // repository) and the untracked secret (never committed, so no history note — graded medium
-    // per the owner's exposure rule: a secret in a file git does not track is not exposed
-    // through the repository, it is a local-file risk).
+    // repository) and the untracked secret (never committed, so no history note — graded high
+    // per the owner's exposure rule: the file is untracked and not gitignored, so a plain
+    // `git add -A` will commit it).
     const filesSecrets = findingsFor(standard.results, 'gitleaks/files') as GitleaksSecretFinding[];
     expect(filesSecrets, JSON.stringify(filesSecrets)).toHaveLength(2);
     expect(filesSecrets.every((finding) => (finding.title ?? '').includes('service-role'))).toBe(true);
@@ -616,8 +616,8 @@ describe('secret coverage over time and in the working tree (owner query, supers
     const untrackedRow = filesSecrets.find((finding) => finding.secret_digest === untrackedDigest);
     expect(untrackedRow, JSON.stringify(filesSecrets)).toBeDefined();
     expect((untrackedRow?.location ?? '').includes('scratch-untracked')).toBe(true);
-    expect(untrackedRow?.severity).toBe('medium');
-    expect(untrackedRow?.detail ?? '').toContain('local file, keep it out of git and client code');
+    expect(untrackedRow?.severity).toBe('high');
+    expect(untrackedRow?.detail ?? '').toContain('a plain git add will commit this file');
     expect(untrackedRow?.detail ?? '').not.toContain('also present in committed history');
     // The duplicates folded: history and the newest commit's change set hold neither secret.
     expect(findingsFor(standard.results, 'gitleaks/history')).toHaveLength(0);
@@ -633,7 +633,7 @@ describe('secret coverage over time and in the working tree (owner query, supers
     expect(quick.run.status, quick.run.stderr).toBe(0);
     const quickFiles = findingsFor(quick.results, 'gitleaks/files') as GitleaksSecretFinding[];
     expect(quickFiles).toHaveLength(2);
-    expect(quickFiles.find((finding) => finding.secret_digest === untrackedDigest)?.severity).toBe('medium');
+    expect(quickFiles.find((finding) => finding.secret_digest === untrackedDigest)?.severity).toBe('high');
     expect(quickFiles.find((finding) => finding.secret_digest !== untrackedDigest)?.severity).toBe('critical');
     expect(quick.report).toContain('quick mode does not run the git-history secret scan');
     expect(quick.report).toContain('the current-files secret scan still runs at every depth');
@@ -744,15 +744,18 @@ describe('F-02 follow-ups (owner\'s auditor, 13 October 2026): current-files sca
     expect(JSON.stringify(files)).not.toContain(dbUrl);
   }, 600_000);
 
-  it('grades the same secret critical in a tracked file and medium in a gitignored local file', () => {
-    // The owner's exposure rule (13 October 2026), both cases in one app: the service-role key
-    // committed in the tracked .env stays critical (it is in the repository), while the same
-    // shape in the gitignored .env.local is graded medium with the local-file explanation — not
-    // exposed through the repository, a hygiene risk until it is committed or shipped.
-    const localJwt = `${f02B64({ alg: 'HS256', typ: 'JWT' })}.${f02B64({ role: 'service_role', iss: 'supabase' })}.${'b'.repeat(43)}`;
+  it('grades the same secret by where its file sits: tracked critical, gitignored medium, untracked high', () => {
+    // The owner's exposure tiers (13 October 2026), all three cases in one app: the service-role
+    // key committed in the tracked .env stays critical (it is in the repository); the same shape
+    // in the gitignored .env.local is medium (not exposed through the repository, a local-file
+    // risk); and the same shape in an untracked file that is NOT gitignored is high, because the
+    // next plain `git add -A` will commit it.
+    const localJwt = (signature: string): string =>
+      `${f02B64({ alg: 'HS256', typ: 'JWT' })}.${f02B64({ role: 'service_role', iss: 'supabase' })}.${signature.repeat(43)}`;
     const root = makeApp(`sechard-followup-exposure-${randomUUID().slice(0, 8)}`);
-    writeFileSync(join(root, '.env.local'), `LOCAL_SERVICE_ROLE=${localJwt}\n`);
+    writeFileSync(join(root, '.env.local'), `LOCAL_SERVICE_ROLE=${localJwt('b')}\n`);
     writeFileSync(join(root, '.gitignore'), '.env.local\n');
+    writeFileSync(join(root, 'scratch-notes.js'), `const K = "${localJwt('c')}";\n`);
     execFileSync('git', ['add', '.gitignore'], { cwd: root });
     execFileSync('git', ['commit', '-q', '-m', 'ignore local env'], { cwd: root });
 
@@ -763,18 +766,24 @@ describe('F-02 follow-ups (owner\'s auditor, 13 October 2026): current-files sca
 
     const files = findingsFor(results, 'gitleaks/files') as GitleaksSecretFinding[];
     const trackedRow = files.find((finding) => (finding.location ?? '').startsWith('.env:'));
-    const localRow = files.find((finding) => (finding.location ?? '').startsWith('.env.local:'));
+    const ignoredRow = files.find((finding) => (finding.location ?? '').startsWith('.env.local:'));
+    const untrackedRow = files.find((finding) => (finding.location ?? '').startsWith('scratch-notes.js:'));
     expect(trackedRow, JSON.stringify(files)).toBeDefined();
-    expect(localRow, JSON.stringify(files)).toBeDefined();
-    // Tracked and committed: critical, no local-file note.
+    expect(ignoredRow, JSON.stringify(files)).toBeDefined();
+    expect(untrackedRow, JSON.stringify(files)).toBeDefined();
+    // Tracked and committed: critical, no grading note.
     expect(trackedRow?.severity).toBe('critical');
+    expect(trackedRow?.detail ?? '').not.toContain('git add');
     expect(trackedRow?.detail ?? '').not.toContain('local file');
-    // Gitignored and untracked: medium, with the owner's explanation, and the title no longer
-    // claims the credential is exposed.
-    expect(localRow?.severity).toBe('medium');
-    expect(localRow?.detail ?? '').toContain('local file, keep it out of git and client code');
-    expect(localRow?.title ?? '').toContain('in a local file (not committed to git)');
-    expect(localRow?.title ?? '').not.toContain(' exposed');
+    // Gitignored and untracked: medium, with the local-file explanation and a non-exposure title.
+    expect(ignoredRow?.severity).toBe('medium');
+    expect(ignoredRow?.detail ?? '').toContain('local file, keep it out of git and client code');
+    expect(ignoredRow?.title ?? '').toContain('in a local file (not committed to git)');
+    expect(ignoredRow?.title ?? '').not.toContain(' exposed');
+    // Untracked and not gitignored: high — the next git add commits it.
+    expect(untrackedRow?.severity).toBe('high');
+    expect(untrackedRow?.detail ?? '').toContain('a plain git add will commit this file');
+    expect(untrackedRow?.title ?? '').toContain('in an untracked file (git add will commit it)');
     for (const finding of files) {
       expect(finding.severity, JSON.stringify(finding)).not.toBe('unknown');
       expect(finding.category).toBe('secret');

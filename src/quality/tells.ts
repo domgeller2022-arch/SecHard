@@ -220,6 +220,44 @@ export function analyzeVibeTells(root: string, options: { maxFilesListed: number
         'Check whether the file is prose with some code attached; if the explanation is essential, it may belong in documentation instead.',
         counts);
     }
+    // F-07: mock or demo data in production paths. Placeholder users, example mailboxes, and
+    // lorem text shipped in source render to real users and rot into the UI.
+    const MOCK_DATA = /\b(mockUsers|mockData|mockDB|mockDatabase|fakeData|Lorem ipsum|john@example\.com|test@example\.com)\b/;
+    for (const [index, line] of lines.entries()) {
+      if (isTestFile(file.relative)) break;
+      // A comment that names the pattern is documentation, not shipped mock data; the rule's own
+      // source must not flag itself either.
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue;
+      // The pattern's own definition line contains the alternation text; it is not mock data.
+      if (line.includes('MOCK_DATA')) continue;
+      const match = MOCK_DATA.exec(line);
+      if (match === null) continue;
+      emit('quality.mock-data', 'medium', file, index + 1,
+        'mock or demo data in a production path',
+        'Replace placeholder data with real data sources (a database query or configuration); demo fixtures belong behind a feature flag or in test code only.',
+        counts);
+    }
+
+    // F-07: a swallowed Supabase error. `const { data } = await supabase.from(...)` discards the
+    // error side of the result, so a failed query silently renders as empty. Same for
+    // `.then(({ data }) => ...)`.
+    if (/@supabase\/supabase-js|supabase/i.test(file.text)) {
+      for (const [index, line] of lines.entries()) {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue;
+        if (/const\s*\{\s*data\s*\}\s*=\s*await/.test(line) && /from\s*\(/.test(line)) {
+          emit('quality.swallowed-supabase-error', 'medium', file, index + 1,
+            'a Supabase query discards its error',
+            'Destructure error as well (const { data, error }) and handle a non-null error; an ignored error renders failure as empty data.',
+            counts);
+        }
+        if (/\.then\s*\(\s*\(\s*\{\s*data\s*\}\s*\)/.test(line)) {
+          emit('quality.swallowed-supabase-error', 'medium', file, index + 1,
+            'a Supabase query promise drops its error',
+            'Destructure error in the callback (or use await with try/catch) so failures are handled instead of silently empty.',
+            counts);
+        }
+      }
+    }
   }
 
   findings.sort((a, b) => (a.location ?? '') < (b.location ?? '') ? -1 : (a.location ?? '') > (b.location ?? '') ? 1 : 0);

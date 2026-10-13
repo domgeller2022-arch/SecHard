@@ -61,13 +61,18 @@ Lovable or Bolt) therefore still gets its secret scan, and secrets committed bef
 commit are still reported at quick depth. What it cannot see is content that exists only in
 history; that stays the history scan's job at standard depth and above.
 
-Exposure is graded by where the secret lives (owner decision, 13 October 2026): inside a git
-repository, a secret in a file git does not track — a gitignored or untracked local file such as
-`.env.local` — is not exposed through the repository and is graded **medium** with a "local file,
-keep it out of git and client code" explanation. Critical stays for secrets in tracked files,
-committed history, or browser output; when a committed duplicate proves the same secret reached
-the repository, the fold restores the committed severity. A target with no git at all is never
-downgraded: nothing there is tracked or committed, so the tree is the whole truth.
+Exposure is graded by where the file sits relative to git (owner decisions, 13 October 2026):
+
+- **Tracked file** — the classifier's grade stands: the content is in the repository, so a
+  privileged credential is critical.
+- **Untracked and gitignored** (e.g. `.env.local`) — not exposed through the repository: graded
+  **medium** with a "local file, keep it out of git and client code" explanation.
+- **Untracked but not gitignored** — one plain `git add -A` from being committed: graded **high**
+  ("will be committed by git add").
+
+When a committed duplicate proves the same secret reached the repository, the fold restores the
+committed severity and title. A target with no git at all is never graded down: nothing there is
+tracked or committed, so the tree is the whole truth.
 
 ## Application code is never executed (gap D1)
 

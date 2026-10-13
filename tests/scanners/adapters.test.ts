@@ -239,7 +239,10 @@ describe('osv-scanner finds advisories for a pinned vulnerable dependency', () =
 });
 
 describe('opengrep detects the vulnerable patterns and accepts the fixed fixture', () => {
-  const rules = join(REPO, 'ci', 'configs', 'opengrep-rules', 'hardening-core.yaml');
+  // Both reviewed packs: the Batch F2 detection-depth rules live in their own pack file, and the
+  // fixture expectations below cover rules from both.
+  const rules = join(REPO, 'ci', 'configs', 'opengrep-rules');
+
 
   it('finds the eval, shell-exec, and innerHTML patterns', async () => {
     const run = await runOpengrep(join(FIXTURES, 'sast', 'vulnerable.ts'), rules);
@@ -277,7 +280,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     const cases: readonly { dir: string; vulnerable: readonly string[]; fixed: readonly string[] }[] = [
       {
         dir: 'api',
-        vulnerable: ['hardening.ssrf-request-derived-url', 'hardening.api-unvalidated-response-consumption'],
+        vulnerable: ['hardening.taint-ssrf-fetch', 'hardening.api-unvalidated-response-consumption'],
         fixed: [],
       },
       { dir: 'oauth', vulnerable: ['hardening.oauth-implicit-grant'], fixed: [] },

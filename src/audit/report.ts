@@ -286,6 +286,13 @@ function couldNotCheck(input: AuditReportInput): string[] {
   if (input.depth === 'deep') {
     items.push('DEPTH: deep mode runs the same set as standard in this build. Deeper work (executing the application\'s own build and tests, exposure probes) requires the audit isolation model and is not implemented; it is refused rather than silently run');
   }
+  // F-09: when the app calls AI models but no runtime-ai profile exists in this build, the audit
+  // must not imply AI-safety coverage it does not have. The banner is verbatim from the brief.
+  const runtimeAiDetected = input.detection.features['runtime_ai']?.state === 'enabled';
+  const runtimeAiProfileComposed = input.detection.profiles.some((profile) => profile.id === 'runtime-ai');
+  if (runtimeAiDetected && !runtimeAiProfileComposed) {
+    items.push('RUNTIME AI: This app calls AI models; prompt-injection, spend-limit, and model-output safety checks are not covered.');
+  }
   items.push('TLS assessment is not part of this audit: the transport requirements beyond certificate validity need current testssl.sh output (manual evidence)');
   return items;
 }

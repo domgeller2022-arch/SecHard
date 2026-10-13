@@ -2006,3 +2006,36 @@ Recorded here as a process defect: a run nobody watched is a claim nobody checke
   Exact suite counts are recorded in `CHANGELOG.md`.
 - **Next step:** the run record is committed; **F2 does not start until the owner's auditor
   re-checks** (owner instruction, 13 October 2026).
+
+
+---
+
+## Batch F2 — detection depth (fix brief F-04..F-09), started 2026-10-13
+
+- **State:** `in_progress` — checkpoint at `docs/checkpoints/batch-f2.md`; three sub-items
+  recorded as the batch's remaining work (F-07's four analysers with the A-2/A-1 design,
+  F-06's splinter licence verdict + live probe, F-08's narration recall + the corpus manifest
+  test). Stop point per the owner: push, watch CI, wait for the auditor's re-check before F3.
+- **Authorisation:** `authorised_batch: F2` in `01-owner-decisions.md` (auditor re-check passed
+  "F1 is complete"; owner instruction the same day), with the added exposure-tier rule.
+- **Files changed:** `src/evidence/secret-severity.ts` (exposure tiers + fold restore for both),
+  `src/execution/recipes.ts` (three-way grading from git ls-files/check-ignore; opengrep runs two
+  packs and merges; `data/migration-inventory` implemented; zizmor `--persona=auditor`),
+  `src/adapters/opengrep.ts` (`hardening_severity` metadata override), `src/security/migrations.ts`
+  (new: the six SQL rule families), `src/quality/tells.ts` (swallowed Supabase error, mock data),
+  `src/quality/hygiene.ts` (README phantom scripts, package.json duplicate-role),
+  `src/audit/detect.ts` (payments by dependency/event handling, detection-exclusion list),
+  `src/audit/report.ts` (runtime-AI banner), `src/audit/explanations.ts` (26 new/removed entries),
+  `ci/configs/opengrep-rules/detection-depth.yaml` (new, 20 rules),
+  `ci/configs/opengrep-rules/hardening-core.yaml` (regex-only SSRF rule removed per F-04),
+  `tests/corpus/independent-nextjs/**` (new Appendix A corpus, 18 files),
+  `tsconfig.json` + `vitest.config.ts` (corpus/fixtures excluded from compile and suite
+  collection), tests (`secret-severity`, `audit-cli` exposure tiers), `CHANGELOG.md`, this
+  record, `docs/status.md`, and the checkpoint.
+- **Measured:** Appendix A security seeds 26/26 fire through `hardening audit` (before 7/33);
+  quality rows 12/22 (misses attributed in the checkpoint); payments profile now composes on the
+  corpus; runtime-AI banner present; zizmor excessive-permissions surfaces (persona fix).
+- **Suites:** 561 unit green; scanners/integration/example run in this push; typecheck + lint
+  clean.
+- **Next step:** commit, push, watch `repo-checks` to completion, report the run ID; the auditor's
+  re-check gates Batch F3.

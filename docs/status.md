@@ -1,6 +1,6 @@
 # Status
 
-> Generated from `docs/implementation-progress.md` (source SHA-256 `52226fa0ce57e106cb68c8d96cd691674db7cd1ff23337ab46accbf9ced4a984`) by
+> Generated from `docs/implementation-progress.md` (source SHA-256 `b1b6588d108a136c1db30605edf85034b30d9f364ec38e712727a1c65761b155`) by
 > `node tools/generate-status.mjs`. Do not edit by hand: edit the progress record and regenerate.
 > A section appears here only when the record states its state; "verified" means the record's
 > stated acceptance checks ran, nothing more.
@@ -27,6 +27,7 @@
 | Batch U — Audit mode (2026-10-09) | `verified` |
 | Batch Q — Quality: "engineered, not vibe-coded" (2026-10-10) | `verified` |
 | Batch S — Standards at requirement level (2026-10-10) | `verified` |
+| Batch F2 — detection depth (fix brief F-04..F-09), started 2026-10-13 | `in_progress` |
 
 ## Open findings and blockers
 

@@ -85,31 +85,52 @@ export function splitLocation(location: string | undefined): { readonly file: st
 }
 
 /**
- * Exposure grading for the current-files scan (owner decision with the F-02 follow-up, 13 October
- * 2026): a secret in a file git does not track is not exposed through the repository. It is a
- * local-file risk — medium — because the danger is that the file gets committed or shipped, not
- * that the credential is already readable from history. Critical stays for secrets in tracked
- * files, committed history, or browser output; the fold restores it when a committed duplicate
- * proves the secret reached the repository.
+ * Exposure grading for the current-files scan (owner decisions, 13 October 2026): where the file
+ * sits relative to git decides the grade, because that decides whether the secret is or will be
+ * exposed through the repository.
+ *
+ * - **Tracked file** — the classifier's grade stands; the content is in the repository.
+ * - **Untracked and gitignored** (e.g. `.env.local`) — not exposed through the repository: graded
+ *   **medium**, a local-file risk. The danger is shipping it to the client, not committing it.
+ * - **Untracked but not gitignored** — one `git add -A` away from being committed: graded
+ *   **high** ("will be committed by git add").
+ *
+ * Critical stays for secrets in tracked files, committed history, or browser output; the fold
+ * restores the committed severity, title, and detail when a committed duplicate proves the secret
+ * reached the repository. A target with no git at all is never graded down: nothing there is
+ * tracked or committed, so the tree is the whole truth.
  */
-export const LOCAL_FILE_SECRET_NOTE = 'local file, keep it out of git and client code (git does not track this file, so the secret is not exposed through the repository)';
+export const IGNORED_FILE_SECRET_NOTE = 'local file, keep it out of git and client code (git does not track this file, so the secret is not exposed through the repository)';
+export const UNTRACKED_FILE_SECRET_NOTE = 'untracked and not gitignored: a plain git add will commit this file — gitignore it, or move the secret into the environment and rotate it if it was ever committed';
 
-const LOCAL_FILE_TITLE_MARKER = 'in a local file (not committed to git)';
+const IGNORED_TITLE_MARKER = 'in a local file (not committed to git)';
+const UNTRACKED_TITLE_MARKER = 'in an untracked file (git add will commit it)';
 
-function localFileTitle(title: string | undefined): string {
+function retitle(title: string | undefined, marker: string, fallback: string): string {
   return title !== undefined && title.includes(' exposed')
-    ? title.replace(' exposed', ` ${LOCAL_FILE_TITLE_MARKER}`)
-    : `Credential material ${LOCAL_FILE_TITLE_MARKER}: keep it out of git and client code`;
+    ? title.replace(' exposed', ` ${marker}`)
+    : fallback;
 }
 
-/** Grades one current-files finding whose file git does not track: critical/high become medium. */
-export function gradeLocalFileFinding(finding: Finding): Finding {
+/** Grades one current-files finding whose file git does not track and does ignore: medium. */
+export function gradeIgnoredFileFinding(finding: Finding): Finding {
   if (finding.severity !== 'critical' && finding.severity !== 'high') return finding;
   return {
     ...finding,
     severity: 'medium',
-    title: localFileTitle(finding.title),
-    detail: `${finding.detail ?? ''}; ${LOCAL_FILE_SECRET_NOTE}`,
+    title: retitle(finding.title, IGNORED_TITLE_MARKER, `Credential material ${IGNORED_TITLE_MARKER}: keep it out of git and client code`),
+    detail: `${finding.detail ?? ''}; ${IGNORED_FILE_SECRET_NOTE}`,
+  };
+}
+
+/** Grades one current-files finding whose file git neither tracks nor ignores: high. */
+export function gradeUntrackedFinding(finding: Finding): Finding {
+  if (finding.severity !== 'critical' && finding.severity !== 'high') return finding;
+  return {
+    ...finding,
+    severity: 'high',
+    title: retitle(finding.title, UNTRACKED_TITLE_MARKER, `Credential material ${UNTRACKED_TITLE_MARKER}: gitignore the file or move the secret into the environment`),
+    detail: `${finding.detail ?? ''}; ${UNTRACKED_FILE_SECRET_NOTE}`,
   };
 }
 
@@ -117,6 +138,11 @@ const SEVERITY_RANK: Readonly<Record<string, number>> = { unknown: 0, low: 1, me
 
 function higherSeverity(a: Finding['severity'], b: Finding['severity']): Finding['severity'] {
   return (SEVERITY_RANK[a] ?? 0) >= (SEVERITY_RANK[b] ?? 0) ? a : b;
+}
+
+/** True when a finding's title carries one of this module's exposure-grading markers. */
+function hasGradedTitle(title: string | undefined): boolean {
+  return title !== undefined && (title.includes(IGNORED_TITLE_MARKER) || title.includes(UNTRACKED_TITLE_MARKER));
 }
 
 /**
@@ -224,15 +250,15 @@ export function dedupeSecretFindings(results: readonly CheckResult[]): CheckResu
         if (historyCount !== undefined) notes.push(historyNote(historyCount));
         if (repositoryCountByFilesFinding.has(finding.id)) notes.push(repositoryNote);
         // Committed evidence proves exposure: restore the committed severity and title and drop
-        // the local-file grading note — it would contradict the history it is being merged with.
+        // the exposure-grading note — it would contradict the history it is being merged with.
         const committedSeverity = committedSeverityByFinding.get(finding.id);
         const hasCommittedEvidence = historyCount !== undefined || repositoryCountByFilesFinding.has(finding.id);
-        const detail = hasCommittedEvidence && finding.detail !== undefined && finding.detail.includes(LOCAL_FILE_SECRET_NOTE)
-          ? finding.detail.replace(`; ${LOCAL_FILE_SECRET_NOTE}`, '')
+        const detail = hasCommittedEvidence && finding.detail !== undefined
+          ? finding.detail.replace(`; ${IGNORED_FILE_SECRET_NOTE}`, '').replace(`; ${UNTRACKED_FILE_SECRET_NOTE}`, '')
           : finding.detail;
         const severity = committedSeverity === undefined ? finding.severity : higherSeverity(finding.severity, committedSeverity);
         const restoredTitle =
-          hasCommittedEvidence && finding.title?.includes(LOCAL_FILE_TITLE_MARKER) === true
+          hasCommittedEvidence && hasGradedTitle(finding.title)
             ? committedTitleByFinding.get(finding.id)
             : undefined;
         if (

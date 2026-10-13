@@ -90,6 +90,17 @@ export function analyzeRepoHygiene(root: string, expectedLockfiles: readonly str
       'Choose a licence, or record the deliberate decision (owner decisions, README) so the absence is a documented choice rather than a gap.'));
   }
 
+
+  // F-07: README commands that do not exist. A README advertising `npm run start:prod` sends every
+  // reader (and every agent following it) into a failing command; the scripts block is the truth.
+  const readmeScripts = advertisedReadmeScripts(root);
+  if (readmeScripts.phantom.length > 0) {
+    const readmeFinding = hygieneFinding('readme-phantom-scripts', 'medium',
+      `the README advertises ${readmeScripts.phantom.map((name) => `"${name}"`).join(', ')}, which ${readmeScripts.phantom.length === 1 ? 'is' : 'are'} not in package.json scripts`,
+      'Remove the commands from the README or add the scripts to package.json. A documented command that fails on first use is how trust in the documentation dies.');
+    findings.push({ ...readmeFinding, location: 'README.md' });
+  }
+
   return { findings, checks };
 }
 
@@ -159,7 +170,29 @@ function readLockfilePackageNames(root: string, expectedLockfiles: readonly stri
 export function analyzeDependencyHealth(root: string, expectedLockfiles: readonly string[], equivalentRoles: readonly { role: string; packages: readonly string[] }[]): DependencyHealthResult {
   const lockfile = readLockfilePackageNames(root, expectedLockfiles);
   if (lockfile === undefined) {
-    return { findings: [], packagesExamined: 0 };
+    // F-07: the no-lockfile variant. The role check still runs against package.json's declared
+    // dependencies — an app that declares moment and dayjs has the problem whether or not a
+    // lockfile was committed. The source is recorded honestly as package.json.
+    const declared = readPackageJsonDependencies(root);
+    if (declared.size === 0) return { findings: [], packagesExamined: 0 };
+    const findings: Finding[] = [];
+    for (const role of equivalentRoles) {
+      const members = role.packages.filter((pkg) => declared.has(pkg.toLowerCase()));
+      if (members.length >= 2) {
+        findings.push({
+          id: `quality:dependency-health:duplicate-role:${role.role}:package-json`,
+          tool: 'quality-dependency-health',
+          rule_id: 'duplicate-role',
+          severity: 'medium',
+          title: `two or more libraries for one job: ${members.join(', ')} all provide "${role.role}"`,
+          location: 'package.json',
+          detail: 'Pick one and remove the rest. Every extra library is another advisory surface, another install hook, and two ways to do the same thing for every future reader.',
+          control_ids: ['QUAL-12'],
+          triage: 'unresolved',
+        });
+      }
+    }
+    return { findings, packagesExamined: declared.size };
   }
 
   const present = new Set(lockfile.names.map((name) => name.toLowerCase().replace(/^@types\//, '').replace(/^@[^/]+\//, (match) => match)));
@@ -189,4 +222,53 @@ export function analyzeDependencyHealth(root: string, expectedLockfiles: readonl
   }
 
   return { findings, packagesExamined: lockfile.names.length };
+}
+
+/** Scripts a README advertises through npm/pnpm/yarn run spans (F-07). */
+function advertisedReadmeScripts(root: string): { readonly phantom: readonly string[] } {
+  let text: string | undefined;
+  for (const name of ['README.md', 'readme.md', 'Readme.md']) {
+    try {
+      const candidate = join(root, name);
+      if (existsSync(candidate)) {
+        text = readFileSync(candidate, 'utf8').slice(0, 256 * 1024);
+        break;
+      }
+    } catch {
+      continue;
+    }
+  }
+  if (text === undefined) return { phantom: [] };
+  let scripts: ReadonlySet<string> = new Set();
+  try {
+    const raw = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
+    scripts = new Set(Object.keys(raw.scripts ?? {}));
+  } catch {
+    return { phantom: [] };
+  }
+  const advertised = new Set<string>();
+  const runPattern = /(?:npm|pnpm|yarn)\s+(?:run\s+)?([a-z0-9:@_\/-]+)/gi;
+  for (const match of text.matchAll(runPattern)) {
+    const name = match[1]?.trim();
+    if (name === undefined || name === '') continue;
+    // Lifecycle commands exist without a scripts entry.
+    if (['install', 'test', 'start', 'dev', 'build', 'ci'].includes(name)) continue;
+    if (name.includes('install') || name.includes('add') || name.includes('publish')) continue;
+    advertised.add(name);
+  }
+  const phantom = [...advertised].filter((name) => !scripts.has(name)).sort();
+  return { phantom };
+}
+
+/** Declared dependencies from package.json, lowercased (F-07 no-lockfile role check). */
+function readPackageJsonDependencies(root: string): ReadonlySet<string> {
+  try {
+    const raw = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    return new Set([...Object.keys(raw.dependencies ?? {}), ...Object.keys(raw.devDependencies ?? {})].map((name) => name.toLowerCase()));
+  } catch {
+    return new Set();
+  }
 }

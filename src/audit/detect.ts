@@ -258,12 +258,26 @@ export function detectStackAndFeatures(root: string): Detection {
     enable('accounts', { file: 'package.json', detail: 'an authentication library is declared' });
   }
 
+  // F-09: a payment integration is declared by dependency, not only by SDK import. Apps that
+  // only use @stripe/stripe-js elements, Paddle, or Lemon Squeezy never import the server SDK,
+  // and the money-path obligations must still apply.
+  if (packageJson !== undefined && (hasDep(packageJson, 'stripe') || hasDep(packageJson, '@stripe/stripe-js') || hasDep(packageJson, 'paddle') || hasDep(packageJson, 'lemonsqueezy'))) {
+    const declared = ['stripe', '@stripe/stripe-js', 'paddle', 'lemonsqueezy'].filter((candidate) => hasDep(packageJson, candidate));
+    enable('payments', { file: 'package.json', detail: `declares a payments dependency (${declared.join(', ')})` });
+  }
+
   const workflowsDir = join(root, '.github', 'workflows');
   const hasWorkflows = existsSync(workflowsDir) && readdirSync(workflowsDir).some((name) => name.endsWith('.yml') || name.endsWith('.yaml'));
   // Source import scan, bounded. Only source files, only the first bytes of each.
+  // F-09: the detection-exclusion list — tests, fixtures, examples, and corpora are not the
+  // application's own stack. Without this, a repository that vendors fixture applications
+  // (SecHard itself) is detected as the union of its fixtures.
+  const DETECTION_EXCLUDED_PREFIXES = ['tests/', 'test/', 'examples/', 'fixtures/', '__tests__/', 'corpus/'];
   const sourceFiles = files.filter((file) => {
     const extension = /\.[a-z0-9]+$/u.exec(file.path)?.[0] ?? '';
-    return SOURCE_EXTENSIONS.has(extension);
+    if (!SOURCE_EXTENSIONS.has(extension)) return false;
+    const relativePath = rel(root, file.path);
+    return !DETECTION_EXCLUDED_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
   });
   const gaps: string[] = [];
   const scanLimit = 800;
@@ -275,6 +289,13 @@ export function detectStackAndFeatures(root: string): Detection {
       if (marker.pattern.test(text)) {
         enable(marker.feature, { file: rel(root, file.path), detail: marker.detail });
       }
+    }
+    // F-09: payment webhooks are detectable from the event types a route handles, not only from
+    // the SDK import — a checkout.session.completed handler is a payments integration even when
+    // the SDK is only used server-side behind an adapter.
+    if (/(checkout\.session\.completed|payment_intent\.[a-z_]+|invoice\.paid)/.test(text)) {
+      enable('payments', { file: rel(root, file.path), detail: 'handles payment lifecycle event types' });
+      enable('webhooks', { file: rel(root, file.path), detail: 'handles payment lifecycle event types' });
     }
     if (/\bwebhook\b/i.test(text) && file.path.toLowerCase().includes('webhook')) {
       enable('webhooks', { file: rel(root, file.path), detail: 'a webhook handler source file' });

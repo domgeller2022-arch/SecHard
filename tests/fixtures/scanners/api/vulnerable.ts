@@ -1,7 +1,7 @@
 // FIXTURE: SSRF and unsafe-consumption shapes for the API Top 10 rules. The first two calls use
-// request-derived URLs directly (the syntactic shape the rule catches); the third routes through
-// a variable first, which the rule honestly misses - the syntactic limitation is stated on the
-// rule, and this fixture records it deliberately rather than hiding it.
+// request-derived URLs directly; the third routes through a variable first - the shape the
+// regex-only rule honestly missed, and the reason Batch F-04 replaced it with the taint rule,
+// which follows the value through the assignment. All three are expected findings now.
 export interface FixtureRequest {
   readonly url: string;
   readonly params: Readonly<Record<string, string>>;

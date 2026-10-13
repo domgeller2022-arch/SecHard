@@ -13,6 +13,75 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Started — Batch F2: detection depth (fix brief F-04..F-09, authorised 13 October 2026)
+
+Authority: the owner's auditor re-checked F1 on 2026-10-13 and passed it ("F1 is complete"); the
+owner then authorised Batch F2 in `01-owner-decisions.md` (`authorised_batch: F2`), with one added
+rule for the secret exposure tiers, implemented first. The full batch state is the checkpoint at
+`docs/checkpoints/batch-f2.md`; this entry records what changed in the product.
+
+**Exposure tiers extended (owner decision, 13 October 2026).** Inside a git repository, the
+current-files scan now grades by how far the file is from being committed: tracked files keep the
+classifier's grade (critical for privileged credentials); untracked and **gitignored** files stay
+**medium** (a local-file risk — `git add` will not pick them up); untracked files that are **not
+gitignored** are graded **high** with an "untracked and not gitignored: a plain git add will
+commit this file" explanation. The fold restores the committed severity, title, and detail when a
+committed duplicate proves the secret reached the repository, for both graded tiers. Non-git
+targets are never graded down. Pinned in one CLI test that holds all three cases in one app
+(tracked critical, gitignored medium, untracked high), plus two unit tests for the grading
+functions and the fold restore.
+
+**The detection-depth rule pack (F-04, F-05).** `ci/configs/opengrep-rules/detection-depth.yaml`
+adds 20 reviewed rules run by the `opengrep/rules` recipe alongside the core pack: request-data
+taint rules into SQL injection (JS and Python), XSS, SSRF (replacing the regex-only rule the
+brief called out), path traversal, open redirect, and command injection (JS and Python); the
+non-literal-HTML rule graded at least medium; the pattern rules for weak password hashing, JWT
+none/hardcoded secret, insecure cookies, CORS wildcard-with-credentials, Math.random security
+values, logging credential-named variables, browser-side AI SDK construction, and dangerous
+Next.js build flags. Every rule was verified against the pinned binary, including the negative
+cases (a literal-valued sink stays silent). Two engine facts learned and recorded in the pack
+header: opengrep reports each step of a taint flow (one flow can produce several rows), and JSX
+patterns need element context to parse.
+
+**Supabase migration rules (F-06 static half).** `data/migration-inventory` — a recipe DATA-01
+declared before it existed — is implemented as `src/security/migrations.ts`: tables created in an
+exposed schema without RLS (state tracked across the migration sequence), `using (true)` /
+`with check (true)` policies, `grant all`/write verbs to anon or public, `security definer`
+without a fixed `search_path`, public storage buckets, and views without `security_invoker`.
+Statement-shape matching by design: no SQL parser dependency, per the plan.
+
+**F-07's internal rules** landed in the existing quality machinery: swallowed Supabase errors and
+mock/demo data in production paths (vibe-tells), README commands that do not exist in package.json
+scripts (repo-hygiene), and duplicate-role libraries read from package.json when no lockfile
+exists (dependency-health). The self-audit test caught the new rules flagging SecHard's own
+matcher code — comment lines and the rule's own definition line are exempted, and the measured
+result is back to exactly the one recorded, accepted finding.
+
+**F-09 detection fixes.** Payments is enabled by dependency (stripe, @stripe/stripe-js, paddle,
+lemonsqueezy) or by payment-event handling in source, feeding both the payments and webhooks
+features; a detection-exclusion list stops SecHard detecting itself as its fixtures (tests,
+fixtures, examples, and corpora are not the app's stack); and an app that calls AI models with no
+runtime-ai profile composed gets the brief's verbatim gap banner: "This app calls AI models;
+prompt-injection, spend-limit, and model-output safety checks are not covered."
+
+**The zizmor excessive-permissions mystery (F-05's last item) is solved**: the audit is
+persona-gated in zizmor 1.30.1 and the default persona suppresses it. The recipe now runs
+`--persona=auditor`, so `permissions: write-all` surfaces; the trade-off (additional
+auditor-persona findings) is documented in the checkpoint, and inline ignores are still honoured.
+
+**Measured on the Appendix A corpus** (`tests/corpus/independent-nextjs/`, created this batch as
+the calibration fixture): **security seeds 26/26 fire** through `hardening audit` (before: 7/33 at
+f3c9727); quality rows 12/22 with the misses attributed in the checkpoint (per-file reporting caps
+and the four analysers below); profiles on the corpus now include **payments**, and the runtime-AI
+banner appears. Suites after the change: **561 unit**, scanners/integration/example run in this
+push, typecheck (both configs) and lint clean.
+
+**Recorded as this batch's remaining work** (each with the plan's own design in the checkpoint):
+F-07's four staged analysers (jscpd, Lizard, Knip, dependency-cruiser — the A-2 lockfile-pin
+provisioning and A-1 execution-safety marker tests); F-06's splinter licence verdict and the
+read-only live anon-key probe; and F-08's narration-recall improvements with the corpus manifest
+as a permanent measurement test.
+
 ### Fixed — non-git folders and uncommitted files got no secret scan, and quick mode missed keys in current files (F-02 follow-up, 13 October 2026)
 
 The owner's independent auditor re-checked Batch F1 and confirmed F-01/F-15, F-02, and F-03
