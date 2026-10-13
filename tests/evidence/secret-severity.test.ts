@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { annotateSecretFindings, classifySecret, dedupeSecretFindings, splitLocation } from '../../src/evidence/secret-severity.js';
+import { annotateSecretFindings, classifySecret, dedupeSecretFindings, LOCAL_FILE_SECRET_NOTE, splitLocation } from '../../src/evidence/secret-severity.js';
 import type { CheckResult, Finding } from '../../src/domain/types.js';
 
 /**
@@ -83,7 +83,7 @@ describe('annotateSecretFindings: total classification and digest instead of val
   });
 });
 
-describe('dedupeSecretFindings: the same secret is one finding, annotated, not two rows', () => {
+describe('dedupeSecretFindings: the same secret is one finding, annotated, not rows of duplicates', () => {
   const resultFor = (recipe: string, findings: Finding[]): CheckResult =>
     ({
       check_id: `${recipe}:${recipe}`,
@@ -91,8 +91,8 @@ describe('dedupeSecretFindings: the same secret is one finding, annotated, not t
       findings,
     }) as unknown as CheckResult;
 
-  const repositoryFinding: Finding = {
-    id: 'repo-1',
+  const filesFinding: Finding = {
+    id: 'files-1',
     tool: 'gitleaks',
     rule_id: 'jwt',
     severity: 'critical',
@@ -100,7 +100,8 @@ describe('dedupeSecretFindings: the same secret is one finding, annotated, not t
     secret_digest: 'a'.repeat(64),
     detail: 'secret material detected; value redacted',
   };
-  const historyDuplicate: Finding = { ...repositoryFinding, id: 'hist-1', commit: 'c0ffee', detail: 'secret material detected; value redacted' };
+  const repositoryDuplicate: Finding = { ...filesFinding, id: 'repo-1' };
+  const historyDuplicate: Finding = { ...filesFinding, id: 'hist-1', commit: 'c0ffee' };
   const historyOnly: Finding = {
     id: 'hist-2',
     tool: 'gitleaks',
@@ -111,29 +112,83 @@ describe('dedupeSecretFindings: the same secret is one finding, annotated, not t
     commit: 'c0ffee',
   };
 
-  it('drops the duplicate from history and annotates the kept repository finding', () => {
+  it('prefers the current-files scan: repository and history duplicates fold into the files row, with both notes', () => {
     const results = dedupeSecretFindings([
-      resultFor('gitleaks/repository', [repositoryFinding]),
+      resultFor('gitleaks/files', [filesFinding]),
+      resultFor('gitleaks/repository', [repositoryDuplicate]),
       resultFor('gitleaks/history', [historyDuplicate, historyOnly]),
     ]);
-    const history = results.find((result) => result.recipe === 'gitleaks/history');
-    expect(history?.findings?.map((finding) => finding.id)).toEqual(['hist-2']);
-    const repository = results.find((result) => result.recipe === 'gitleaks/repository');
-    expect(repository?.findings?.[0]?.detail).toContain('also present in committed history');
+    expect(results.find((result) => result.recipe === 'gitleaks/repository')?.findings).toEqual([]);
+    expect(results.find((result) => result.recipe === 'gitleaks/history')?.findings?.map((finding) => finding.id)).toEqual(['hist-2']);
+    const files = results.find((result) => result.recipe === 'gitleaks/files');
+    expect(files?.findings).toHaveLength(1);
+    expect(files?.findings?.[0]?.detail).toContain('also present in committed history');
+    expect(files?.findings?.[0]?.detail).toContain("also present in the newest commit's change set");
   });
 
-  it('leaves results alone when there is nothing to fold, and falls back to the line number without a digest', () => {
-    const noRepository = dedupeSecretFindings([resultFor('gitleaks/history', [historyOnly])]);
-    expect(noRepository[0]?.findings).toEqual([historyOnly]);
+  it('keeps the repository row primary for a secret the worktree no longer has, with history folded in', () => {
+    const results = dedupeSecretFindings([
+      resultFor('gitleaks/repository', [repositoryDuplicate]),
+      resultFor('gitleaks/history', [historyDuplicate]),
+    ]);
+    expect(results.find((result) => result.recipe === 'gitleaks/history')?.findings).toEqual([]);
+    const repository = results.find((result) => result.recipe === 'gitleaks/repository');
+    expect(repository?.findings?.[0]?.detail).toContain('also present in committed history');
+    expect(repository?.findings?.[0]?.detail).not.toContain('newest commit');
+  });
 
-    const lineOnly: Finding = { id: 'repo-2', tool: 'gitleaks', rule_id: 'r', severity: 'high', location: 'a.ts:7' };
+  it('restores the committed severity and drops the local-file note when history proves exposure', () => {
+    // Exposure grading (owner decision, 13 October 2026): the recipe grades a secret in an
+    // untracked file medium. When a committed duplicate folds in, the row must go back to the
+    // committed severity and the local-file note must go — it would contradict the history.
+    const localFinding: Finding = {
+      id: 'files-1',
+      tool: 'gitleaks',
+      rule_id: 'jwt',
+      severity: 'medium',
+      title: 'Supabase service-role key in a local file (not committed to git): it bypasses all row-level security',
+      location: '.env.local:1',
+      secret_digest: 'a'.repeat(64),
+      detail: `secret material detected; value redacted; ${LOCAL_FILE_SECRET_NOTE}`,
+    };
+    const historyDuplicate: Finding = {
+      ...localFinding,
+      id: 'hist-1',
+      commit: 'c0ffee',
+      severity: 'critical',
+      title: 'Supabase service-role key exposed: it bypasses all row-level security',
+      detail: 'secret material detected; value redacted',
+    };
+    const results = dedupeSecretFindings([
+      resultFor('gitleaks/files', [localFinding]),
+      resultFor('gitleaks/history', [historyDuplicate]),
+    ]);
+    const merged = results.find((result) => result.recipe === 'gitleaks/files');
+    expect(merged?.findings).toHaveLength(1);
+    expect(merged?.findings?.[0]?.severity).toBe('critical');
+    expect(merged?.findings?.[0]?.title).toBe('Supabase service-role key exposed: it bypasses all row-level security');
+    expect(merged?.findings?.[0]?.detail).not.toContain('local file');
+    expect(merged?.findings?.[0]?.detail).toContain('also present in committed history');
+  });
+
+  it('falls back to the line number without a digest, and leaves unmatched findings alone', () => {
+    const lineOnly: Finding = { id: 'files-2', tool: 'gitleaks', rule_id: 'r', severity: 'high', location: 'a.ts:7' };
+    const lineOnlyRepository: Finding = { ...lineOnly, id: 'repo-2' };
     const lineOnlyHistory: Finding = { ...lineOnly, id: 'hist-3' };
-    const folded = dedupeSecretFindings([resultFor('gitleaks/repository', [lineOnly]), resultFor('gitleaks/history', [lineOnlyHistory])]);
+    const folded = dedupeSecretFindings([
+      resultFor('gitleaks/files', [lineOnly]),
+      resultFor('gitleaks/repository', [lineOnlyRepository]),
+      resultFor('gitleaks/history', [lineOnlyHistory]),
+    ]);
+    expect(folded.find((result) => result.recipe === 'gitleaks/repository')?.findings).toEqual([]);
     expect(folded.find((result) => result.recipe === 'gitleaks/history')?.findings).toEqual([]);
 
     const differentLine: Finding = { ...lineOnlyHistory, location: 'a.ts:8' };
-    const kept = dedupeSecretFindings([resultFor('gitleaks/repository', [lineOnly]), resultFor('gitleaks/history', [differentLine])]);
+    const kept = dedupeSecretFindings([resultFor('gitleaks/files', [lineOnly]), resultFor('gitleaks/history', [differentLine])]);
     expect(kept.find((result) => result.recipe === 'gitleaks/history')?.findings).toEqual([differentLine]);
+
+    const noFiles = dedupeSecretFindings([resultFor('gitleaks/history', [historyOnly])]);
+    expect(noFiles[0]?.findings).toEqual([historyOnly]);
   });
 });
 

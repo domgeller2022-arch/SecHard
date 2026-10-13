@@ -82,18 +82,23 @@ describe('the wired recipes produce real detections through the CLI', () => {
       return (result?.findings ?? []) as { rule_id: string; severity?: string; category?: string; detail?: string }[];
     };
 
-    const repositorySecrets = findingsFor('gitleaks/repository');
-    expect(repositorySecrets.length, 'gitleaks/repository').toBeGreaterThan(0);
-    // One commit of history: every history finding duplicates the repository scan, and F-02 folds
-    // it into the repository finding — one row per secret, with the history noted — instead of
-    // reporting the same secret twice.
+    const filesSecrets = findingsFor('gitleaks/files');
+    expect(filesSecrets.length, 'gitleaks/files').toBeGreaterThan(0);
+    // One commit of history: every repository and history finding duplicates the current-files
+    // scan, and the fold leaves one row per secret on the files scan — with the history and the
+    // newest commit noted — instead of reporting the same secret three times.
+    expect(findingsFor('gitleaks/repository').length, 'gitleaks/repository').toBe(0);
     expect(findingsFor('gitleaks/history').length, 'gitleaks/history').toBe(0);
     expect(
-      repositorySecrets.some((finding) => (finding.detail ?? '').includes('also present in committed history')),
-      JSON.stringify(repositorySecrets),
+      filesSecrets.some((finding) => (finding.detail ?? '').includes('also present in committed history')),
+      JSON.stringify(filesSecrets),
+    ).toBe(true);
+    expect(
+      filesSecrets.every((finding) => (finding.detail ?? '').includes("also present in the newest commit's change set")),
+      JSON.stringify(filesSecrets),
     ).toBe(true);
     // F-02: every secret finding is classified — never `unknown` — with the category marker set.
-    expect(repositorySecrets.every((finding) => finding.severity !== 'unknown' && finding.category === 'secret')).toBe(true);
+    expect(filesSecrets.every((finding) => finding.severity !== 'unknown' && finding.category === 'secret')).toBe(true);
     expect(findingsFor('opengrep/rules').length, 'opengrep/rules').toBeGreaterThan(0);
     expect(findingsFor('zizmor/workflows').length, 'zizmor/workflows').toBeGreaterThan(0);
     expect(findingsFor('osv/lockfile').length, 'osv/lockfile').toBeGreaterThan(0);

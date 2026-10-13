@@ -1,0 +1,44 @@
+# Gitleaks configuration for the current-files secret scan (`gitleaks dir` mode).
+#
+# **Scope: what exists on disk right now.** The product scans (`gitleaks.toml`, git mode) cover
+# committed content and history — they read the repository, not the tree. This config is the F-02
+# follow-up (owner's auditor, 13 October 2026): non-git folders (apps downloaded from Lovable or
+# Bolt) got no secret scan at all, quick mode could not see files committed before the newest
+# commit, and uncommitted or untracked files were never scanned. The `gitleaks/files` recipe runs
+# this config at every audit depth and in gate mode, with or without a git repository, and feeds
+# its findings through the same classifier, de-duplication, and waiver ban as the git scans.
+#
+# **Why a separate file.** Dir mode must skip dependency and build-output directories, or the scan
+# drowns in third-party code nobody can act on. Those exclusions are correct for the working tree
+# but would weaken the git-mode scan — content committed inside them would be silently skipped —
+# so they live here and only here, and the git-mode config stays strict.
+#
+# **Verified behaviour of the pinned binary (8.30.1):** dir mode scans gitignored and untracked
+# files (an ignored `.env` is covered), does not descend into `.git`, and does not follow symlinks.
+# Each exclusion below names a directory; nothing here is a pattern that could swallow real source.
+#
+# `database-url-with-password` must stay identical to the rule in `gitleaks.toml`; a scanner test
+# pins both files so they cannot drift.
+[extend]
+useDefault = true
+
+[[rules]]
+id = "database-url-with-password"
+description = "Database connection string with an embedded password"
+regex = '''(?i)(?:postgres(?:ql)?|mysql|redis|mongodb(?:\+srv)?):\/\/[^:\s\/@]+:[^@\s\/]+@[^\/\s"']{1,200}'''
+keywords = ["postgres", "postgresql", "mysql", "redis", "mongodb"]
+
+[[allowlists]]
+description = "Deliberately vulnerable fixture material, reviewed and non-functional"
+paths = ['''tests/fixtures/scanners/''', '''tests/fixtures/build/''', '''tools/bin/''']
+
+[[allowlists]]
+description = "Dependency and build-output directories: third-party or generated content, not the application's source"
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
+  '''(^|/)dist/''',
+  '''(^|/)build/''',
+  '''(^|/)vendor/''',
+  '''(^|/)\.git/''',
+]

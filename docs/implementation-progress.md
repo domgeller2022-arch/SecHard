@@ -1938,3 +1938,67 @@ Recorded here as a process defect: a run nobody watched is a claim nobody checke
   the unit test now uses a location inside the fixture target.
 - **Checks run locally:** full unit suite (535) and the scanners suite including the audit CLI
   acceptance (32) pass with tools present; the CI run exercises the no-tools branches.
+
+
+---
+
+## F-02 follow-ups — current-files secret scanning (owner's auditor, 2026-10-13)
+
+- **State:** `awaiting_external_verification` (code and local checks complete; `repo-checks` not
+  yet watched — no push without the owner's go-ahead).
+- **Batch:** F1 follow-ups, made a condition for starting F2 by the owner's independent auditor
+  after their re-check of Batch F1. The auditor confirmed F-01/F-15, F-02, and F-03 working and
+  rejected two behaviours as gaps: non-git folders got no secret scan at all, and quick mode /
+  uncommitted files were invisible to every secret scan.
+- **Owner decision received with the commit approval (13 October 2026):** exposure grading — a
+  secret the current-files scan finds in a file git does not track is a local-file risk, graded
+  **medium** with a "local file, keep it out of git and client code" explanation; critical stays
+  for tracked files, git history, and browser output; the fold restores the committed severity
+  when a committed duplicate proves exposure; non-git targets are never downgraded (which keeps
+  the auditor's no-git acceptance intact). Implemented in `gradeLocalFileFinding` +
+  `LOCAL_FILE_SECRET_NOTE` (`src/evidence/secret-severity.ts`), applied in the dir recipe from
+  `git ls-files`, with both cases pinned in one CLI test and the fold restore unit-pinned.
+- **Files changed:** `src/execution/recipes.ts` (new `gitleaks/files` recipe: `gitleaks dir` over
+  the application root, bounded walk for the scope inventory, same classifier boundary),
+  `src/adapters/gitleaks.ts` (optional `appRoot` relativization — dir mode reports absolute paths
+  for absolute targets, and finding ids must be root-relative per F-01/F-15),
+  `src/evidence/secret-severity.ts` (three-way de-duplication: current-files scan primary,
+  repository and history fold into it with notes), `src/commands/run.ts` (comment),
+  `src/audit/report.ts` (working-tree and quick-depth notes state the new coverage),
+  `src/audit/explanations.ts` (plain-English entry for the new rule id), `controls/controls.yaml`
+  (SEC-01 definition version 3: third mixed verification method `gitleaks/files`, acceptance and
+  limitations updated), `ci/configs/gitleaks.toml` (database-URL rule) and
+  `ci/configs/gitleaks-dir.toml` (new: dir-mode config with the machine exclusions that must not
+  weaken the git-mode scan), `controls/matrix.md` and
+  `docs/checkpoints/control-review-sheet.md` (regenerated; also caught up pre-existing drift in
+  the upstream-notices lines), `docs/audit-mode.md` (depth table and the current-files contract),
+  tests (`tests/scanners/audit-cli.test.ts` — updated fold assertions, rewritten owner-query
+  contract, five follow-up acceptance tests including the exposure-grading pair;
+  `tests/scanners/adapters.test.ts` — fingerprint relativization unit;
+  `tests/evidence/secret-severity.test.ts` — three-way fold and the exposure-restore unit;
+  `tests/scanners/recipes-cli.test.ts`, `tests/domain/catalogue.test.ts`), this record, and
+  `CHANGELOG.md`.
+- **Behaviour verified before wiring** (pinned gitleaks 8.30.1): dir mode scans gitignored and
+  untracked files (an ignored `.env` is covered), does not descend into `.git`, does not follow
+  symlinks, and reports absolute paths for an absolute target.
+- **Defects the round's own verification caught:** (1) dir mode embeds the absolute file path in
+  the gitleaks fingerprint, hashed into the finding id and carried as `resource` — an F-01/F-15
+  layout leak through a field that fix had not needed to touch; fixed in the adapter (scan root
+  scrubbed from fingerprints, unit-pinned in `tests/scanners/adapters.test.ts`). (2) The
+  reference-app audit reported its local gitignored `.env.local` (publishable key only, by
+  design) as an informational low row — the scan reading the tree as it exists, correct.
+  (3) Discovered and **recorded, not fixed**: when the target is a subdirectory of a git
+  repository, the osv recipe falls back to the enclosing repository's lockfile and records its
+  absolute path in the result scope — pre-existing on `main`, out-of-root locations are kept
+  as-is by design; belongs with the next batch's audit-scope questions.
+- **Security-relevant changes for owner awareness:** SEC-01 definition version 3 (approval was
+  already unresolved since Batch W; Batch D re-approves); the 12 October "uncommitted files are
+  not reported" statement is deliberately reversed by the auditor's direction; the dir-mode
+  exclusions are config-local so the git-mode scan stays strict.
+- **Checks run:** unit suite, scanners suite (with fetched tools), typecheck, lint, and the
+  auditor's acceptance scenarios through the compiled CLI (`.git` removed, quick depth after two
+  commits, untracked file at every depth, database URL critical, exposure grading both cases).
+  Exact suite counts are recorded in `CHANGELOG.md`.
+- **Next step:** owner reviews, push, `repo-checks` watched to completion, run ID reported; F1 is
+  then recorded complete. **F2 does not start until the owner's auditor re-checks** (owner
+  instruction, 13 October 2026).

@@ -37,6 +37,12 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
     effort: 'S', confidence: 'confirmed',
     promptIntro: 'A GitHub token-shaped string is committed in the source. Revoke it, then remove it from the code and read it from an environment variable instead.',
   },
+  'database-url-with-password': {
+    what: 'A database connection string with the password embedded in it is present in the source or configuration. Anyone who reads the file — a leaked repository, a copied codebase, a build log — can connect to that database directly, with whatever data and privileges that account has.',
+    fix: 'Move the connection string into an environment variable or a secrets manager, rotate the password (it must be treated as exposed), and confirm the database account is not more privileged than the application needs.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A database connection string with an embedded password is committed in the source. Remove the embedded credentials, read the connection string from the environment instead, keep the application connecting successfully, and note that the password must be rotated.',
+  },
   'generic-api-key': {
     what: 'A string that looks like a generic API key or secret is committed in the source. Committed credentials are the most common cause of account takeover: code gets copied, pasted, and shared far beyond where it was written.',
     fix: 'Revoke the credential with its provider, remove it from the source, and load it from an environment variable or a secrets manager. Check git history too: removing it today does not remove it from old commits.',

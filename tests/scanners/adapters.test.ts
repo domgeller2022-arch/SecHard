@@ -119,6 +119,28 @@ describe('gitleaks detects synthetic secrets and accepts the fixed fixture', () 
     expect(parsed.findings[0]?.detail).toMatch(/redacted/);
   });
 
+  it('relativizes absolute file paths and fingerprints against the scan root (dir mode)', () => {
+    // Dir mode pointed at an absolute root reports absolute paths in `File` and embeds them in the
+    // `Fingerprint`. The adapter mints ids from the root-relative form (F-01/F-15): an id that
+    // embeds the auditing host's layout is a leak in every report and unstable across machines.
+    const report = JSON.stringify([
+      {
+        RuleID: 'generic-api-key',
+        Description: 'Generic API key',
+        File: `${REPO}/examples/app/.env.local`,
+        StartLine: 4,
+        Fingerprint: `${REPO}/examples/app/.env.local:generic-api-key:4`,
+        Secret: 'REDACTED',
+      },
+    ]);
+    const parsed = parseGitleaksReport(report, { appRoot: REPO });
+    expect('error' in parsed).toBe(false);
+    if ('error' in parsed) return;
+    expect(parsed.findings[0]?.location).toBe('examples/app/.env.local:4');
+    expect(parsed.findings[0]?.resource).toBe('examples/app/.env.local:generic-api-key:4');
+    expect(JSON.stringify(parsed)).not.toContain(REPO);
+  });
+
   it('treats an unreadable report as an error, not an empty clean scan', () => {
     expect(parseGitleaksReport('')).toMatchObject({ error: expect.stringContaining('empty') });
     expect(parseGitleaksReport('{"not":"an array"}')).toMatchObject({ error: expect.stringContaining('not a JSON array') });

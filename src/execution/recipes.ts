@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parseGitleaksReport } from '../adapters/gitleaks.js';
 import { loadTargetInventory, runHttpChecks } from '../adapters/http.js';
@@ -9,7 +9,7 @@ import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
 import { inspectBrowserAssets } from '../build/client-assets.js';
-import { annotateSecretFindings, splitLocation } from '../evidence/secret-severity.js';
+import { annotateSecretFindings, gradeLocalFileFinding, splitLocation } from '../evidence/secret-severity.js';
 import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
 import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
@@ -108,6 +108,13 @@ function gitOutput(cwd: string, args: readonly string[]): string | undefined {
 
 const worktreeRoot = (appRoot: string): string | undefined => gitOutput(appRoot, ['rev-parse', '--show-toplevel']);
 
+/** The line a `file:line` location points at, trimmed, from the given file content. */
+function lineAt(content: string | undefined, location: string | undefined): string | undefined {
+  const parts = splitLocation(location);
+  if (content === undefined || parts?.line === undefined) return undefined;
+  return content.split('\n')[parts.line - 1]?.trimEnd();
+}
+
 async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<RecipeOutcome> {
   const worktree = worktreeRoot(context.appRoot);
   if (worktree === undefined) {
@@ -154,11 +161,6 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
   // redacted report: the repository scan reads the worktree, the history scan reads the finding's
   // own commit and falls back to the worktree when the secret survived to HEAD. Values are never
   // stored — only their digest is recorded — so no secret material is written anywhere by this.
-  const lineAt = (content: string | undefined, location: string | undefined): string | undefined => {
-    const parts = splitLocation(location);
-    if (content === undefined || parts?.line === undefined) return undefined;
-    return content.split('\n')[parts.line - 1]?.trimEnd();
-  };
   const annotated = annotateSecretFindings(parsed.findings, (finding) => {
     const parts = splitLocation(finding.location);
     if (parts === undefined) return undefined;
@@ -189,6 +191,137 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
 }
 
 const LOCKFILE_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'npm-shrinkwrap.json', 'requirements.txt', 'go.mod', 'Cargo.lock', 'composer.lock'] as const;
+
+/**
+ * The directories the current-files scan never descends into. This is the audit's own exclusion
+ * list (F-02 follow-up, owner's auditor 13 October 2026): dependency and build-output directories
+ * hold third-party or generated content nobody can remediate. It must stay in step with the
+ * machine-dir allowlist in `ci/configs/gitleaks-dir.toml`, which is what actually bounds the scan;
+ * this walk only records the honest scope inventory.
+ */
+const DIR_SCAN_EXCLUDED_DIRS: ReadonlySet<string> = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'vendor']);
+const MAX_DIR_WALK_DEPTH = 8;
+
+/** Bounded, read-only walk of the current tree, mirroring the dir config's exclusions. */
+function currentFilesWalk(root: string): string[] {
+  const files: string[] = [];
+  const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
+  while (queue.length > 0 && files.length < MAX_FILES_RECORDED) {
+    const { dir, depth } = queue.shift() as { dir: string; depth: number };
+    let entries: readonly string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const entry of [...entries].sort()) {
+      if (files.length >= MAX_FILES_RECORDED) break;
+      if (DIR_SCAN_EXCLUDED_DIRS.has(entry)) continue;
+      const full = join(dir, entry);
+      let isDirectory = false;
+      try {
+        isDirectory = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (isDirectory) {
+        if (depth < MAX_DIR_WALK_DEPTH) queue.push({ dir: full, depth: depth + 1 });
+        continue;
+      }
+      files.push(relative(root, full));
+    }
+  }
+  return files;
+}
+
+/**
+ * The current-files secret scan (F-02 follow-up, owner's auditor 13 October 2026): `gitleaks dir`
+ * over the application root, whatever the target is. The git-mode scans read committed content
+ * and history — a folder that is not a git repository got no secret scan at all, quick mode could
+ * not see files committed before the newest commit, and uncommitted or untracked files were never
+ * scanned. This recipe runs at every depth, with or without git, and its findings go through the
+ * same classifier, de-duplication, and waiver ban as the git scans.
+ */
+async function runGitleaksDir(context: RecipeContext): Promise<RecipeOutcome> {
+  const files = currentFilesWalk(context.appRoot);
+  mkdirSync(context.rawDir, { recursive: true });
+  const reportPath = join(context.rawDir, 'gitleaks-files.json');
+  const args = [
+    'dir',
+    context.appRoot,
+    '--report-format', 'json',
+    '--report-path', reportPath,
+    '--no-banner',
+    '--redact',
+    '--exit-code', '0',
+    '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks-dir.toml'),
+  ];
+
+  const run = await runTool('gitleaks', args, { cwd: context.appRoot, timeoutMs: 600_000 });
+  if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
+  if (run.outcome.exitCode !== 0) {
+    return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(reportPath, 'utf8');
+  } catch {
+    return errored(`gitleaks did not write a report to ${reportPath}`);
+  }
+
+  const parsed = parseGitleaksReport(raw, {
+    stderr: run.outcome.stderr,
+    intendedScope: files.slice(0, MAX_FILES_RECORDED),
+    // Dir mode was pointed at an absolute root, so gitleaks reports absolute paths; the adapter
+    // relativizes them before ids and locations are minted (F-01/F-15).
+    appRoot: context.appRoot,
+  });
+  if ('error' in parsed) return errored(`${parsed.error}; the raw report digest is ${digestOf(raw).slice(0, 12)}…`);
+
+  // Classification (F-02), same boundary as the git scans: the matched text is read from the
+  // current file, never from the redacted report, and only the digest is recorded.
+  const annotated = annotateSecretFindings(parsed.findings, (finding) => {
+    const parts = splitLocation(finding.location);
+    if (parts === undefined) return undefined;
+    try {
+      return lineAt(readFileSync(join(context.appRoot, parts.file), 'utf8'), finding.location);
+    } catch {
+      return undefined;
+    }
+  });
+
+  // Exposure grading (owner decision with the F-02 follow-up, 13 October 2026): inside a git
+  // repository, a secret in a file git does not track is a local-file risk, not an exposed one —
+  // graded medium with the "keep it out of git and client code" explanation. Critical stays for
+  // tracked files; the fold restores it when a committed duplicate proves the secret reached
+  // history. A target with no git at all is never downgraded: nothing there is tracked or
+  // committed, so the tree is the whole truth and the classifier's grade stands. When trackedness
+  // cannot be determined, nothing is downgraded — the safe direction is to keep the severity.
+  const isGitWorktree = worktreeRoot(context.appRoot) !== undefined;
+  const trackedListing = isGitWorktree ? gitOutput(context.appRoot, ['ls-files']) : undefined;
+  const tracked = trackedListing === undefined
+    ? undefined
+    : new Set(trackedListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
+  const graded = tracked === undefined
+    ? annotated
+    : annotated.map((finding) => {
+        const parts = splitLocation(finding.location);
+        return parts !== undefined && !tracked.has(parts.file) ? gradeLocalFileFinding(finding) : finding;
+      });
+
+  return {
+    outcome: 'pass',
+    coverage: parsed.coverage,
+    observed: files.length,
+    files: files.slice(0, MAX_FILES_RECORDED),
+    findings: graded,
+    tool: toolIdentity('gitleaks'),
+    reportPath,
+    reportDigest: digestOf(raw),
+    ...(parsed.parserErrors.length === 0 ? {} : { diagnostic: parsed.parserErrors.join('; ') }),
+  };
+}
 
 function findLockfile(root: string): string | undefined {
   for (const name of LOCKFILE_NAMES) {
@@ -486,6 +619,7 @@ function qualityOutcome(toolName: string, findings: readonly Finding[], observed
 }
 
 export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
+  'gitleaks/files': runGitleaksDir,
   'gitleaks/repository': (context) => runGitleaks(context, true),
   'gitleaks/history': (context) => runGitleaks(context, false),
   'osv/lockfile': runOsv,

@@ -310,20 +310,26 @@ controls:
 
   - id: SEC-01
     schema_version: control/v1
-    definition_version: 2
+    definition_version: 3
     review_status: owner_reviewed
     reviewed_by: "owner"
     reviewed_at: "2026-10-07T00:00:00Z"
     title: Secret detection
     purpose: >-
-      Find credentials committed to the repository, including in history, before they are used.
+      Find credentials committed to the repository, including in history, and credentials sitting
+      in the current working tree — committed or not — before they are used.
     applicability: { rule: always }
     acceptance:
-      - Repository and change scans run with valid scope and a fresh tool version
+      - Repository, change, and current-file scans run with valid scope and a fresh tool version
+      - The current working-tree files are scanned at every depth, whether or not the target is a
+        git repository, so uncommitted and untracked credentials are reported
       - Initial history is reviewed, with shallow-clone limitations recorded
       - Findings are resolved or explicitly assessed; unknown severity stays visible
       - Secret material is redacted in all emitted output
     verification:
+      - method: secret_scan
+        recipe: gitleaks/files
+        coverage: mixed
       - method: secret_scan
         recipe: gitleaks/repository
         coverage: mixed
@@ -334,10 +340,13 @@ controls:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
       - Gitleaks reports bytes examined, not the files it read, so per-file coverage cannot be
-        attested. The repository inventory is recorded as a compensating scope; the recipe is
-        classified `mixed` for that reason.
+        attested. The scanned-file inventories (tracked files for the git scans, the bounded
+        working-tree walk for the current-files scan) are recorded as compensating scope; the
+        recipes are classified `mixed` for that reason.
       - Shallow clones limit history coverage and the limitation must be recorded
       - Detection is pattern based; absence of findings is not proof of absence
+      - The current-files scan covers the working tree as it exists, including uncommitted and
+        untracked files, but cannot see content that exists only in history
       - A verified leak still requires credential rotation, not only removal from the commit
     owner_role: repository-owner
     reassessment_triggers:

@@ -13,6 +13,96 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Fixed — non-git folders and uncommitted files got no secret scan, and quick mode missed keys in current files (F-02 follow-up, 13 October 2026)
+
+The owner's independent auditor re-checked Batch F1 and confirmed F-01/F-15, F-02, and F-03
+working on their own machines (the CI run, the classified top-two secrets, the console.log fix,
+the relative paths, and the ten replaced test assertions, each equal or stronger), then rejected
+two behaviours as gaps rather than acceptable limits: a folder that is not a git repository got
+**no secret scan at all** (zero critical findings for an app whose `.git` had been removed — the
+shape of apps downloaded from Lovable or Bolt), and quick mode missed keys sitting in current
+files committed before the newest commit, while uncommitted and untracked files were scanned by
+nothing at any depth. The auditor's requirement: a security audit has to scan the files as they
+currently exist, every time. The two F1 follow-ups below were made a condition for starting F2,
+and the database-URL rule answers the auditor's smaller item (the `.env` database password).
+
+**The current-files secret scan (`gitleaks/files`).** A new recipe runs `gitleaks dir` over the
+application root at every audit depth and in gate mode, with or without a git repository, using a
+dedicated config (`ci/configs/gitleaks-dir.toml`). Its findings go through the same classifier,
+the same de-duplication, and the same waiver ban as the git scans. Its machine exclusions
+(`node_modules`, `.next`, `dist`, `build`, `vendor`, `.git`) live in that config and only there:
+applying them to the git-mode config would let a secret committed inside such a directory pass
+unreported, which is a loosening the pack does not make. The pinned binary's behaviour was
+verified before wiring: dir mode scans gitignored and untracked files (an ignored `.env` is
+covered), does not descend into `.git`, and does not follow symlinks. Dir mode reports absolute
+paths when pointed at an absolute root, so the adapter now relativizes file paths against the
+scan root before minting finding ids — the F-01/F-15 rule that adapters mint ids from the
+root-relative form, applied where it had not yet been needed. The recipe records its scanned
+inventory from a bounded walk of the same exclusions, so the scope statement stays honest.
+
+**De-duplication is now three-way.** The same secret found by the current-files scan, the
+repository scan, and the history scan is one row, kept on the current-files scan — the evidence
+about the present state — with the other scans' occurrences noted ("also present in committed
+history", "also present in the newest commit's change set: the secret is committed, not only on
+disk"). A secret the worktree no longer has keeps the repository row as its primary when the
+newest commit carries it, and stays a history row when neither current scan can see it; where the
+current-files scan has no finding, the old fold's behaviour is unchanged.
+
+**Database URLs with embedded passwords are now found and graded critical.** The default rules
+miss the test app's `.env` database password. A reviewed rule (`database-url-with-password`) in
+both gitleaks configs matches `postgres://user:pass@…` and its mysql/redis/mongodb siblings; the
+F-02 classifier already graded such a match critical, so detection was the gap. A scanner test
+pins the two config copies so the rule cannot drift.
+
+**SEC-01 (definition version 3)** declares the current-files scan as a third mixed verification
+method, so every plan now carries its tool check and its manual companion. The definition edit
+leaves SEC-01's approval unresolved — it already was since Batch W — and the catalogue test
+records the reason; release evaluation blocks on it until Batch D re-approves the sheet.
+
+**The working-tree statement is reversed, deliberately.** The 12 October owner-query contract —
+"credentials in uncommitted or untracked files are not reported" — is what the auditor rejected;
+the report now states that the current-files scan covers uncommitted and untracked files, the
+quick-depth note says that scan still runs at every depth, and the old test was rewritten to pin
+the new behaviour rather than the exclusion.
+
+**Exposure is graded by where the secret lives (owner decision, 13 October 2026).** Inside a git
+repository, a secret found by the current-files scan in a file git does not track — a gitignored
+or untracked local file such as `.env.local` — is not exposed through the repository: it is
+graded **medium** with a "local file, keep it out of git and client code" explanation, and its
+title no longer claims the credential is exposed. Critical stays for secrets in tracked files,
+committed history, or browser output; when a committed duplicate folds in, the row takes the
+committed severity back and the local-file note is dropped — it would contradict the history it
+merged with (unit-pinned). A target with no git at all is never downgraded, which keeps the
+auditor's acceptance intact: the same app with `.git` removed still leads with its two critical
+findings. Both cases are pinned in one test: the tracked `.env` row critical, the gitignored
+`.env.local` row medium.
+
+**Two defects the round's own verification caught, one fixed here.** The reference-application
+audit — the one in-repo target the new scan reads as a real tree — showed dir mode embedding the
+absolute file path in the gitleaks *fingerprint*, which is hashed into the finding id and carried
+as the finding's `resource`: an F-01/F-15 layout leak through a field that fix had not needed to
+touch. The adapter now scrubs the scan root from fingerprints (unit-pinned). The same run showed
+the scan reporting the reference app's local, gitignored `.env.local` — generated by
+`env:sync`, publishable key only by design — as the informational low row it is: the scan reading
+the tree as it exists, working as intended. Discovered and recorded rather than fixed here: when
+the audited target is a subdirectory of a git repository, the osv recipe falls back to the
+enclosing repository's lockfile and records its **absolute** path in the result scope —
+pre-existing behaviour on `main` (out-of-root locations are kept as-is by the relativization
+rule), surfaced by the same run; it belongs with the audit-scope questions of the next batch.
+
+**Acceptance, all executed** (the auditor's list, through the compiled CLI on the test app): with
+`.git` removed, the service-role key and the Stripe live key are the top two critical findings,
+one row each, from the current-files scan, while the git scans state why they cannot run; with
+two unrelated commits on top and `--depth quick`, the same two keys are still the top two
+critical findings (the head scan is blind to the older commits; the current-files scan is not);
+an uncommitted, untracked file containing a key is reported at quick, standard, and deep depth —
+graded medium as a local file per the owner's exposure rule, while committed and tracked secrets
+stay critical — with the history scan's duplicates folded into one row; and a `.env` database URL
+with an embedded password is reported critical by the new rule. Suites after the change: **559
+unit + 8 integration + 42 scanner + 5 example tests**, typecheck and lint clean. `repo-checks`
+has not yet been watched for this change (no push without the owner's go-ahead, per the work
+rules); F1 is recorded complete once these pass on CI, and F2 then has the auditor's go-ahead.
+
 ### Fixed — "mixed" controls passed on partial tool output with no manual evidence (follow-up fix brief F-03, 12 October 2026)
 
 Follow-up-remediation Batch F1, item F-03; the last item of the batch. Probe M1 reproduced it:

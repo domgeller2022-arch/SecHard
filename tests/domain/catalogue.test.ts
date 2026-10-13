@@ -81,8 +81,9 @@ describe('control catalogue', () => {
     expect(policy.value?.approvals).toHaveLength(35);
     const states = resolveApprovals(controls, policy.value?.approvals ?? [], new Date());
     // Definition edits invalidate approvals by design: the digest is over the definition as
-    // reviewed, so content that changed since approval stops resolving. Three batches did that
-    // deliberately: Batch W changed SEC-01 (mixed coverage), Batch Q and Batch S added the
+    // reviewed, so content that changed since approval stops resolving. Four batches did that
+    // deliberately: Batch W changed SEC-01 (mixed coverage) and the F-02 follow-up changed it
+    // again (the current-files scan, definition version 3), Batch Q and Batch S added the
     // quality controls and AUTH-03, and Batch S added WSTG citations and cheat-sheet references
     // to fourteen v1 definitions (AUTH-01/02, AUTHZ-01..03, DATA-01, WEB-01, ABUSE-01, BIZ-01,
     // AGT-03, DEP-02, REL-02, EXC-01, QUAL-01) - a citation is reviewable content. Release

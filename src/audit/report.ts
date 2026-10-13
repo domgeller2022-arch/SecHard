@@ -270,17 +270,18 @@ function couldNotCheck(input: AuditReportInput): string[] {
   }
   items.push(...manualObligations);
 
-  // The secret scans run in git mode: they cover committed content and history, never the working
-  // tree. When the tree has uncommitted changes, say so — an unstated exclusion is how a secret
-  // sitting in an uncommitted file goes unnoticed while the report implies the scans looked.
+  // The secret scans cover three things since the F-02 follow-up: the current working tree
+  // (committed or not — the `gitleaks/files` scan runs at every depth), the newest commit's
+  // change set, and committed history. The one honest caveat left is that the git-mode scans see
+  // only committed content; the current-files scan is what covers an uncommitted tree.
   if (input.plan.inputs.source_dirty === true) {
     items.push(
-      'WORKING TREE: this audit ran against a tree with uncommitted changes. The secret scans cover committed content and history only; credentials in uncommitted or untracked files are not reported by them',
+      'WORKING TREE: this audit ran against a tree with uncommitted changes. The current-files secret scan covers uncommitted and untracked files; the git-mode scans cover committed content and history only',
     );
   }
 
   if (input.depth === 'quick') {
-    items.push('DEPTH: quick mode does not run the git-history secret scan, the browser-bundle inspection, or live HTTP checks; rerun without --depth quick for those');
+    items.push('DEPTH: quick mode does not run the git-history secret scan, the browser-bundle inspection, or live HTTP checks; the current-files secret scan still runs at every depth. Rerun without --depth quick for the full set');
   }
   if (input.depth === 'deep') {
     items.push('DEPTH: deep mode runs the same set as standard in this build. Deeper work (executing the application\'s own build and tests, exposure probes) requires the audit isolation model and is not implemented; it is refused rather than silently run');

@@ -85,6 +85,41 @@ export function splitLocation(location: string | undefined): { readonly file: st
 }
 
 /**
+ * Exposure grading for the current-files scan (owner decision with the F-02 follow-up, 13 October
+ * 2026): a secret in a file git does not track is not exposed through the repository. It is a
+ * local-file risk — medium — because the danger is that the file gets committed or shipped, not
+ * that the credential is already readable from history. Critical stays for secrets in tracked
+ * files, committed history, or browser output; the fold restores it when a committed duplicate
+ * proves the secret reached the repository.
+ */
+export const LOCAL_FILE_SECRET_NOTE = 'local file, keep it out of git and client code (git does not track this file, so the secret is not exposed through the repository)';
+
+const LOCAL_FILE_TITLE_MARKER = 'in a local file (not committed to git)';
+
+function localFileTitle(title: string | undefined): string {
+  return title !== undefined && title.includes(' exposed')
+    ? title.replace(' exposed', ` ${LOCAL_FILE_TITLE_MARKER}`)
+    : `Credential material ${LOCAL_FILE_TITLE_MARKER}: keep it out of git and client code`;
+}
+
+/** Grades one current-files finding whose file git does not track: critical/high become medium. */
+export function gradeLocalFileFinding(finding: Finding): Finding {
+  if (finding.severity !== 'critical' && finding.severity !== 'high') return finding;
+  return {
+    ...finding,
+    severity: 'medium',
+    title: localFileTitle(finding.title),
+    detail: `${finding.detail ?? ''}; ${LOCAL_FILE_SECRET_NOTE}`,
+  };
+}
+
+const SEVERITY_RANK: Readonly<Record<string, number>> = { unknown: 0, low: 1, medium: 2, high: 3, critical: 4 };
+
+function higherSeverity(a: Finding['severity'], b: Finding['severity']): Finding['severity'] {
+  return (SEVERITY_RANK[a] ?? 0) >= (SEVERITY_RANK[b] ?? 0) ? a : b;
+}
+
+/**
  * Classifies every finding and records the digest of the matched line (when the reader can
  * produce it). The category marker is what the evaluator's waiver ban keys on, so it is set here,
  * the one place secret findings are post-processed.
@@ -107,47 +142,119 @@ export function annotateSecretFindings(
 }
 
 /**
- * The same secret found by both the repository scan (HEAD) and the history scan is one finding,
- * not two: it is kept once, preferring the repository scan, and noted as also present in
- * committed history. The key is rule + file + the digest of the matched line, falling back to
- * the line number when the value could not be read; without either, the finding is left alone
- * rather than guessed at.
+ * The same secret found by more than one scan is one finding, not duplicate rows. Three scans can
+ * report the same credential (F-02 follow-up, owner's auditor 13 October 2026):
+ *
+ * - `gitleaks/files` — what exists on disk right now. **The primary**, because it is the evidence
+ *   about the present state and the only scan that runs at every depth, on every target.
+ * - `gitleaks/repository` — the newest commit's change set. Folds into the files finding when both
+ *   saw the same secret; it stays a row of its own when the worktree no longer has the secret.
+ * - `gitleaks/history` — everything ever committed. Folds into whichever current scan found the
+ *   secret; when neither did (removed from the worktree, absent from the newest commit's change
+ *   set), the history finding is the row, as before.
  */
 export function dedupeSecretFindings(results: readonly CheckResult[]): CheckResult[] {
-  const repositoryFindingIdByKey = new Map<string, string>();
-  for (const result of results) {
-    if (result.recipe !== 'gitleaks/repository') continue;
-    for (const finding of result.findings ?? []) {
-      const key = dedupeKey(finding);
-      if (key !== undefined) repositoryFindingIdByKey.set(key, finding.id);
+  const keyCache = new Map<'gitleaks/files' | 'gitleaks/repository', Map<string, string>>();
+  const findingIdsByKey = (recipe: 'gitleaks/files' | 'gitleaks/repository'): Map<string, string> => {
+    let map = keyCache.get(recipe);
+    if (map === undefined) {
+      map = new Map<string, string>();
+      keyCache.set(recipe, map);
+      for (const result of results) {
+        if (result.recipe !== recipe) continue;
+        for (const finding of result.findings ?? []) {
+          const key = dedupeKey(finding);
+          if (key !== undefined) map.set(key, finding.id);
+        }
+      }
     }
-  }
-  if (repositoryFindingIdByKey.size === 0) return [...results];
+    return map;
+  };
 
-  const historyCountByRepositoryFinding = new Map<string, number>();
-  const intermediate = results.map((result) => {
+  // History duplicates fold into the most current scan that reported the secret.
+  const historyCountByFinding = new Map<string, number>();
+  const committedSeverityByFinding = new Map<string, Finding['severity']>();
+  const committedTitleByFinding = new Map<string, string>();
+  const afterHistory = results.map((result) => {
     if (result.recipe !== 'gitleaks/history') return result;
     const findings = result.findings ?? [];
     const kept = findings.filter((finding) => {
       const key = dedupeKey(finding);
-      const duplicateOf = key === undefined ? undefined : repositoryFindingIdByKey.get(key);
+      if (key === undefined) return true;
+      const duplicateOf = findingIdsByKey('gitleaks/files').get(key) ?? findingIdsByKey('gitleaks/repository').get(key);
       if (duplicateOf === undefined) return true;
-      historyCountByRepositoryFinding.set(duplicateOf, (historyCountByRepositoryFinding.get(duplicateOf) ?? 0) + 1);
+      historyCountByFinding.set(duplicateOf, (historyCountByFinding.get(duplicateOf) ?? 0) + 1);
+      committedSeverityByFinding.set(duplicateOf, higherSeverity(committedSeverityByFinding.get(duplicateOf) ?? 'low', finding.severity));
+      if (finding.title !== undefined) committedTitleByFinding.set(duplicateOf, finding.title);
       return false;
     });
     return kept.length === findings.length ? result : { ...result, findings: kept };
   });
-  if (historyCountByRepositoryFinding.size === 0) return intermediate;
 
-  return intermediate.map((result) => {
+  // Repository duplicates fold into the files finding when both saw the same current secret.
+  const repositoryCountByFilesFinding = new Map<string, number>();
+  const afterRepository = afterHistory.map((result) => {
     if (result.recipe !== 'gitleaks/repository') return result;
+    const findings = result.findings ?? [];
+    const kept = findings.filter((finding) => {
+      const key = dedupeKey(finding);
+      const filesId = key === undefined ? undefined : findingIdsByKey('gitleaks/files').get(key);
+      if (filesId === undefined) return true;
+      repositoryCountByFilesFinding.set(filesId, (repositoryCountByFilesFinding.get(filesId) ?? 0) + 1);
+      committedSeverityByFinding.set(filesId, higherSeverity(committedSeverityByFinding.get(filesId) ?? 'low', finding.severity));
+      if (finding.title !== undefined) committedTitleByFinding.set(filesId, finding.title);
+      return false;
+    });
+    return kept.length === findings.length ? result : { ...result, findings: kept };
+  });
+
+  if (historyCountByFinding.size === 0 && repositoryCountByFilesFinding.size === 0) return afterRepository;
+
+  const historyNote = (count: number): string =>
+    `also present in committed history (${String(count)} history occurrence(s)); removing it from the worktree does not remove it from the repository`;
+  const repositoryNote = "also present in the newest commit's change set: the secret is committed, not only on disk";
+
+  return afterRepository.map((result) => {
+    if (result.recipe !== 'gitleaks/files' && result.recipe !== 'gitleaks/repository') return result;
     return {
       ...result,
       findings: (result.findings ?? []).map((finding) => {
-        const historyCount = historyCountByRepositoryFinding.get(finding.id);
-        if (historyCount === undefined) return finding;
-        const note = `also present in committed history (${String(historyCount)} history occurrence(s)); removing it from the worktree does not remove it from the repository`;
-        return { ...finding, detail: finding.detail === undefined ? note : `${finding.detail}; ${note}` };
+        const notes: string[] = [];
+        const historyCount = historyCountByFinding.get(finding.id);
+        if (historyCount !== undefined) notes.push(historyNote(historyCount));
+        if (repositoryCountByFilesFinding.has(finding.id)) notes.push(repositoryNote);
+        // Committed evidence proves exposure: restore the committed severity and title and drop
+        // the local-file grading note — it would contradict the history it is being merged with.
+        const committedSeverity = committedSeverityByFinding.get(finding.id);
+        const hasCommittedEvidence = historyCount !== undefined || repositoryCountByFilesFinding.has(finding.id);
+        const detail = hasCommittedEvidence && finding.detail !== undefined && finding.detail.includes(LOCAL_FILE_SECRET_NOTE)
+          ? finding.detail.replace(`; ${LOCAL_FILE_SECRET_NOTE}`, '')
+          : finding.detail;
+        const severity = committedSeverity === undefined ? finding.severity : higherSeverity(finding.severity, committedSeverity);
+        const restoredTitle =
+          hasCommittedEvidence && finding.title?.includes(LOCAL_FILE_TITLE_MARKER) === true
+            ? committedTitleByFinding.get(finding.id)
+            : undefined;
+        if (
+          notes.length === 0 &&
+          detail === finding.detail &&
+          severity === finding.severity &&
+          (restoredTitle === undefined || restoredTitle === finding.title)
+        ) {
+          return finding;
+        }
+        const note = notes.join('; ');
+        const mergedDetail = note === ''
+          ? (detail ?? finding.detail)
+          : detail === undefined
+            ? note
+            : `${detail}; ${note}`;
+        return {
+          ...finding,
+          severity,
+          ...(mergedDetail === finding.detail ? {} : { detail: mergedDetail }),
+          ...(restoredTitle === undefined || restoredTitle === finding.title ? {} : { title: restoredTitle }),
+        };
       }),
     };
   });

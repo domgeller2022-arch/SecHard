@@ -111,8 +111,9 @@ just the commit.
 
 - The loader, planning, and pure evaluation engine (identity, freshness, scope, fixtures, approvals,
   exceptions, manual evidence).
-- **`hardening check` runs real recipes**: gitleaks (repository and history), osv-scanner,
-  opengrep, zizmor, the client-bundle secret classifier, and the guarded live HTTP checks. Each raw
+- **`hardening check` runs real recipes**: gitleaks (current files, repository, and history),
+  osv-scanner, opengrep, zizmor, the client-bundle secret classifier, and the guarded live HTTP
+  checks. Each raw
   report is stored with a digest, a missing tool is an error with the registry's reason, and a
   recipe that does not apply is `unsupported` with its reason — never a pass.
 - Four scanner adapters with pinned, digest-verified tools, exercised against vulnerable and fixed

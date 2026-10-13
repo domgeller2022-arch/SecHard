@@ -302,9 +302,9 @@ export async function checkCommand(
     return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date(), paths.appRoot);
   });
 
-  // The repository and history scans report the same committed secret (F-02): it is one finding,
-  // kept once — preferring the repository scan — and noted as also present in history, not two
-  // duplicate rows ranked below workflow hygiene.
+  // The three secret scans (current files, repository, history — F-02 and its follow-up) report
+  // the same committed secret as one finding, not duplicate rows: kept once, preferring the
+  // current-files scan, with the other scans' occurrences noted on the kept row.
   const results = dedupeSecretFindings(rawResults);
 
   // The CLI contract (02-implementation-plan): 0 satisfied, 1 blocked by unmet required work, 2 on

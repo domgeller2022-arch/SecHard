@@ -49,9 +49,25 @@ each audit and requires the digests to be identical.
 
 | Depth | What runs | What it never does |
 | --- | --- | --- |
-| `quick` | static scanners: gitleaks repository (head), osv-scanner, opengrep, zizmor | no history scan, no client-bundle inspection, no live checks (each reports `unsupported` with the stated reason, never a silent skip) |
+| `quick` | static scanners: the current-files secret scan, gitleaks repository (head), osv-scanner, opengrep, zizmor | no history scan, no client-bundle inspection, no live checks (each reports `unsupported` with the stated reason, never a silent skip) |
 | `standard` (default) | everything quick, plus the full git-history secret scan, client-bundle inspection when build output exists, and live HTTP when `--url` is supplied | never executes application code |
 | `deep` | the same set as `standard` in this build | deeper work — executing the application's own build and tests, live exposure probes — requires the audit isolation model (below) and is refused, with the report saying so |
+
+The current-files secret scan (`gitleaks/files`, F-02 follow-up, owner's auditor 13 October 2026)
+runs at **every** depth and needs no git repository: it scans the tree as it currently exists —
+tracked, uncommitted, and untracked files alike — through the same classifier, de-duplication, and
+waiver ban as the git-mode scans. A folder that is not a git repository (an app downloaded from
+Lovable or Bolt) therefore still gets its secret scan, and secrets committed before the newest
+commit are still reported at quick depth. What it cannot see is content that exists only in
+history; that stays the history scan's job at standard depth and above.
+
+Exposure is graded by where the secret lives (owner decision, 13 October 2026): inside a git
+repository, a secret in a file git does not track — a gitignored or untracked local file such as
+`.env.local` — is not exposed through the repository and is graded **medium** with a "local file,
+keep it out of git and client code" explanation. Critical stays for secrets in tracked files,
+committed history, or browser output; when a committed duplicate proves the same secret reached
+the repository, the fold restores the committed severity. A target with no git at all is never
+downgraded: nothing there is tracked or committed, so the tree is the whole truth.
 
 ## Application code is never executed (gap D1)
 
