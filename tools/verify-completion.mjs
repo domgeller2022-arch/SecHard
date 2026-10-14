@@ -11,7 +11,7 @@
 // Bounds: reads are byte-limited at open time (never buffer-unbounded), traversal covers arrays
 // with a depth budget, evidence/test references are confined under the repository root (no
 // traversal, no symlinks, regular files only), and every failure is a structured diagnostic.
-const IMMUTABLE_CHANGELOG_SHA256 = '858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc';
+const IMMUTABLE_CHANGELOG_SHA256 = '18a37123aeba715d607318c0c458aaf6b914599ea91da929a815026fff9b602e'; // 15 Oct: superseded from 858bb9cf by owner instruction (decision p0_d_02)
 const MAX_LEDGER_BYTES = 512 * 1024;
 const MAX_MATRIX_BYTES = 512 * 1024;
 const MAX_CHANGELOG_BYTES = 2 * 1024 * 1024;

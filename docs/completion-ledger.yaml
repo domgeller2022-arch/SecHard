@@ -9,27 +9,16 @@ plan_authority:
 decisions:
   p0_d_01_changelog_authority_location:
     owner_instruction_verbatim: "ensure you state that in the changelog so every session you are aware that you are not to deviate from this plan"
-    resolution: "Auditor correction (14 Oct, review of 1406851): the changelog stays frozen at the immutable hash; plan authority lives in this ledger and living documents."
-    changelog_sha256_frozen: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
+    resolution: "Auditor correction (14 Oct, review of 1406851): the changelog stays frozen at the immutable hash; plan authority lives in this ledger and living documents. Superseded on 15 Oct by p0_d_02 (the owner explicitly authorised a changelog entry)."
+    changelog_sha256_audited: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
+  p0_d_02_pause_record_authorized:
+    owner_instruction_verbatim: "update github and changelog. we will pause here for now once you do what ive asked."
+    resolution: "A single changelog entry recording the governing plan and the pause state; the integrity test and verifier constants updated to the new hash in the same change; historical bytes unchanged below the entry."
+    changelog_sha256_after_entry: "18a37123aeba715d607318c0c458aaf6b914599ea91da929a815026fff9b602e"
 baseline:
   start_commit: "8e54847"
   branch: "completion/p0-comprehensive"
-  changelog_sha256_frozen: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
-p0_1:
-  state: done
-  evidence:
-    - docs/evidence/p0-1-environment.md
-    - docs/evidence/p0-1-appendix-c-hashes.md
-    - tests/commands/changelog-integrity.test.ts
-    - tools/verify-completion.mjs
-    - tests/completion/acceptance-matrix.yaml
-p0_2:
-  state: done
-  evidence:
-    - docs/completion-ledger.yaml
-    - docs/evidence/p0-2-classification-check.md
-  remaining:
-    - "Appendix B closure classification: assign every unimplemented recipe to a subphase (beyond this subphase/AC enumeration)"
+  changelog_sha256_frozen: "18a37123aeba715d607318c0c458aaf6b914599ea91da929a815026fff9b602e"
 subphases:
   p0_1:
     title: "Repository and source snapshot"

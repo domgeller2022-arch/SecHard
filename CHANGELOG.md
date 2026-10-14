@@ -13,6 +13,33 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Programme state — comprehensive completion plan is the governing authority (owner instruction, updated 15 October 2026)
+
+By the owner's explicit instructions (14 and 15 October 2026):
+`2026-10-14-SecHard-comprehensive-completion-plan.md` is the sole governing document for all
+remaining work — 13 phases / 55 subphases, closure map, acceptance scenarios, decision register,
+handoff checklist. No session may deviate from it or create a competing one.
+
+This entry is authorised by the owner's 15 October instruction ("update ... changelog"). It
+records the pause point of the programme; the historical entries below (frozen at
+`858bb9cf…` during the full-audit remediation) are unchanged. Progress at the pause, tracked with
+evidence in `docs/completion-ledger.yaml`:
+
+- **P0 complete** (verified): repository/asset snapshot + Appendix C input hashes; the full
+  inventory — 55 subphases, 47 acceptance scenarios, 106 closure rows (all 32 audit findings,
+  all 17 fix-brief items, 40 currently unimplemented recipes, each with its owning subphase);
+  the classification cross-checked against the live RECIPES map.
+- **P1.1, P1.2, P1.3 complete** (verified): the gitleaks child-Git marker regression (helpers
+  never execute, history secrets stay detectable); the nested-unreadable-output and failed-report-
+  write regressions (target unchanged; no raw staging survives failure); the bounded-read
+  primitive adopted by every source-reading scanner (unit suite 574/574).
+- **P1.4 in progress**: the live restore drill **passed** on the disposable stack (backup
+  verified → verification restore → real data loss → 1s recovery); the measured pre-R1
+  pinned-build baseline remains.
+- **The honesty gate**: `pnpm run verify:completion` exits nonzero with every unresolved task
+  enumerated (186 at the pause); `--preflight` is the limited structural check.
+
+
 ### Started — Batch F2: detection depth (fix brief F-04..F-09, authorised 13 October 2026)
 
 Authority: the owner's auditor re-checked F1 on 2026-10-13 and passed it ("F1 is complete"); the
