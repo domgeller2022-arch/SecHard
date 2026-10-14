@@ -39,10 +39,16 @@ subphases:
       - docs/evidence/p0-1-appendix-c-hashes.md
   p0_2:
     title: "Complete recipe/requirement inventory"
-    state: in_progress
+    state: done
+    evidence:
+      - docs/completion-ledger.yaml
+      - docs/evidence/p0-2-classification-check.md
   p1_1:
     title: "Actual Git-child regressions and read-only guarantees"
-    state: pending
+    state: done
+    evidence:
+      - tests/scanners/audit-cli.test.ts
+      - docs/evidence/p1-1-git-child-regression.md
   p1_2:
     title: "Recursive persistence and failure-injection harness"
     state: pending
