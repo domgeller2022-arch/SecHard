@@ -37,7 +37,8 @@
     "generate:agent-rules": "pnpm run build && node tools/generate-agent-rules.ts",
     "review:changes": "node tools/review-changes.mjs",
     "inspect:build": "node tools/inspect-build.mjs",
-    "live:check": "node tools/run-live-checks.mjs"
+    "live:check": "node tools/run-live-checks.mjs",
+    "verify:completion": "node tools/verify-completion.mjs"
   },
   "dependencies": {
     "ajv": "8.20.0",

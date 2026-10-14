@@ -11,12 +11,19 @@ baseline:
   changelog_hash_after_governance_note: "dc1d9020d2c56030d16a5dea850096550d2b83e5c4f96cfb0bab5a90681fa9fd"
 phase_p0:
   p0_1_repository_snapshot:
-    state: in_progress
+    state: done
+    evidence:
+      - docs/evidence/p0-1-environment.md
+      - tests/commands/changelog-integrity.test.ts
+      - tools/verify-completion.mjs
+      - tests/completion/acceptance-matrix.yaml
+    done:
+      - "Environment facts observed (OS/Git/Node/pnpm/Docker/registry/tools) — docs/evidence/p0-1-environment.md"
+      - "Evidence directory created (docs/evidence/, private permissions)"
+      - "Changelog-bytes integrity assertion — tests/commands/changelog-integrity.test.ts (runs in the unit suite/CI)"
+      - "Acceptance matrix + bounded verify-completion (fails on missing/dangling refs, done-without-evidence, changelog drift) — verify:completion script"
     remaining:
-      - "Hash CHANGELOG.md + Appendix C source inputs; record OS/Git/Node/pnpm/Docker/registry facts (observed, not invented)"
-      - "Create evidence directory outside audited roots (private permissions)"
-      - "CI integrity assertion comparing changelog bytes to the expected hash"
-      - "tests/completion/acceptance-matrix.yaml + bounded tools/verify-completion.mjs (fails on missing/stale/fixture-only evidence)"
+      - "Hash the Appendix C source inputs (beyond CHANGELOG.md) into the evidence snapshot"
   p0_2_inventory:
     state: pending
     remaining:
