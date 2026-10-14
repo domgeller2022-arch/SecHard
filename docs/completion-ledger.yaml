@@ -5,10 +5,15 @@ plan_authority:
   document: "2026-10-14-SecHard-comprehensive-completion-plan.md"
   instructed_at: "2026-10-14"
   rule: "No deviation; no competing plans; evidence in docs/evidence/; historical audits unchanged."
+decisions:
+  p0_d_01_changelog_authority_location:
+    owner_instruction_verbatim: "ensure you state that in the changelog so every session you are aware that you are not to deviate from this plan"
+    resolution: "The auditor's correction note (14 Oct, review of 1406851) holds the changelog frozen at the immutable hash and requires plan authority to live in this ledger and living documents. The owner's intent — every session aware of the plan's authority — is satisfied here: this ledger is the first read of every session and names the plan as the sole governing document. The changelog governance insertion was removed and the frozen bytes restored."
+    changelog_sha256_frozen: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
 baseline:
   start_commit: "8e54847"   # auditor-reviewed revision 4 state
   branch: "completion/p0-comprehensive"
-  changelog_hash_after_governance_note: "dc1d9020d2c56030d16a5dea850096550d2b83e5c4f96cfb0bab5a90681fa9fd"
+  changelog_sha256_frozen: 858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc
 phase_p0:
   p0_1_repository_snapshot:
     state: in_progress
@@ -24,6 +29,8 @@ phase_p0:
       - "Acceptance matrix + bounded verify-completion (fails on missing/dangling refs, done-without-evidence, changelog drift) — verify:completion script"
     remaining:
       - "Hash the Appendix C source inputs (beyond CHANGELOG.md) into the evidence snapshot"
+      - "Enumerate all 55 subphases and all 47 acceptance IDs (AC-01..AC-47) with strict schema (P0 correction section 2)"
+      - "Replace the P1-CORPUS-BASELINE matrix implication: the runner reference is not a pinned pre-R1 baseline proof"
   p0_2_inventory:
     state: pending
     remaining:

@@ -6,7 +6,7 @@ cases:
     description: The changelog bytes match the ledger-recorded hash
     suite: tests/commands/changelog-integrity.test.ts
   - id: P1-CORPUS-BASELINE
-    description: The corpus runner measures per-seed outcomes from actual CLI evidence
+    description: UNRESOLVED — the runner exists, but the pinned pre-R1 baseline build has not been measured; this reference is work-in-progress, not proof
     runner: node tests/corpus/measure-corpus.mjs
   - id: R1-CONFINEMENT
     description: Output confinement refuses symlinks/unreadable output into the audited target

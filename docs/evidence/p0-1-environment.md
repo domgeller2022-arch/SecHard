@@ -17,3 +17,13 @@
   - osv_scanner/v2.6.0
   - zizmor/1.30.1
   - zizmor/v1.30.1
+
+## Correction — 14 October 2026 (auditor P0 checkpoint review of 1406851)
+
+The original snapshot above recorded the changelog hash `dc1d9020d2c5…` because a governance note
+had been inserted into CHANGELOG.md on the (mistaken) reading of the owner's "state that in the
+changelog" instruction. The auditor's correction note requires the changelog frozen at the
+immutable programme hash. The insertion is removed; CHANGELOG.md now hashes
+`858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc`. The earlier observation above
+stands as a record of that intermediate state; plan authority and progress are recorded in
+`docs/completion-ledger.yaml` (decision P0-D-01), not in the changelog.
