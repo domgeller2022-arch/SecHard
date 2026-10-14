@@ -8,7 +8,7 @@ plan_authority:
 baseline:
   start_commit: "8e54847"   # auditor-reviewed revision 4 state
   branch: "completion/p0-comprehensive"
-  changelog_hash_after_governance_note: "RECORD_AT_COMMIT"
+  changelog_hash_after_governance_note: "dc1d9020d2c56030d16a5dea850096550d2b83e5c4f96cfb0bab5a90681fa9fd"
 phase_p0:
   p0_1_repository_snapshot:
     state: in_progress
