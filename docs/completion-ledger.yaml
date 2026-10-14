@@ -337,3 +337,197 @@ acceptance_scenarios:
   ac_47:
     description: "Generated/document integrity"
     state: pending
+
+closure_map:
+  a_01:
+    id: "A-01"
+    table: "B1"
+    closure: "Direct/scanner-child Git helpers blocked; real history/patch retained"
+    assigned_subphases: "P1.1"
+    state: pending
+  a_02:
+    id: "A-02"
+    table: "B1"
+    closure: "Input/output/root/ancestor/descendant confinement, omissions, target unchanged"
+    assigned_subphases: "P1.1/3, P3.4/5"
+    state: pending
+  a_03:
+    id: "A-03"
+    table: "B1"
+    closure: "Recursive no-secret persistence on success/failure"
+    assigned_subphases: "P1.2"
+    state: pending
+  a_04:
+    id: "A-04"
+    table: "B1"
+    closure: "Current source/config/build resolved independently"
+    assigned_subphases: "P2.2"
+    state: pending
+  a_05:
+    id: "A-05"
+    table: "B1"
+    closure: "Strict result ingestion; status labels cannot clear evidence"
+    assigned_subphases: "P2.3/5"
+    state: pending
+  a_06:
+    id: "A-06"
+    table: "B1"
+    closure: "Manual environment/config/latest observation bound"
+    assigned_subphases: "P2.4"
+    state: pending
+  a_07:
+    id: "A-07"
+    table: "B1"
+    closure: "Conjunctive exception scope and genuine reviewer identity"
+    assigned_subphases: "P2.4"
+    state: pending
+  a_08:
+    id: "A-08"
+    table: "B1"
+    closure: "One explicit policy root/full content identity/enforced lock"
+    assigned_subphases: "P2.1"
+    state: pending
+  a_09:
+    id: "A-09"
+    table: "B1"
+    closure: "Every mandatory pack required; failure structural"
+    assigned_subphases: "P3.1"
+    state: pending
+  a_10:
+    id: "A-10"
+    table: "B1"
+    closure: "Independent inventory, ignores/parsers/skips explicit"
+    assigned_subphases: "P3.1"
+    state: pending
+  a_11:
+    id: "A-11"
+    table: "B1"
+    closure: "Specific secret span, conservative ambiguous grade"
+    assigned_subphases: "P2.5"
+    state: pending
+  a_12:
+    id: "A-12"
+    table: "B1"
+    closure: "Match/content triage and actual asset-byte digest"
+    assigned_subphases: "P2.2/5"
+    state: pending
+  a_13:
+    id: "A-13"
+    table: "B1"
+    closure: "SQL tokenizer/ordered final state"
+    assigned_subphases: "P3.3"
+    state: pending
+  a_14:
+    id: "A-14"
+    table: "B1"
+    closure: "Effective grants/RLS/public-read explanations"
+    assigned_subphases: "P3.3, P7.4"
+    state: pending
+  a_15:
+    id: "A-15"
+    table: "B1"
+    closure: "Safe SQL/Stripe/path twins, accurate CORS/confidence"
+    assigned_subphases: "P3.2"
+    state: pending
+  a_16:
+    id: "A-16"
+    table: "B1"
+    closure: "Required ordinary source/sink/cookie forms"
+    assigned_subphases: "P3.2"
+    state: pending
+  a_17:
+    id: "A-17"
+    table: "B1"
+    closure: "Python profile reaches real security recipe"
+    assigned_subphases: "P3.5, P8.5"
+    state: pending
+  a_18:
+    id: "A-18"
+    table: "B1"
+    closure: "Independent vulnerabilities/families preserved"
+    assigned_subphases: "P4.4, P9.2"
+    state: pending
+  a_19:
+    id: "A-19"
+    table: "B1"
+    closure: "Observed standards coverage, not planned counts"
+    assigned_subphases: "P9.1"
+    state: pending
+  a_20:
+    id: "A-20"
+    table: "B1"
+    closure: "Detect all, render caps with reconciled totals"
+    assigned_subphases: "P4.4"
+    state: pending
+  a_21:
+    id: "A-21"
+    table: "B1"
+    closure: "Source-map secret inspection or explicit blocking gap"
+    assigned_subphases: "P3.4"
+    state: pending
+  a_22:
+    id: "A-22"
+    table: "B1"
+    closure: "Environment independent of transport"
+    assigned_subphases: "P8.1"
+    state: pending
+  a_23:
+    id: "A-23"
+    table: "B1"
+    closure: "Clean consumer provisions verified scanners"
+    assigned_subphases: "P6.3/4, P10.3"
+    state: pending
+  a_24:
+    id: "A-24"
+    table: "B1"
+    closure: "Indeterminate Git comparison cannot pass"
+    assigned_subphases: "P6.1"
+    state: pending
+  a_25:
+    id: "A-25"
+    table: "B1"
+    closure: "Trusted exact-head acknowledgement; evaluation still runs"
+    assigned_subphases: "P6.2/3"
+    state: pending
+  a_26:
+    id: "A-26"
+    table: "B1"
+    closure: "Real seeded browser suite aligned with UI"
+    assigned_subphases: "P7.2"
+    state: pending
+  a_27:
+    id: "A-27"
+    table: "B1"
+    closure: "Backup first; failure recovery retained; real safe restore"
+    assigned_subphases: "P1.4, P7.6"
+    state: pending
+  a_28:
+    id: "A-28"
+    table: "B1"
+    closure: "Structured mutation results and cleanup guarantee"
+    assigned_subphases: "P7.5"
+    state: pending
+  a_29:
+    id: "A-29"
+    table: "B1"
+    closure: "Bounds enforced during reads/download/process capture"
+    assigned_subphases: "P1.3"
+    state: pending
+  a_30:
+    id: "A-30"
+    table: "B1"
+    closure: "SARIF actual artifact URI and numeric region"
+    assigned_subphases: "P9.2"
+    state: pending
+  a_31:
+    id: "A-31"
+    table: "B1"
+    closure: "Updated maintained graph and required advisory scan"
+    assigned_subphases: "P10.1"
+    state: pending
+  a_32:
+    id: "A-32"
+    table: "B1"
+    closure: "Self-detection and actual browser artifact scope"
+    assigned_subphases: "P3.4/5, P9.4"
+    state: pending
