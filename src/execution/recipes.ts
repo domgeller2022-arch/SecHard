@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parseGitleaksReport } from '../adapters/gitleaks.js';
 import { gitConfigEnv, gitHardeningArgs } from './git-hardening.js';
@@ -570,7 +570,32 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
 const BUILD_OUTPUT_CANDIDATES = ['.next/static', '.output/public', 'dist', 'build', 'out'] as const;
 
 async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
-  const inspected = BUILD_OUTPUT_CANDIDATES.map((candidate) => join(context.appRoot, candidate)).find((candidate) => existsSync(candidate));
+  // R1-02: containment against the application root — every ancestor below the root is
+  // inspected before enumeration, because a symlinked .next/.output parent is followed by any
+  // enumeration of an ordinary-looking child. A candidate behind a symlinked ancestor becomes an
+  // explicit incomplete-coverage refusal, never a read of outside bytes.
+  const containedCandidate = (candidate: string): string | undefined => {
+    let ancestor = context.appRoot;
+    for (const segment of relative(context.appRoot, candidate).split(sep)) {
+      ancestor = join(ancestor, segment);
+      try {
+        if (lstatSync(ancestor).isSymbolicLink()) {
+          return `${relative(context.appRoot, candidate)} refused: its ancestor ${relative(context.appRoot, ancestor)} is a symlink and was not followed`;
+        }
+      } catch {
+        break;
+      }
+    }
+    return undefined;
+  };
+  const candidatePaths = BUILD_OUTPUT_CANDIDATES.map((candidate) => join(context.appRoot, candidate));
+  const refusal = candidatePaths.map(containedCandidate).find((reason) => reason !== undefined);
+  if (refusal !== undefined) {
+    return { outcome: 'pass', coverage: 'partial', observed: 0, files: [], findings: [],
+      tool: { name: 'client-asset-inspection', observed_version: '1' },
+      diagnostic: `browser-output scan incomplete (R1-02): ${refusal}` };
+  }
+  const inspected = candidatePaths.find((candidate) => existsSync(candidate));
   if (inspected === undefined) {
     return unsupported(`no browser build output found under ${context.appRoot}; looked for ${BUILD_OUTPUT_CANDIDATES.join(', ')}. Run the application build first`);
   }

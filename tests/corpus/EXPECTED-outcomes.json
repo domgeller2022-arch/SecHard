@@ -1,11 +1,15 @@
 {
-  "generated_at": "2026-10-14T05:28:33.548Z",
-  "baseline_commit": "94e6070ca666e0c0cb34bd194ef0b169b0572fc6",
+  "generated_at": "2026-10-14T06:12:19.360Z",
+  "measured_build": {
+    "commit": "896f4d1357d262ac32f0616824addf4a56245a71",
+    "tool": "hardening audit --depth standard from this checkout"
+  },
+  "reference_baseline_note": "b71a073d1425fc55c36a5f5d3863ad18b1971949 is recorded as the pre-R1 reference commit only; a MEASURED baseline of that build (per-seed outcomes from a pinned build of it) is still outstanding and is not claimed here.",
   "tool": "hardening audit --depth standard",
-  "audit_out_digest": "a74561b35520b5fe2ab1ec10cf2739324e5164b9e11ae945361fe35a30e03667",
+  "audit_out_digest": "49d25b933fdba2a3c1de926d40674ca82b553aabf95ede0e22d10e0f392c6350",
   "denominators": {
     "security": 38,
-    "quality": 35
+    "quality": 36
   },
   "brief_declared_denominators": {
     "security": 31,
@@ -75,9 +79,9 @@
       "kind": "security",
       "file": "components/ChatBox.tsx",
       "rule": "hardening.nonliteral-html-sink",
+      "severity": "medium",
       "note": ">= medium",
       "fired": true,
-      "severity": "medium",
       "finding_location": "components/ChatBox.tsx:14"
     },
     {
@@ -85,9 +89,9 @@
       "kind": "security",
       "file": "lib/supabase.ts",
       "rule": "jwt",
+      "severity": "critical",
       "note": "service-role literal, critical",
       "fired": true,
-      "severity": "critical",
       "finding_location": "lib/supabase.ts:3"
     },
     {
@@ -212,9 +216,9 @@
       "kind": "security",
       "file": "app/api/webhook/route.ts",
       "rule": "hardening.stripe-webhook-unverified",
-      "note": "critical BIZ-01; covers the plan:pro consequence",
-      "fired": true,
       "severity": "critical",
+      "note": "critical BIZ-01; see S41 for the plan:pro disposition",
+      "fired": true,
       "finding_location": "app/api/webhook/route.ts:6"
     },
     {
@@ -267,8 +271,8 @@
       "kind": "security",
       "file": ".env",
       "rule": "database-url-with-password",
-      "fired": true,
       "severity": "critical",
+      "fired": true,
       "finding_location": ".env:1"
     },
     {
@@ -276,8 +280,8 @@
       "kind": "security",
       "file": ".env",
       "rule": "stripe-access-token",
-      "fired": true,
       "severity": "critical",
+      "fired": true,
       "finding_location": ".env:2"
     },
     {
@@ -285,8 +289,8 @@
       "kind": "security",
       "file": ".env",
       "rule": "jwt",
-      "fired": true,
       "severity": "critical",
+      "fired": true,
       "finding_location": ".env:3"
     },
     {
@@ -564,7 +568,7 @@
       "kind": "quality",
       "file": "app/dashboard/page.tsx",
       "rule": "tell.placeholder-comment",
-      "line": 22,
+      "line": 34,
       "note": "TODO",
       "fired": false
     },
@@ -573,10 +577,9 @@
       "kind": "quality",
       "file": "app/dashboard/page.tsx",
       "rule": "tell.placeholder-comment",
+      "line": 35,
       "note": "In a real implementation",
-      "fired": true,
-      "severity": "medium",
-      "finding_location": "app/dashboard/page.tsx:40"
+      "fired": false
     },
     {
       "id": "Q22",
@@ -694,6 +697,26 @@
       "file": "package.json",
       "rule": "no-licence",
       "fired": false
+    },
+    {
+      "id": "Q36",
+      "kind": "quality",
+      "file": ".",
+      "rule": "no-lockfile",
+      "note": "Appendix A: the corpus ships without a lockfile (the lockfile variant is generated separately)",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "."
+    },
+    {
+      "id": "S41",
+      "kind": "security",
+      "file": "app/api/webhook/route.ts",
+      "rule": null,
+      "staticallyCheckable": false,
+      "note": "plan: pro upgrade from client-controlled client_reference_id — an authorization consequence of the unverified webhook (S20); recorded per the re-check rather than folded silently",
+      "fired": false,
+      "status": "excluded-nonstatic"
     }
   ],
   "notes": [

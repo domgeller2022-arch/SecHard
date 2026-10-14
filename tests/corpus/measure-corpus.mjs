@@ -29,8 +29,8 @@ export const SEEDS = [
   S('S03', 'next.config.js', 'hardening.dangerous-next-config', { line: 5, note: 'ignoreDuringBuilds' }),
   S('S04', 'components/ChatBox.tsx', 'generic-api-key', { note: 'OpenAI key literal; classifier row' }),
   S('S05', 'components/ChatBox.tsx', 'hardening.client-ai-sdk'),
-  S('S06', 'components/ChatBox.tsx', 'hardening.nonliteral-html-sink', { note: '>= medium' }),
-  S('S07', 'lib/supabase.ts', 'jwt', { note: 'service-role literal, critical' }),
+  S('S06', 'components/ChatBox.tsx', 'hardening.nonliteral-html-sink', { severity: 'medium', note: '>= medium' }),
+  S('S07', 'lib/supabase.ts', 'jwt', { severity: 'critical', note: 'service-role literal, critical' }),
   S('S08', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { line: 7, note: 'concat' }),
   S('S09', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { line: 13, note: 'template' }),
   S('S10', 'app/api/proxy/route.ts', 'hardening.taint-ssrf-fetch'),
@@ -43,15 +43,15 @@ export const SEEDS = [
   S('S17', 'app/api/login/route.ts', 'hardening.taint-open-redirect'),
   S('S18', 'app/api/login/route.ts', 'hardening.insecure-cookie'),
   S('S19', 'app/api/login/route.ts', 'hardening.cors-wildcard-credentials'),
-  S('S20', 'app/api/webhook/route.ts', 'hardening.stripe-webhook-unverified', { note: 'critical BIZ-01; covers the plan:pro consequence' }),
+  S('S20', 'app/api/webhook/route.ts', 'hardening.stripe-webhook-unverified', { severity: 'critical', note: 'critical BIZ-01; see S41 for the plan:pro disposition' }),
   S('S21', 'supabase/migrations/0001_init.sql', 'supabase.rls-missing'),
   S('S22', 'supabase/migrations/0001_init.sql', 'supabase.permissive-policy'),
   S('S23', 'supabase/migrations/0001_init.sql', 'supabase.grant-anon-write'),
   S('S24', 'supabase/migrations/0001_init.sql', 'supabase.security-definer-search-path'),
   S('S25', 'supabase/migrations/0001_init.sql', 'supabase.public-bucket'),
-  S('S26', '.env', 'database-url-with-password'),
-  S('S27', '.env', 'stripe-access-token'),
-  S('S28', '.env', 'jwt'),
+  S('S26', '.env', 'database-url-with-password', { severity: 'critical' }),
+  S('S27', '.env', 'stripe-access-token', { severity: 'critical' }),
+  S('S28', '.env', 'jwt', { severity: 'critical' }),
   S('S29', '.github/workflows/ci.yml', 'dangerous-triggers', { note: 'pull_request_target + head checkout + secrets (zizmor)' }),
   S('S30', '.github/workflows/ci.yml', 'template-injection', { note: 'zizmor' }),
   S('S31', '.github/workflows/ci.yml', 'unpinned-uses', { note: 'zizmor' }),
@@ -85,8 +85,8 @@ export const SEEDS = [
   Q('Q17', 'app/dashboard/page.tsx', 'ts-suppression'),
   Q('Q18', 'app/dashboard/page.tsx', 'hardening.quality-empty-catch'),
   Q('Q19', 'app/dashboard/page.tsx', 'quality/complexity (lizard)', { note: 'computeScore', analyzer: 'lizard' }),
-  Q('Q20', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 22, note: 'TODO' }),
-  Q('Q21', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { note: 'In a real implementation' }),
+  Q('Q20', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 34, note: 'TODO' }),
+  Q('Q21', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 35, note: 'In a real implementation' }),
   Q('Q22', 'app/dashboard/page.tsx', 'quality.mock-data', { note: 'mockUsers + john@example.com' }),
   Q('Q23', 'app/dashboard/page.tsx', 'tell.commented-out-code'),
   Q('Q24', 'app/dashboard/page.tsx', 'tell.debugger-statement'),
@@ -101,6 +101,8 @@ export const SEEDS = [
   Q('Q33', 'README.md', 'readme-phantom-scripts'),
   Q('Q34', '.', 'no-changelog'),
   Q('Q35', 'package.json', 'no-licence'),
+  Q('Q36', '.', 'no-lockfile', { note: 'Appendix A: the corpus ships without a lockfile (the lockfile variant is generated separately)' }),
+  S('S41', 'app/api/webhook/route.ts', null, { staticallyCheckable: false, note: 'plan: pro upgrade from client-controlled client_reference_id — an authorization consequence of the unverified webhook (S20); recorded per the re-check rather than folded silently' }),
 ];
 
 // (composition is synchronous below — see main())
@@ -143,9 +145,11 @@ function main() {
       return { ...seed, fired: false, status: 'excluded-nonstatic' };
     }
     const lineOf = (f) => Number.parseInt((f.location ?? '').split(':').pop() ?? '', 10);
+    const fileOf = (f) => (f.location ?? '').split(':')[0];
     const hit = findings.find((f) => f.rule_id === seed.rule
-      && (f.location ?? '').startsWith(seed.file)
-      && (seed.line === undefined || lineOf(f) === seed.line));
+      && fileOf(f) === seed.file
+      && (seed.line === undefined || lineOf(f) === seed.line)
+      && (seed.severity === undefined || f.severity === seed.severity));
     return {
       ...seed,
       fired: hit !== undefined,
@@ -159,7 +163,8 @@ function main() {
   const staticQuality = by('quality', (o) => o.staticallyCheckable !== false);
   const report = {
     generated_at: new Date().toISOString(),
-    baseline_commit: commit,
+    measured_build: { commit, tool: 'hardening audit --depth standard from this checkout' },
+    reference_baseline_note: 'b71a073d1425fc55c36a5f5d3863ad18b1971949 is recorded as the pre-R1 reference commit only; a MEASURED baseline of that build (per-seed outcomes from a pinned build of it) is still outstanding and is not claimed here.',
     tool: 'hardening audit --depth standard',
     audit_out_digest: createHash('sha256').update(readFileSync(join(out, 'report.json'))).digest('hex'),
     denominators: { security: staticSecurity.length, quality: staticQuality.length },

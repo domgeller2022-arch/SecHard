@@ -169,13 +169,17 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     }
     for (const entry of entries) {
       const full = join(dir, entry);
+      let stats;
       try {
-        const stats = lstatSync(full);
-        if (stats.isSymbolicLink()) outputSymlinks.push(relative(out, full));
-        else if (stats.isDirectory()) scanOutput(full, depth + 1);
+        stats = lstatSync(full);
       } catch {
         continue;
       }
+      if (stats.isSymbolicLink()) outputSymlinks.push(relative(out, full));
+      // R1-02: the recursion is deliberately outside the entry try — a refusal from a deeper
+      // level (an unreadable directory that could hide a symlink) must propagate, not be
+      // swallowed as if this entry were merely missing.
+      else if (stats.isDirectory()) scanOutput(full, depth + 1);
     }
   };
   // R1-02: an output tree we cannot inspect cannot be proven safe — refuse rather than continue
