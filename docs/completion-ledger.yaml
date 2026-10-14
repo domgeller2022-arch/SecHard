@@ -11,7 +11,7 @@ baseline:
   changelog_hash_after_governance_note: "dc1d9020d2c56030d16a5dea850096550d2b83e5c4f96cfb0bab5a90681fa9fd"
 phase_p0:
   p0_1_repository_snapshot:
-    state: done
+    state: in_progress
     evidence:
       - docs/evidence/p0-1-environment.md
       - tests/commands/changelog-integrity.test.ts
