@@ -77,6 +77,8 @@ if ! psql_q 'select 1;' >/dev/null 2>&1; then
 fi
 
 echo "=== 1. write a marker row that exists only in this run ==="
+# The marker row's owner must exist (notes.owner_id -> auth.users); create it idempotently.
+psql_q "insert into auth.users (instance_id, id, aud, role, email, encrypted_password, confirmed_at, created_at, updated_at, confirmation_token, recovery_token, email_change_token, email_change) values ('00000000-0000-0000-0000-000000000000', '11111111-1111-4111-8111-111111111111', 'authenticated', 'authenticated', 'restore-drill@example.invalid', crypt('drill-only', gen_random_uuid()::text), now(), now(), now(), '', '', '', '') on conflict (id) do nothing;" >/dev/null
 psql_q "insert into public.notes (id, owner_id, title, body) values ('$MARKER_ID', '11111111-1111-4111-8111-111111111111', 'Restore drill marker', 'present before the backup') on conflict (id) do update set title = excluded.title;" >/dev/null
 before_total="$(psql_q 'select count(*) from public.notes;')"
 before_marker="$(psql_q "select count(*) from public.notes where id = '$MARKER_ID';")"
@@ -98,6 +100,14 @@ if psql_q "select 1 from pg_database where datname = '$VERIFY_DB';" | grep -q 1;
 fi
 psql_q "create database $VERIFY_DB;" >/dev/null
 VERIFY_CREATED=1
+# The dumped table references auth.users and auth.uid(); the bare verification database gets a
+# minimal auth stub first so the schema+data dump loads self-contained.
+docker exec -i "$DB" psql -U postgres -d "$VERIFY_DB" -v ON_ERROR_STOP=1 -q <<'STUBSQL'
+create schema if not exists auth;
+create table if not exists auth.users (id uuid primary key);
+insert into auth.users (id) values ('11111111-1111-4111-8111-111111111111');
+create or replace function auth.uid() returns uuid language plpgsql as $$ begin return null; end $$;
+STUBSQL
 # The data-only dump cannot recreate the schema; the verification restore loads a schema+data
 # dump of the same table so the fresh database is self-contained (R1-06).
 docker exec -i "$DB" pg_dump -U postgres -d postgres --table=public.notes > "$WORKDIR/notes-schema-data.sql"
@@ -110,7 +120,17 @@ echo "verification restore OK: total=$verify_total marker=$verify_marker (drill 
 echo
 echo "=== 4. destroy the data (simulated loss / rollback to a clean state) ==="
 DESTRUCTIVE_STARTED=1
-(cd "$EXAMPLE" && pnpm exec supabase db reset >/dev/null 2>&1)
+if [ "${SECHARD_DRILL_STANDALONE:-0}" = "1" ]; then
+  # Standalone db-container mode: the full `supabase start` stack cannot run on this machine, so
+  # the clean-state step rebuilds the schema from the repository's own migrations — the same
+  # definition of reset, against the drill's disposable container only.
+  psql_q 'drop table if exists public.notes;' >/dev/null
+  for migration in "$EXAMPLE"/supabase/migrations/*.sql; do
+    docker exec -i "$DB" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f - < "$migration" >/dev/null
+  done
+else
+  (cd "$EXAMPLE" && pnpm exec supabase db reset >/dev/null 2>&1)
+fi
 after_reset_marker="$(psql_q "select count(*) from public.notes where id = '$MARKER_ID';")"
 echo "after reset: marker=$after_reset_marker (expected 0 — the point is that the data was lost)"
 

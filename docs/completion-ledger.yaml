@@ -64,7 +64,12 @@ subphases:
       - docs/evidence/p1-3-bounded-io.md
   p1_4:
     title: "Restore safety proof and pinned pre-R1 baseline"
-    state: pending
+    state: in_progress
+    evidence:
+      - docs/evidence/p1-4-restore-drill.md
+      - examples/nextjs-supabase/tests/operations/restore-exercise.sh
+    remaining:
+      - "The measured pre-R1 pinned-build baseline (worktree at b71a073, build, corpus measurement against that binary)"
   p2_1:
     title: "One real policy root and enforced policy lock — A-08"
     state: pending
