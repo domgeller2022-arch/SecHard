@@ -19,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const cli = process.argv.includes('--audit') ? process.argv[process.argv.indexOf('--audit') + 1] : join(repo, 'dist', 'cli.js');
 
+const GRADE_RANK = { unknown: 0, low: 1, medium: 2, high: 3, critical: 4 };
+
 // ---- The seed table (Appendix A). staticallyCheckable=false carries the brief's exclusion reason.
 const S = (id, file, rule, opts = {}) => ({ id, kind: 'security', file, rule, ...opts });
 const Q = (id, file, rule, opts = {}) => ({ id, kind: 'quality', file, rule, ...opts });
@@ -29,7 +31,7 @@ export const SEEDS = [
   S('S03', 'next.config.js', 'hardening.dangerous-next-config', { line: 5, note: 'ignoreDuringBuilds' }),
   S('S04', 'components/ChatBox.tsx', 'generic-api-key', { note: 'OpenAI key literal; classifier row' }),
   S('S05', 'components/ChatBox.tsx', 'hardening.client-ai-sdk'),
-  S('S06', 'components/ChatBox.tsx', 'hardening.nonliteral-html-sink', { severity: 'medium', note: '>= medium' }),
+  S('S06', 'components/ChatBox.tsx', 'hardening.nonliteral-html-sink', { minSeverity: 'medium', note: 'at least medium' }),
   S('S07', 'lib/supabase.ts', 'jwt', { severity: 'critical', note: 'service-role literal, critical' }),
   S('S08', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { line: 7, note: 'concat' }),
   S('S09', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { line: 13, note: 'template' }),
@@ -86,7 +88,7 @@ export const SEEDS = [
   Q('Q18', 'app/dashboard/page.tsx', 'hardening.quality-empty-catch'),
   Q('Q19', 'app/dashboard/page.tsx', 'quality/complexity (lizard)', { note: 'computeScore', analyzer: 'lizard' }),
   Q('Q20', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 34, note: 'TODO' }),
-  Q('Q21', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 35, note: 'In a real implementation' }),
+  Q('Q21', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 40, note: 'In a real implementation' }),
   Q('Q22', 'app/dashboard/page.tsx', 'quality.mock-data', { note: 'mockUsers + john@example.com' }),
   Q('Q23', 'app/dashboard/page.tsx', 'tell.commented-out-code'),
   Q('Q24', 'app/dashboard/page.tsx', 'tell.debugger-statement'),
@@ -149,7 +151,8 @@ function main() {
     const hit = findings.find((f) => f.rule_id === seed.rule
       && fileOf(f) === seed.file
       && (seed.line === undefined || lineOf(f) === seed.line)
-      && (seed.severity === undefined || f.severity === seed.severity));
+      && (seed.severity === undefined || f.severity === seed.severity)
+      && (seed.minSeverity === undefined || GRADE_RANK[f.severity ?? 'unknown'] >= GRADE_RANK[seed.minSeverity]));
     return {
       ...seed,
       fired: hit !== undefined,

@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-10-14T06:12:19.360Z",
+  "generated_at": "2026-10-14T06:33:57.597Z",
   "measured_build": {
-    "commit": "896f4d1357d262ac32f0616824addf4a56245a71",
+    "commit": "802bc1862c5b0384de38fbea74c6dbb46c83b541",
     "tool": "hardening audit --depth standard from this checkout"
   },
   "reference_baseline_note": "b71a073d1425fc55c36a5f5d3863ad18b1971949 is recorded as the pre-R1 reference commit only; a MEASURED baseline of that build (per-seed outcomes from a pinned build of it) is still outstanding and is not claimed here.",
   "tool": "hardening audit --depth standard",
-  "audit_out_digest": "49d25b933fdba2a3c1de926d40674ca82b553aabf95ede0e22d10e0f392c6350",
+  "audit_out_digest": "d10040bddd5f25dbe823ec3d4b8c15ddc3f80fe59666e97cae761759cc86b1c1",
   "denominators": {
     "security": 38,
     "quality": 36
@@ -19,7 +19,7 @@
   "denominator_reconciliation": "The brief declares 31 security / 30 quality statically checkable items. This runner enumerates the Appendix A itemization as it can be derived from the brief text and measures every enumerated seed. Where the enumeration exceeds the declared 31/30, the reconciliation (which items the brief counts as one) requires the auditor's itemization; every seed is measured either way, and the declared denominators are never used to hide a miss.",
   "totals": {
     "security_reported": 31,
-    "quality_reported": 16
+    "quality_reported": 17
   },
   "outcomes": [
     {
@@ -79,9 +79,10 @@
       "kind": "security",
       "file": "components/ChatBox.tsx",
       "rule": "hardening.nonliteral-html-sink",
-      "severity": "medium",
-      "note": ">= medium",
+      "minSeverity": "medium",
+      "note": "at least medium",
       "fired": true,
+      "severity": "medium",
       "finding_location": "components/ChatBox.tsx:14"
     },
     {
@@ -577,9 +578,11 @@
       "kind": "quality",
       "file": "app/dashboard/page.tsx",
       "rule": "tell.placeholder-comment",
-      "line": 35,
+      "line": 40,
       "note": "In a real implementation",
-      "fired": false
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/dashboard/page.tsx:40"
     },
     {
       "id": "Q22",
