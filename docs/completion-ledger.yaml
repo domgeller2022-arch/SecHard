@@ -51,7 +51,10 @@ subphases:
       - docs/evidence/p1-1-git-child-regression.md
   p1_2:
     title: "Recursive persistence and failure-injection harness"
-    state: pending
+    state: done
+    evidence:
+      - tests/commands/confinement.test.ts
+      - docs/evidence/p1-2-failure-path-regressions.md
   p1_3:
     title: "Real bounded I/O, downloads and child termination — A-29"
     state: pending
