@@ -28,9 +28,10 @@ WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/sechard-restore-drill.XXXXXX")"
 chmod 700 "$WORKDIR"
 DUMP="$WORKDIR/notes.sql"
 MARKER_ID="deadbeef-0000-4000-8000-000000000001"
-VERIFY_DB="sechard_drill_verify"
+VERIFY_DB="sechard_drill_verify_$(date +%s)_$$"
 DESTRUCTIVE_STARTED=0
 RECOVERY_OK=0
+VERIFY_CREATED=0
 
 cleanup() {
   # PR-05: after destructive work begins, the verified backup is preserved on every failure path.
@@ -40,7 +41,8 @@ cleanup() {
     echo
     echo "RESTORE FAILED — the verified backup is preserved at: $DUMP"
     echo "Recovery (run manually, from a known-good shell):"
-    echo "  docker exec -i $DB psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f - < '$DUMP'"
+    echo "  1) supabase db reset   (rebuild the schema from migrations — never replay data into a partial state)"
+    echo "  2) docker exec -i $DB psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -f - < '$DUMP'"
     echo "Do not delete $WORKDIR until the data is confirmed recovered."
   else
     rm -rf "$WORKDIR"
@@ -60,7 +62,14 @@ fi
 image="$(docker inspect --format '{{.Config.Image}}' "$DB")"
 case "$image" in
   *postgres*) : ;;
-  *) echo "FAIL: $DB is not a Postgres container (image: $image) — refusing to run." ;;
+  *) echo "FAIL: $DB is not a Postgres container (image: $image) — refusing to run."; exit 2 ;;
+esac
+# R1-06: bind the drill to THIS project's local stack — the compose working directory must be the
+# example directory, proving the container is this repository's disposable dev database.
+stack_dir="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$DB" 2>/dev/null || echo '?')"
+case "$stack_dir" in
+  "$EXAMPLE"|"$EXAMPLE"/*) : ;;
+  *) echo "FAIL: $DB belongs to another compose project ($stack_dir) — refusing to run."; exit 2 ;;
 esac
 if ! psql_q 'select 1;' >/dev/null 2>&1; then
   echo "FAIL: the local database is not reachable. Start the stack first: pnpm exec supabase start"
@@ -84,9 +93,15 @@ echo "backup written and verified: $DUMP ($dump_bytes bytes, marker present)"
 
 echo
 echo "=== 3. restore into a separate disposable verification database first ==="
-psql_q "drop database if exists $VERIFY_DB;" >/dev/null
+if psql_q "select 1 from pg_database where datname = '$VERIFY_DB';" | grep -q 1; then
+  echo "FAIL: verification database $VERIFY_DB already exists — refusing to touch it."; exit 2
+fi
 psql_q "create database $VERIFY_DB;" >/dev/null
-docker exec -i "$DB" psql -U postgres -d "$VERIFY_DB" -v ON_ERROR_STOP=1 -q -f - < "$DUMP" >/dev/null
+VERIFY_CREATED=1
+# The data-only dump cannot recreate the schema; the verification restore loads a schema+data
+# dump of the same table so the fresh database is self-contained (R1-06).
+docker exec -i "$DB" pg_dump -U postgres -d postgres --table=public.notes > "$WORKDIR/notes-schema-data.sql"
+docker exec -i "$DB" psql -U postgres -d "$VERIFY_DB" -v ON_ERROR_STOP=1 -q -f - < "$WORKDIR/notes-schema-data.sql" >/dev/null
 verify_marker="$(docker exec -i "$DB" psql -U postgres -d "$VERIFY_DB" -tA -c "select count(*) from public.notes where id = '$MARKER_ID';")"
 verify_total="$(docker exec -i "$DB" psql -U postgres -d "$VERIFY_DB" -tA -c 'select count(*) from public.notes;')"
 [ "$verify_marker" = "1" ] && [ "$verify_total" = "$before_total" ] || { echo "FAIL: the verification restore did not reproduce the data (total=$verify_total marker=$verify_marker) — the drill database was not touched."; exit 1; }
@@ -125,7 +140,7 @@ if [ "$after_reset_marker" != "0" ]; then echo "FAIL: the reset did not actually
 
 if [ "$failures" -eq 0 ]; then
   RECOVERY_OK=1
-  psql_q "drop database if exists $VERIFY_DB;" >/dev/null
+  if [ "${VERIFY_CREATED:-0}" -eq 1 ]; then psql_q "drop database $VERIFY_DB;" >/dev/null; fi
   echo "PASS: backup, verification restore, loss, and restore verified; recovery took ${restore_seconds}s"
   echo
   echo "Operator evidence still required (recorded as manual evidence, remains pending until performed):"

@@ -1,0 +1,693 @@
+{
+  "generated_at": "2026-10-14T03:21:34.098Z",
+  "baseline_commit": "ec940d3da59ecfcd66c44da81298dec7b8f26f2e",
+  "tool": "hardening audit --depth standard",
+  "audit_out_digest": "89865320d52cada9d5033916ee2a710e72bf3cf098239cb9a387db3df7a54d41",
+  "denominators": {
+    "security": 38,
+    "quality": 35
+  },
+  "totals": {
+    "security_reported": 32,
+    "quality_reported": 17
+  },
+  "outcomes": [
+    {
+      "id": "S01",
+      "kind": "security",
+      "file": "next.config.js",
+      "rule": "hardening.dangerous-next-config",
+      "note": "productionBrowserSourceMaps",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "next.config.js:3"
+    },
+    {
+      "id": "S02",
+      "kind": "security",
+      "file": "next.config.js",
+      "rule": "hardening.dangerous-next-config",
+      "note": "ignoreBuildErrors",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "next.config.js:3"
+    },
+    {
+      "id": "S03",
+      "kind": "security",
+      "file": "next.config.js",
+      "rule": "hardening.dangerous-next-config",
+      "note": "ignoreDuringBuilds",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "next.config.js:3"
+    },
+    {
+      "id": "S04",
+      "kind": "security",
+      "file": "components/ChatBox.tsx",
+      "rule": "generic-api-key",
+      "note": "OpenAI key literal; classifier row",
+      "fired": true,
+      "severity": "critical",
+      "finding_location": "components/ChatBox.tsx:8"
+    },
+    {
+      "id": "S05",
+      "kind": "security",
+      "file": "components/ChatBox.tsx",
+      "rule": "hardening.client-ai-sdk",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "components/ChatBox.tsx:8"
+    },
+    {
+      "id": "S06",
+      "kind": "security",
+      "file": "components/ChatBox.tsx",
+      "rule": "hardening.nonliteral-html-sink",
+      "note": ">= medium",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "components/ChatBox.tsx:14"
+    },
+    {
+      "id": "S07",
+      "kind": "security",
+      "file": "lib/supabase.ts",
+      "rule": "jwt",
+      "note": "service-role literal, critical",
+      "fired": true,
+      "severity": "critical",
+      "finding_location": "lib/supabase.ts:3"
+    },
+    {
+      "id": "S08",
+      "kind": "security",
+      "file": "app/api/users/route.ts",
+      "rule": "hardening.taint-sql-injection",
+      "note": "concat",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/users/route.ts:7"
+    },
+    {
+      "id": "S09",
+      "kind": "security",
+      "file": "app/api/users/route.ts",
+      "rule": "hardening.taint-sql-injection",
+      "note": "template",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/users/route.ts:7"
+    },
+    {
+      "id": "S10",
+      "kind": "security",
+      "file": "app/api/proxy/route.ts",
+      "rule": "hardening.taint-ssrf-fetch",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/proxy/route.ts:6"
+    },
+    {
+      "id": "S11",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.weak-password-hash",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:9"
+    },
+    {
+      "id": "S12",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.jwt-hardcoded-secret",
+      "note": "sign",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:10"
+    },
+    {
+      "id": "S13",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.jwt-none-alg",
+      "note": "sign",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:10"
+    },
+    {
+      "id": "S14",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.jwt-none-alg",
+      "note": "verify",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:10"
+    },
+    {
+      "id": "S15",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.logging-secret-value",
+      "note": "console.log of the password",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/api/login/route.ts:12"
+    },
+    {
+      "id": "S16",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.weak-random-token",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:13"
+    },
+    {
+      "id": "S17",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.taint-open-redirect",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:16"
+    },
+    {
+      "id": "S18",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.insecure-cookie",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/api/login/route.ts:15"
+    },
+    {
+      "id": "S19",
+      "kind": "security",
+      "file": "app/api/login/route.ts",
+      "rule": "hardening.cors-wildcard-credentials",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/api/login/route.ts:20"
+    },
+    {
+      "id": "S20",
+      "kind": "security",
+      "file": "app/api/webhook/route.ts",
+      "rule": "hardening.stripe-webhook-unverified",
+      "note": "critical BIZ-01; covers the plan:pro consequence",
+      "fired": true,
+      "severity": "critical",
+      "finding_location": "app/api/webhook/route.ts:6"
+    },
+    {
+      "id": "S21",
+      "kind": "security",
+      "file": "supabase/migrations/0001_init.sql",
+      "rule": "supabase.rls-missing",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "supabase/migrations/0001_init.sql"
+    },
+    {
+      "id": "S22",
+      "kind": "security",
+      "file": "supabase/migrations/0001_init.sql",
+      "rule": "supabase.permissive-policy",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "supabase/migrations/0001_init.sql:7"
+    },
+    {
+      "id": "S23",
+      "kind": "security",
+      "file": "supabase/migrations/0001_init.sql",
+      "rule": "supabase.grant-anon-write",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "supabase/migrations/0001_init.sql:10"
+    },
+    {
+      "id": "S24",
+      "kind": "security",
+      "file": "supabase/migrations/0001_init.sql",
+      "rule": "supabase.security-definer-search-path",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "supabase/migrations/0001_init.sql:12"
+    },
+    {
+      "id": "S25",
+      "kind": "security",
+      "file": "supabase/migrations/0001_init.sql",
+      "rule": "supabase.public-bucket",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "supabase/migrations/0001_init.sql:17"
+    },
+    {
+      "id": "S26",
+      "kind": "security",
+      "file": ".env",
+      "rule": "database-url-with-password",
+      "fired": true,
+      "severity": "critical",
+      "finding_location": ".env:1"
+    },
+    {
+      "id": "S27",
+      "kind": "security",
+      "file": ".env",
+      "rule": "stripe-access-token",
+      "fired": true,
+      "severity": "critical",
+      "finding_location": ".env:2"
+    },
+    {
+      "id": "S28",
+      "kind": "security",
+      "file": ".env",
+      "rule": "jwt",
+      "fired": true,
+      "severity": "critical",
+      "finding_location": ".env:3"
+    },
+    {
+      "id": "S29",
+      "kind": "security",
+      "file": ".github/workflows/ci.yml",
+      "rule": "dangerous-triggers",
+      "note": "pull_request_target + head checkout + secrets (zizmor)",
+      "fired": false
+    },
+    {
+      "id": "S30",
+      "kind": "security",
+      "file": ".github/workflows/ci.yml",
+      "rule": "template-injection",
+      "note": "zizmor",
+      "fired": false
+    },
+    {
+      "id": "S31",
+      "kind": "security",
+      "file": ".github/workflows/ci.yml",
+      "rule": "unpinned-uses",
+      "note": "zizmor",
+      "fired": false
+    },
+    {
+      "id": "S32",
+      "kind": "security",
+      "file": ".github/workflows/ci.yml",
+      "rule": "artipacked",
+      "note": "zizmor",
+      "fired": false
+    },
+    {
+      "id": "S33",
+      "kind": "security",
+      "file": ".github/workflows/ci.yml",
+      "rule": "excessive-permissions",
+      "note": "zizmor, auditor persona",
+      "fired": false
+    },
+    {
+      "id": "S34",
+      "kind": "security",
+      "file": "utils/admin.ts",
+      "rule": "hardening.no-eval",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "utils/admin.ts:5"
+    },
+    {
+      "id": "S35",
+      "kind": "security",
+      "file": "utils/admin.ts",
+      "rule": "hardening.path-traversal-concat",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "utils/admin.ts:9"
+    },
+    {
+      "id": "S36",
+      "kind": "security",
+      "file": "utils/admin.ts",
+      "rule": "hardening.child-process-exec-interpolation",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "utils/admin.ts:13"
+    },
+    {
+      "id": "S37",
+      "kind": "security",
+      "file": "app/dashboard/page.tsx",
+      "rule": "hardening.taint-xss-innerhtml",
+      "note": "stored XSS from rows",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/dashboard/page.tsx:37"
+    },
+    {
+      "id": "S38",
+      "kind": "security",
+      "file": ".env",
+      "rule": "generic-api-key",
+      "note": ".gitignore lacks .env — an untracked-secret exposure seed; reported by the current-files scan",
+      "fired": false
+    },
+    {
+      "id": "S39",
+      "kind": "security",
+      "file": "app/api/users/route.ts",
+      "rule": null,
+      "staticallyCheckable": false,
+      "note": "no auth check — the brief marks it \"listed as not run\"",
+      "fired": false,
+      "status": "excluded-nonstatic"
+    },
+    {
+      "id": "S40",
+      "kind": "security",
+      "file": "app/api/webhook/route.ts",
+      "rule": null,
+      "staticallyCheckable": false,
+      "note": "payments profile composition is behaviour, not a finding",
+      "fired": false,
+      "status": "excluded-nonstatic"
+    },
+    {
+      "id": "Q01",
+      "kind": "quality",
+      "file": "package.json",
+      "rule": "duplicate-role",
+      "note": "moment + dayjs",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "package.json"
+    },
+    {
+      "id": "Q02",
+      "kind": "quality",
+      "file": "package.json",
+      "rule": "duplicate-role",
+      "note": "axios + node-fetch",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "package.json"
+    },
+    {
+      "id": "Q03",
+      "kind": "quality",
+      "file": "package.json",
+      "rule": "quality/dead-code (knip)",
+      "note": "unused left-pad",
+      "analyzer": "knip",
+      "fired": false
+    },
+    {
+      "id": "Q04",
+      "kind": "quality",
+      "file": "utils/format.ts",
+      "rule": "quality/duplication (jscpd)",
+      "note": "formatPrice/formatMoney clone",
+      "analyzer": "jscpd",
+      "fired": false
+    },
+    {
+      "id": "Q05",
+      "kind": "quality",
+      "file": "utils/format.ts",
+      "rule": "quality/dead-code (knip)",
+      "note": "dead export legacyFormatter",
+      "analyzer": "knip",
+      "fired": false
+    },
+    {
+      "id": "Q06",
+      "kind": "quality",
+      "file": "utils/format.ts",
+      "rule": "tell.narration-comment",
+      "note": "narration family, recall >= 0.7 target (F-08)",
+      "fired": false
+    },
+    {
+      "id": "Q07",
+      "kind": "quality",
+      "file": "lib/money.ts",
+      "rule": "tell.narration-comment",
+      "note": "narration family",
+      "fired": false
+    },
+    {
+      "id": "Q08",
+      "kind": "quality",
+      "file": "lib/supabase.ts",
+      "rule": "tell.narration-comment",
+      "note": "narration family",
+      "fired": false
+    },
+    {
+      "id": "Q09",
+      "kind": "quality",
+      "file": "app/api/users/route.ts",
+      "rule": "tell.narration-comment",
+      "note": "narration family",
+      "fired": false
+    },
+    {
+      "id": "Q10",
+      "kind": "quality",
+      "file": "components/ChatBox.tsx",
+      "rule": "tell.narration-comment",
+      "note": "narration family",
+      "fired": false
+    },
+    {
+      "id": "Q11",
+      "kind": "quality",
+      "file": "components/ChatBox.tsx",
+      "rule": "tell.emoji-in-source",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "components/ChatBox.tsx:11"
+    },
+    {
+      "id": "Q12",
+      "kind": "quality",
+      "file": "app/api/users/route.ts",
+      "rule": "any-type",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "app/api/users/route.ts:6"
+    },
+    {
+      "id": "Q13",
+      "kind": "quality",
+      "file": "app/api/login/route.ts",
+      "rule": "any-type",
+      "note": "x2, one row per rule/file pair",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "app/api/login/route.ts:7"
+    },
+    {
+      "id": "Q14",
+      "kind": "quality",
+      "file": "utils/format.ts",
+      "rule": "any-type",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "utils/format.ts:16"
+    },
+    {
+      "id": "Q15",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "any-type",
+      "note": "x4",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "app/dashboard/page.tsx:33"
+    },
+    {
+      "id": "Q16",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "tell.floating-promise",
+      "note": "x2",
+      "fired": false
+    },
+    {
+      "id": "Q17",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "ts-suppression",
+      "fired": false
+    },
+    {
+      "id": "Q18",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "hardening.quality-empty-catch",
+      "fired": false
+    },
+    {
+      "id": "Q19",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "quality/complexity (lizard)",
+      "note": "computeScore",
+      "analyzer": "lizard",
+      "fired": false
+    },
+    {
+      "id": "Q20",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "tell.placeholder-comment",
+      "note": "TODO",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/dashboard/page.tsx:40"
+    },
+    {
+      "id": "Q21",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "tell.placeholder-comment",
+      "note": "In a real implementation",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/dashboard/page.tsx:40"
+    },
+    {
+      "id": "Q22",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "quality.mock-data",
+      "note": "mockUsers + john@example.com",
+      "fired": false
+    },
+    {
+      "id": "Q23",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "tell.commented-out-code",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "app/dashboard/page.tsx:40"
+    },
+    {
+      "id": "Q24",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "tell.debugger-statement",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "app/dashboard/page.tsx:43"
+    },
+    {
+      "id": "Q25",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "hardening.quality-console-log-production",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/dashboard/page.tsx:30"
+    },
+    {
+      "id": "Q26",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "quality.swallowed-supabase-error",
+      "fired": false
+    },
+    {
+      "id": "Q27",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "quality/module-structure (dependency-cruiser)",
+      "note": "data access in UI",
+      "analyzer": "dependency-cruiser",
+      "fired": false
+    },
+    {
+      "id": "Q28",
+      "kind": "quality",
+      "file": "app/dashboard/page.tsx",
+      "rule": "tell.hardcoded-local-url",
+      "fired": false
+    },
+    {
+      "id": "Q29",
+      "kind": "quality",
+      "file": "tests/app.test.ts",
+      "rule": "focused-test",
+      "fired": true,
+      "severity": "high",
+      "finding_location": "tests/app.test.ts:7"
+    },
+    {
+      "id": "Q30",
+      "kind": "quality",
+      "file": "tests/app.test.ts",
+      "rule": "skipped-test",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "tests/app.test.ts:10"
+    },
+    {
+      "id": "Q31",
+      "kind": "quality",
+      "file": "tests/app.test.ts",
+      "rule": "tautological-assertion",
+      "fired": false
+    },
+    {
+      "id": "Q32",
+      "kind": "quality",
+      "file": "tests/app.test.ts",
+      "rule": "assertion-free-test",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "tests/app.test.ts:16"
+    },
+    {
+      "id": "Q33",
+      "kind": "quality",
+      "file": "README.md",
+      "rule": "readme-phantom-scripts",
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "README.md"
+    },
+    {
+      "id": "Q34",
+      "kind": "quality",
+      "file": ".",
+      "rule": "no-changelog",
+      "fired": true,
+      "severity": "low",
+      "finding_location": "."
+    },
+    {
+      "id": "Q35",
+      "kind": "quality",
+      "file": "package.json",
+      "rule": "no-licence",
+      "fired": false
+    }
+  ],
+  "notes": [
+    "Staged-tool seeds (analyzer: knip/jscpd/lizard/dependency-cruiser) stay inside the quality denominator with their actual measured status.",
+    "A-16 detection shapes land as new seed IDs in a separate extension list when their rules land; they do not mutate this set.",
+    "Non-static items carry the brief's exclusion reason and sit outside the denominators."
+  ]
+}

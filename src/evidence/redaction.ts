@@ -22,7 +22,11 @@ const SECRET_PATTERNS: readonly { readonly name: string; readonly pattern: RegEx
   { name: 'stripe-publishable', pattern: /\bpk_(?:live|test)_[A-Za-z0-9]{10,}\b/g },
   { name: 'openai-key', pattern: /\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}\b/g },
   { name: 'anthropic-key', pattern: /\bsk-ant-[A-Za-z0-9_-]{20,}\b/g },
-  { name: 'database-url-with-credentials', pattern: /\b(?:postgres(?:ql)?|mysql|redis|mongodb(?:\+srv)?):\/\/[^\s\/@]+:[^\s\/@]+@/g },
+  // R1-04: the classifier's remaining supported shapes — the legacy unprefixed OpenAI key,
+  // Supabase secret tokens, and case-insensitive database schemes.
+  { name: 'openai-legacy-key', pattern: /\bsk-[A-Za-z0-9]{20,}\b/g },
+  { name: 'supabase-secret-token', pattern: /\bsb_secret_[A-Za-z0-9_-]{8,}\b/g },
+  { name: 'database-url-with-credentials', pattern: /\b(?:postgres(?:ql)?|mysql|redis|mongodb(?:\+srv)?):\/\/[^\s\/@]+:[^\s\/@]+@/gi },
   { name: 'google-api-key', pattern: /\bAIza[0-9A-Za-z_-]{35}\b/g },
 ];
 

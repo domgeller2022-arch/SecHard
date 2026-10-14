@@ -2060,3 +2060,14 @@ Recorded here as a process defect: a run nobody watched is a claim nobody checke
   restore drill rewritten, corpus EXPECTED manifest (31/30 + baseline), tests, docs.
 - **Checks:** 569 unit, typecheck + lint clean; scanners in this push.
 - **Next:** push, watch `repo-checks`, report run ID; R2 on the owner's word.
+
+### R1 revision (14 Oct) — re-check fixes
+
+The auditor's re-check of ec940d3 rejected the first R1 checkpoint (R1-01..R1-06 + R1-M1). All six
+defects are fixed: gitleaks git-mode env + `--no-textconv`, output-descendant symlink guard +
+segment-aware containment + writeAtomic symlink refusal, all readers confined with disclosed
+skips, provider-pattern/makeResult/record-write scrubbing, private raw staging with finally
+cleanup, restore-drill target binding + schema-carrying verification restore + owned unique verify
+DB, and the executable corpus measurement (`measure-corpus.mjs` -> `EXPECTED-outcomes.json`).
+CHANGELOG.md restored to its exact b71a073 bytes after the 50-line addition violated the
+preservation instruction. Suites: 569 unit; typecheck + lint clean.

@@ -148,7 +148,10 @@ export function makeResult(
       // Titles and details come from tools and application files. A title can carry a secret just as
       // a detail can, and a report is published; redaction happens once, at the boundary. Locations
       // are relativized here for the same reason: this is the one place every result is created.
-      ...(finding.location === undefined ? {} : { location: relativizeLocation(finding.location, appRoot) }),
+      // R1-04: the location (and the resource fingerprint text) can carry a secret-bearing
+      // filename; both are redacted at the same boundary, after relativization.
+      ...(finding.location === undefined ? {} : { location: redactSecrets(relativizeLocation(finding.location, appRoot)) }),
+      ...(finding.resource === undefined ? {} : { resource: redactSecrets(finding.resource) }),
       ...(finding.title === undefined ? {} : { title: redactSecrets(finding.title) }),
       ...(finding.detail === undefined ? {} : { detail: redactSecrets(finding.detail) }),
     })),

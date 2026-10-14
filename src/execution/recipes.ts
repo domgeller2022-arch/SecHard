@@ -137,14 +137,20 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
     '--exit-code', '0',
     '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks.toml'),
   ];
-  if (headOnly) args.push('--log-opts', '-1');
+  // R1-01: `--no-textconv` disables attribute-selected text-conversion helpers in gitleaks' own
+  // `git log -p -U0` construction, without changing what is scanned. Scope is preserved: -1 keeps
+  // the repository scan at the newest commit, history stays full.
+  args.push('--log-opts', headOnly ? '-1 --no-textconv' : '--no-textconv');
 
   // Gitleaks shells out to `git` for a git-mode scan. The child PATH names only the reviewed git's
   // directory plus the system basics, so the internal lookup cannot be redirected by the caller's
-  // environment; the parent environment is still not inherited wholesale.
+  // environment; the parent environment is still not inherited wholesale. R1-01: the hardened Git
+  // configuration rides along in the same environment (fsmonitor/hooks off for the child).
   const git = resolveTool('git');
-  const env = git.available ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':') } : undefined;
-  const run = await runTool('gitleaks', args, { cwd: worktree, timeoutMs: 600_000, ...(env === undefined ? {} : { env }) });
+  const env = git.available
+    ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':'), ...gitConfigEnv() }
+    : { ...gitConfigEnv() };
+  const run = await runTool('gitleaks', args, { cwd: worktree, timeoutMs: 600_000, env });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   if (run.outcome.exitCode !== 0) {
     return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);

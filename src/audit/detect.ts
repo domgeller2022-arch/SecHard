@@ -129,6 +129,10 @@ function readPackageJson(root: string): { parsed?: PackageJson; evidence?: Detec
   const file = join(root, 'package.json');
   if (!existsSync(file)) return {};
   try {
+    // R1-03: a symlinked package.json can point outside the scan root; it is skipped, not followed.
+    if (lstatSync(file).isSymbolicLink()) {
+      return { evidence: { file: 'package.json', detail: 'a symlinked package.json was not followed (R1-03)' } };
+    }
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as PackageJson;
     return { parsed, evidence: { file: 'package.json', detail: 'read dependency and script declarations' } };
   } catch {
@@ -321,9 +325,10 @@ export function detectStackAndFeatures(root: string): Detection {
   }
   if (sourceFiles.length > scanLimit) {
     gaps.push(`the import scan covered ${scanLimit} of ${sourceFiles.length} source files (bounded walk); feature detection beyond that is unknown`);
+  }
+  // R1-03: a skipped link is an omission on every project size, not only large ones.
   if (skippedLinks.length > 0) {
     gaps.push(`symlinks not followed: ${skippedLinks.slice(0, 5).join(', ')}${skippedLinks.length > 5 ? ` and ${String(skippedLinks.length - 5)} more` : ''}`);
-  }
   }
 
   // Undetected features stay unknown — never `disabled`, which the catalogue treats as a claim.

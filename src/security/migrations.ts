@@ -24,6 +24,14 @@ const MAX_MIGRATION_BYTES = 512 * 1024;
 
 function readMigrationFiles(appRoot: string): MigrationFile[] {
   const dir = join(appRoot, 'supabase', 'migrations');
+  // R1-03: an ancestor symlink (supabase/ or supabase/migrations) would enumerate and read files
+  // outside the scan root; skip them instead of following.
+  try {
+    if (lstatSync(join(appRoot, 'supabase')).isSymbolicLink()) return [];
+    if (lstatSync(dir).isSymbolicLink()) return [];
+  } catch {
+    return [];
+  }
   let entries: string[];
   try {
     entries = readdirSync(dir).filter((name) => name.endsWith('.sql')).sort();

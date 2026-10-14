@@ -13,56 +13,6 @@ still `TODO`.
 
 ## [Unreleased]
 
-### Started — Batch R1: protect the operator and the audited tree (full-audit remediation, 14 October 2026)
-
-Authority: the full audit (32 findings) and its plan review; the owner authorised R1 with
-workstream M ("go ahead", 2026-10-14). The full-audit remediation plan (v2) is the programme of
-record; this entry summarises the product changes, the checkpoint is
-`docs/checkpoints/batch-r1.md`.
-
-**A-01 — repository Git configuration can no longer execute helpers during inspection.** Both
-SecHard Git runners (source identity and the review/change-report runner) disable
-`core.fsmonitor` and `core.hooksPath` for every call that touches an audited tree, and diff
-invocations add `--no-ext-diff --no-textconv` — the plan review's correction: an empty-output
-`diff.external` substitution would hide real security-sensitive changes, and `diff.noprefix`
-would break the patch parser. Gitleaks' own child Git processes receive the same hardening
-through the documented `GIT_CONFIG_*` environment channel. The counterexample test first proves
-the unhardened diff executes a repository-configured helper on this platform, then proves the
-hardened path executes nothing while keeping the ordinary patch content.
-
-**A-02 — confinement is real-path based, in the review's direction.** Inputs stay inside the
-scan root: the detection walk (shared by the quality scanners) uses lstat, never follows
-symlinks, records every skipped link as a detection gap, and never reads non-regular files; the
-migration reader does the same. Audit output stays outside the audited tree: the guard resolves
-the deepest existing ancestor through real paths, rejects output aliases into the target, and
-refuses fail-closed when an output symlink resolves nowhere. The concurrent link-swap race is
-documented as out of scope in the code (the audit's acceptance allows explicit
-documentation/refusal).
-
-**A-03 — no-secret persistence is mandatory, not a preference.** The redaction patterns gain the
-provider families the audit saw leak (Stripe, OpenAI/Anthropic, database URLs with credentials,
-Google keys); opengrep findings persist a digest of the matched line instead of the line itself;
-every persisted audit artifact (report.md/html/json/sarif and evidence.json) is scrubbed at the
-persistence boundary; raw scanner output is no longer retained in ordinary audit mode at all
-(the per-report digests stay on the results, so provenance survives without the bytes);
-`writeAtomic`'s 0600 remains an additional protection.
-
-**A-27 — the restore drill cannot destroy data on a failed backup.** Rewritten to the review's
-contract: the dedicated disposable target is identified positively (exact container name and
-Postgres image; no flag redirects it), the dump is verified (non-empty, marker present) and
-restored into a separate disposable verification database before any destructive step, and once
-destructive work has begun every failure preserves the verified backup and prints recovery
-instructions — cleanup happens only after verified recovery.
-
-**Workstream M — the calibration manifest exists before detection tuning.**
-`tests/corpus/independent-nextjs/EXPECTED.yaml` pins the per-seed expectations at the original
-denominators (31 security / 30 quality) with the baseline measured at b71a073 and every miss
-disclosed by status (pending-A16 / pending-cap / pending-F08 / pending-tool).
-
-Suites after the change: **569 unit** (typecheck both configs + lint clean); the scanners suite
-runs in this push. `repo-checks` will show the known red security-test change-report job (F-14
-state — this push changes security tests; the acknowledgement mechanism is A-25, still open).
-
 ### Started — Batch F2: detection depth (fix brief F-04..F-09, authorised 13 October 2026)
 
 Authority: the owner's auditor re-checked F1 on 2026-10-13 and passed it ("F1 is complete"); the

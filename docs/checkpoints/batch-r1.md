@@ -1,6 +1,37 @@
 # Checkpoint — Batch R1: protect the operator and the audited tree (full-audit remediation)
 
-**State: implemented and locally verified.** Authority: `authorised_batch` updated to R1 on the
+**State: revised after the 14 Oct re-check rejected the first R1 checkpoint (ec940d3).**
+The re-check's six defects are fixed in this revision:
+
+- **R1-01**: the git-mode gitleaks recipes now carry the hardened Git environment (the first
+  revision had put it only on the dir scan) and both Git-mode invocations pass `--no-textconv`
+  in their log options; the source-identity counterexample uses the working pathname-fsmonitor
+  vector (`git config core.fsmonitor <helper>` — valid on Git 2.55, correcting the earlier
+  checkpoint's wrong platform claim), proves the unhardened status executes it, and proves the
+  hardened calls do not.
+- **R1-02**: the output guard now scans pre-existing descendants and refuses any symlink under
+  the output root; `writeAtomic` refuses symlinked destinations; containment is segment-aware.
+- **R1-03**: every reader is confined (symlinked package.json skipped and recorded; migration
+  ancestor symlinks refused; client-assets walk lstat-based); the skipped-link gap is reported on
+  every project size; the migration recipe and detection gaps carry the omissions.
+- **R1-04**: the legacy `sk-…`/`sb_secret_` shapes and case-insensitive database schemes are
+  redacted; `makeResult` redacts finding locations and resources (the filename vector); the
+  manifest, targets.yaml, plan.json and results.json writes are scrubbed at their own boundaries.
+- **R1-05**: raw scanner output is written to a private 0700 staging directory outside the
+  published output tree and removed in a `finally` around the check call — a failed report write
+  can no longer leave raw bytes behind.
+- **R1-06**: the restore drill exits on target rejection, binds the container to this project's
+  compose directory, uses a unique verification database created only after an existence check
+  and dropped only when this run created it, loads a schema+data dump for the verification
+  restore (a data-only dump cannot initialise an empty database), and its recovery instructions
+  rebuild the schema before replaying (partial-restore safe).
+- **R1-M1**: `tests/corpus/measure-corpus.mjs` replaces the static declaration — the seed table
+  maps every Appendix A item to a stable ID, file, expected rule and statically-checkable
+  classification; the runner composes the corpus, runs the compiled CLI, and derives per-seed
+  outcomes from results.json into `EXPECTED-outcomes.json` (measured at this checkpoint:
+  security 32/38, quality 17/35 — denominators from the runner's enumerated statically-checkable
+  sets; the reconciliation against the brief's 31/30 partition is disclosed in the outcomes file
+  for the auditor's adjudication). CHANGELOG.md is restored to its exact b71a073 content. Authority: `authorised_batch` updated to R1 on the
 owner's go-ahead ("go ahead", 2026-10-14). Source: the full audit
 (`full-audit/2026-10-13-SecHard-full-audit.md`) and the plan review's PR-01..PR-05 corrections,
 applied to `2026-10-13-full-audit-remediation-plan.md` (v2).

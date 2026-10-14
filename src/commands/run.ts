@@ -180,7 +180,7 @@ export function planCommand(
 
 export async function checkCommand(
   paths: Paths,
-  options: { planPath: string; runId: string; outDir?: string; now: Date; skipRecipes?: readonly string[]; skipReason?: string },
+  options: { planPath: string; runId: string; outDir?: string; rawDir?: string; now: Date; skipRecipes?: readonly string[]; skipReason?: string },
 ): Promise<CheckOutcome> {
   const planLoad = loadPlanFile(options.planPath);
   if (planLoad === undefined) {
@@ -200,7 +200,9 @@ export async function checkCommand(
   }
 
   const source = resolveSourceIdentity(paths.appRoot);
-  const rawDir = join(options.outDir ?? dirname(options.planPath), 'raw');
+  // R1-05: an explicit rawDir lets audit mode keep sensitive scanner output out of the published
+  // output tree entirely (private staging, deleted on every path).
+  const rawDir = options.rawDir ?? join(options.outDir ?? dirname(options.planPath), 'raw');
 
   // Independent checks run concurrently with a bounded pool. One recipe failing never stops the
   // others: each handler is isolated and converts its own failure into an error result.

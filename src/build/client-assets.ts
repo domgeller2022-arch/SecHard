@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import type { Finding } from '../domain/types.js';
 
@@ -124,7 +124,9 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {})
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry);
-      const stats = statSync(full);
+      // R1-03: lstat — a symlinked build-output directory or file is skipped, not followed.
+      const stats = lstatSync(full);
+      if (stats.isSymbolicLink()) continue;
       if (stats.isDirectory()) {
         walk(full);
         continue;

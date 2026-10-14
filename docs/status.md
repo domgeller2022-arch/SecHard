@@ -1,6 +1,6 @@
 # Status
 
-> Generated from `docs/implementation-progress.md` (source SHA-256 `9be7e367dd0e6a2491553de76157d45315c519d2710bcc4530a32fcb9c1872ad`) by
+> Generated from `docs/implementation-progress.md` (source SHA-256 `137e103f07b8d0fc2f2e03677abc9ab3467f68364a5fb57762ee75be38a58c95`) by
 > `node tools/generate-status.mjs`. Do not edit by hand: edit the progress record and regenerate.
 > A section appears here only when the record states its state; "verified" means the record's
 > stated acceptance checks ran, nothing more.

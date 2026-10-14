@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -39,13 +39,11 @@ function markerRepo(name: string): { root: string; marker: string } {
   // The hostile configuration, appended like a cloned repository's would be. diff.external is
   // the live executable channel on this Git (2.55 rejects core.fsmonitor=<path> at parse time —
   // the runner still disables fsmonitor for older parsers); an unhardened diff runs the helper.
-  const config = readGitConfig(root);
-  writeFileSync(join(root, '.git', 'config'), `${config}\n[diff]\n\texternal = ${helper}\n`);
+  // The hostile configuration is written with `git config` (valid on every Git version): a
+  // pathname fsmonitor hook and a diff.external helper, both pointing at the marker script.
+  git('config', 'core.fsmonitor', helper);
+  git('config', 'diff.external', helper);
   return { root, marker };
-}
-
-function readGitConfig(root: string): string {
-  return readFileSync(join(root, '.git', 'config'), 'utf8');
 }
 
 describe('A-01: repository Git configuration cannot execute helpers during inspection', () => {
@@ -71,9 +69,11 @@ describe('A-01: repository Git configuration cannot execute helpers during inspe
     rmSync(marker);
     const report = buildChangeReport({ base: 'HEAD~1', head: 'HEAD', cwd: root });
     expect(existsSync(marker), 'the diff helper executed during the change report').toBe(false);
-    // PR-01: helper hardening must not hide real changes — the modified assertion line stays in the report.
+    // PR-01: helper hardening must not hide real changes — the removed-assertion finding proves
+    // patch analysis survived, not merely that a filename appeared.
     expect(report.filesChanged).toBeGreaterThan(0);
     expect(JSON.stringify(report)).toContain('sample.test.ts');
+    expect(JSON.stringify(report).toLowerCase()).toContain('remov');
   });
 
   it('the hardening channel for scanner-owned Git children is set from the environment', () => {
