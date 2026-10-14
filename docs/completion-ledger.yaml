@@ -1,43 +1,339 @@
 # Completion ledger — the single active task inventory (plan section 2).
 # Authority: 2026-10-14-SecHard-comprehensive-completion-plan.md (owner instruction, 14 Oct 2026).
-# One task per plan subphase; states: pending | in_progress | done(verified evidence) | blocked(owner decision).
+# One task per plan subphase; states: pending | in_progress | done(evidence) | blocked(reason).
 plan_authority:
   document: "2026-10-14-SecHard-comprehensive-completion-plan.md"
+  sha256: "2e652bc2875aa36330eaf7748060a6e3d401317bc2d6b660441f97a881e199f6"
   instructed_at: "2026-10-14"
   rule: "No deviation; no competing plans; evidence in docs/evidence/; historical audits unchanged."
 decisions:
   p0_d_01_changelog_authority_location:
     owner_instruction_verbatim: "ensure you state that in the changelog so every session you are aware that you are not to deviate from this plan"
-    resolution: "The auditor's correction note (14 Oct, review of 1406851) holds the changelog frozen at the immutable hash and requires plan authority to live in this ledger and living documents. The owner's intent — every session aware of the plan's authority — is satisfied here: this ledger is the first read of every session and names the plan as the sole governing document. The changelog governance insertion was removed and the frozen bytes restored."
+    resolution: "Auditor correction (14 Oct, review of 1406851): the changelog stays frozen at the immutable hash; plan authority lives in this ledger and living documents."
     changelog_sha256_frozen: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
 baseline:
-  start_commit: "8e54847"   # auditor-reviewed revision 4 state
+  start_commit: "8e54847"
   branch: "completion/p0-comprehensive"
-  changelog_sha256_frozen: 858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc
-phase_p0:
-  p0_1_repository_snapshot:
+  changelog_sha256_frozen: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
+p0_1:
+  state: in_progress
+  evidence:
+    - docs/evidence/p0-1-environment.md
+    - docs/evidence/p0-1-appendix-c-hashes.md
+    - tests/commands/changelog-integrity.test.ts
+    - tools/verify-completion.mjs
+    - tests/completion/acceptance-matrix.yaml
+p0_2:
+  state: in_progress
+  evidence:
+    - docs/completion-ledger.yaml
+  remaining:
+    - "Appendix B closure classification: assign every unimplemented recipe to a subphase (beyond this subphase/AC enumeration)"
+subphases:
+  p0_1:
+    title: "Repository and source snapshot"
     state: in_progress
-    evidence:
-      - docs/evidence/p0-1-environment.md
-      - tests/commands/changelog-integrity.test.ts
-      - tools/verify-completion.mjs
-      - tests/completion/acceptance-matrix.yaml
-    done:
-      - "Environment facts observed (OS/Git/Node/pnpm/Docker/registry/tools) — docs/evidence/p0-1-environment.md"
-      - "Evidence directory created (docs/evidence/, private permissions)"
-      - "Changelog-bytes integrity assertion — tests/commands/changelog-integrity.test.ts (runs in the unit suite/CI)"
-      - "Acceptance matrix + bounded verify-completion (fails on missing/dangling refs, done-without-evidence, changelog drift) — verify:completion script"
-    remaining:
-      - "Hash the Appendix C source inputs (beyond CHANGELOG.md) into the evidence snapshot"
-      - "Enumerate all 55 subphases and all 47 acceptance IDs (AC-01..AC-47) with strict schema (P0 correction section 2)"
-      - "Replace the P1-CORPUS-BASELINE matrix implication: the runner reference is not a pinned pre-R1 baseline proof"
-  p0_2_inventory:
+  p0_2:
+    title: "Complete recipe/requirement inventory"
+    state: in_progress
+  p1_1:
+    title: "Actual Git-child regressions and read-only guarantees"
     state: pending
-    remaining:
-      - "Enumerate every catalogue verification method/profile requirement/registry handler; classify execution safety"
-      - "Assign every unimplemented recipe (Appendix B) to a subphase; ledger every A-01..A-32, F-01..F-17, addendum, X1..X4, acceptance scenario"
-phase_p1:
-  p1_1_git_child_regressions: { state: pending, note: "auditor-required gitleaks child marker regression lives here" }
-  p1_2_recursive_persistence: { state: pending, note: "failure-injection harness incl. failure-path raw cleanup" }
-  p1_3_bounded_io: { state: pending, note: "A-29 prerequisites" }
-  p1_4_restore_proof_and_baseline: { state: pending, note: "live drill (owner-approved disposable stack) + measured pre-R1 pinned build" }
+  p1_2:
+    title: "Recursive persistence and failure-injection harness"
+    state: pending
+  p1_3:
+    title: "Real bounded I/O, downloads and child termination — A-29"
+    state: pending
+  p1_4:
+    title: "Restore safety proof and pinned pre-R1 baseline"
+    state: pending
+  p2_1:
+    title: "One real policy root and enforced policy lock — A-08"
+    state: pending
+  p2_2:
+    title: "Current source/build/configuration identities — A-04, A-12"
+    state: pending
+  p2_3:
+    title: "Validate results at every ingestion boundary — A-05"
+    state: pending
+  p2_4:
+    title: "Manual evidence and exceptions — A-06, A-07"
+    state: pending
+  p2_5:
+    title: "Secret span classification, false positives and blocking floors — A-11, A-12, F-17"
+    state: pending
+  p3_1:
+    title: "Mandatory packs, parser failures and independent scope — A-09, A-10"
+    state: pending
+  p3_2:
+    title: "Vulnerable/safe security-rule matrix — A-15, A-16, F-04/05"
+    state: pending
+  p3_3:
+    title: "Supabase tokenizer and final-state inventory — A-13, A-14, F-06"
+    state: pending
+  p3_4:
+    title: "Browser assets, source maps and scope identification — A-21, A-32"
+    state: pending
+  p3_5:
+    title: "Product-level planning and detection — A-17, A-32, F-09"
+    state: pending
+  p4_1:
+    title: "Provisioning must really execute and enforce policy"
+    state: pending
+  p4_2:
+    title: "Four real analyzers, execution-safe configuration — F-07"
+    state: pending
+  p4_3:
+    title: "Finish remaining quality capabilities — QUAL-02/08/10/11/12/13"
+    state: pending
+  p4_4:
+    title: "Narration/tells, caps and independent dedup — F-08, A-18, A-20"
+    state: pending
+  p5_1:
+    title: "Enforceable execution-mode contract"
+    state: pending
+  p5_2:
+    title: "Pure/internal policy and supply-chain handlers"
+    state: pending
+  p5_3:
+    title: "Governance and agent verification handlers"
+    state: pending
+  p5_4:
+    title: "Functional, build, auth, data and business handler interfaces"
+    state: pending
+  p5_5:
+    title: "Gate completeness and release finalizers"
+    state: pending
+  p6_1:
+    title: "Fail-closed change report — A-24"
+    state: pending
+  p6_2:
+    title: "Trusted human acknowledgement — A-25, F-14"
+    state: pending
+  p6_3:
+    title: "Identical trusted records and actual provisioned scanners — A-23, F-14/16"
+    state: pending
+  p6_4:
+    title: "Full platform trust matrix and settings verification"
+    state: pending
+  p7_1:
+    title: "Disposable stack and loopback-only exposure"
+    state: pending
+  p7_2:
+    title: "Browser and functional suite — A-26"
+    state: pending
+  p7_3:
+    title: "Session, recovery and OAuth verification"
+    state: pending
+  p7_4:
+    title: "Authorization matrix and effective provider access"
+    state: pending
+  p7_5:
+    title: "Correct weakened-policy and failure harness — A-28"
+    state: pending
+  p7_6:
+    title: "Live restore/rollback verification — A-27, OPS-02, REL-02"
+    state: pending
+  p7_7:
+    title: "Reference security posture and operational evidence"
+    state: pending
+  p8_1:
+    title: "Live-target environment and pinned DNS — A-22, F-17"
+    state: pending
+  p8_2:
+    title: "Read-only live exposure probes, TLS and passive ZAP — X3"
+    state: pending
+  p8_3:
+    title: "Supabase linter and live unprivileged probe — X1/F-06"
+    state: pending
+  p8_4:
+    title: "Runtime-AI profile — X2, AI-01–AI-06"
+    state: pending
+  p8_5:
+    title: "Remaining stack/artifact expansion — X4"
+    state: pending
+  p8_6:
+    title: "Git URL and URL-only entry-point truth"
+    state: pending
+  p8_7:
+    title: "Business integrity and abuse limits behind the handler interface"
+    state: pending
+  p9_1:
+    title: "Honest observed standards coverage — A-19, F-11/13"
+    state: pending
+  p9_2:
+    title: "Report identity, usability, paths and exits — A-18/20/30, F-15/17"
+    state: pending
+  p9_3:
+    title: "Curate guidance and comparison projects — S3/S4, F-17"
+    state: pending
+  p9_4:
+    title: "Real self-audit and independent calibration — F-10/12"
+    state: pending
+  p10_1:
+    title: "Actual maintained dependency graph — A-31"
+    state: pending
+  p10_2:
+    title: "Real archive contract and private adoption"
+    state: pending
+  p10_3:
+    title: "Independent consumer upgrade and compatibility"
+    state: pending
+  p11_1:
+    title: "One updater with tested delay and urgent path"
+    state: pending
+  p11_2:
+    title: "Scheduled checks, review outputs and response"
+    state: pending
+  p12_1:
+    title: "One clean end-to-end acceptance campaign"
+    state: pending
+  p12_2:
+    title: "Consolidated owner review and digest-bound approvals"
+    state: pending
+  p12_3:
+    title: "Final documents and usable handoff"
+    state: pending
+acceptance_scenarios:
+  ac_01:
+    description: "Actual scanner detection"
+    state: pending
+  ac_02:
+    description: "Error-output preservation"
+    state: pending
+  ac_03:
+    description: "Empty/partial scope"
+    state: pending
+  ac_04:
+    description: "Tool/report unavailable"
+    state: pending
+  ac_05:
+    description: "Scope integrity"
+    state: pending
+  ac_06:
+    description: "Target integrity"
+    state: pending
+  ac_07:
+    description: "Git-helper safety"
+    state: pending
+  ac_08:
+    description: "Credential confidentiality"
+    state: pending
+  ac_09:
+    description: "Current identity"
+    state: pending
+  ac_10:
+    description: "Same-commit replay"
+    state: pending
+  ac_11:
+    description: "Policy authority"
+    state: pending
+  ac_12:
+    description: "Strict records"
+    state: pending
+  ac_13:
+    description: "Advisory freshness"
+    state: pending
+  ac_14:
+    description: "Manual scope/freshness"
+    state: pending
+  ac_15:
+    description: "Mixed methods"
+    state: pending
+  ac_16:
+    description: "Exceptions/triage"
+    state: pending
+  ac_17:
+    description: "Unknown secret/AUTHZ"
+    state: pending
+  ac_18:
+    description: "Replacement match"
+    state: pending
+  ac_19:
+    description: "Owner CRUD"
+    state: pending
+  ac_20:
+    description: "Cross-user/direct access"
+    state: pending
+  ac_21:
+    description: "Deny-all/public positives"
+    state: pending
+  ac_22:
+    description: "Role/tenant/security fields"
+    state: pending
+  ac_23:
+    description: "Real session/recovery"
+    state: pending
+  ac_24:
+    description: "Weakened policy detection"
+    state: pending
+  ac_25:
+    description: "Restore safety/integrity"
+    state: pending
+  ac_26:
+    description: "Source/map keys"
+    state: pending
+  ac_27:
+    description: "Safe rule twins"
+    state: pending
+  ac_28:
+    description: "Complete migration state"
+    state: pending
+  ac_29:
+    description: "No quality evidence loss"
+    state: pending
+  ac_30:
+    description: "Safe new analyzers"
+    state: pending
+  ac_31:
+    description: "No target-execution fallback"
+    state: pending
+  ac_32:
+    description: "Live origin/DNS"
+    state: pending
+  ac_33:
+    description: "Exposure accuracy"
+    state: pending
+  ac_34:
+    description: "Limiter integrity"
+    state: pending
+  ac_35:
+    description: "Payment integrity"
+    state: pending
+  ac_36:
+    description: "Runtime-AI host controls"
+    state: pending
+  ac_37:
+    description: "Feature changes"
+    state: pending
+  ac_38:
+    description: "Trusted PR/ack"
+    state: pending
+  ac_39:
+    description: "Platform dependency failure"
+    state: pending
+  ac_40:
+    description: "Control approvals"
+    state: pending
+  ac_41:
+    description: "Standards honesty"
+    state: pending
+  ac_42:
+    description: "Path/format equivalence"
+    state: pending
+  ac_43:
+    description: "Independent adoption"
+    state: pending
+  ac_44:
+    description: "Current maintained graph"
+    state: pending
+  ac_45:
+    description: "Independent calibration"
+    state: pending
+  ac_46:
+    description: "Maintenance integrity"
+    state: pending
+  ac_47:
+    description: "Generated/document integrity"
+    state: pending
