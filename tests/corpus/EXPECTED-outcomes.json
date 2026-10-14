@@ -1,15 +1,21 @@
 {
-  "generated_at": "2026-10-14T03:21:34.098Z",
-  "baseline_commit": "ec940d3da59ecfcd66c44da81298dec7b8f26f2e",
+  "generated_at": "2026-10-14T05:28:33.548Z",
+  "baseline_commit": "94e6070ca666e0c0cb34bd194ef0b169b0572fc6",
   "tool": "hardening audit --depth standard",
-  "audit_out_digest": "89865320d52cada9d5033916ee2a710e72bf3cf098239cb9a387db3df7a54d41",
+  "audit_out_digest": "a74561b35520b5fe2ab1ec10cf2739324e5164b9e11ae945361fe35a30e03667",
   "denominators": {
     "security": 38,
     "quality": 35
   },
+  "brief_declared_denominators": {
+    "security": 31,
+    "quality": 30
+  },
+  "pre_r1_baseline_commit": "b71a073d1425fc55c36a5f5d3863ad18b1971949",
+  "denominator_reconciliation": "The brief declares 31 security / 30 quality statically checkable items. This runner enumerates the Appendix A itemization as it can be derived from the brief text and measures every enumerated seed. Where the enumeration exceeds the declared 31/30, the reconciliation (which items the brief counts as one) requires the auditor's itemization; every seed is measured either way, and the declared denominators are never used to hide a miss.",
   "totals": {
-    "security_reported": 32,
-    "quality_reported": 17
+    "security_reported": 31,
+    "quality_reported": 16
   },
   "outcomes": [
     {
@@ -17,6 +23,7 @@
       "kind": "security",
       "file": "next.config.js",
       "rule": "hardening.dangerous-next-config",
+      "line": 3,
       "note": "productionBrowserSourceMaps",
       "fired": true,
       "severity": "medium",
@@ -27,20 +34,22 @@
       "kind": "security",
       "file": "next.config.js",
       "rule": "hardening.dangerous-next-config",
+      "line": 4,
       "note": "ignoreBuildErrors",
       "fired": true,
       "severity": "medium",
-      "finding_location": "next.config.js:3"
+      "finding_location": "next.config.js:4"
     },
     {
       "id": "S03",
       "kind": "security",
       "file": "next.config.js",
       "rule": "hardening.dangerous-next-config",
+      "line": 5,
       "note": "ignoreDuringBuilds",
       "fired": true,
       "severity": "medium",
-      "finding_location": "next.config.js:3"
+      "finding_location": "next.config.js:5"
     },
     {
       "id": "S04",
@@ -86,6 +95,7 @@
       "kind": "security",
       "file": "app/api/users/route.ts",
       "rule": "hardening.taint-sql-injection",
+      "line": 7,
       "note": "concat",
       "fired": true,
       "severity": "high",
@@ -96,10 +106,9 @@
       "kind": "security",
       "file": "app/api/users/route.ts",
       "rule": "hardening.taint-sql-injection",
+      "line": 13,
       "note": "template",
-      "fired": true,
-      "severity": "high",
-      "finding_location": "app/api/users/route.ts:7"
+      "fired": false
     },
     {
       "id": "S10",
@@ -124,6 +133,7 @@
       "kind": "security",
       "file": "app/api/login/route.ts",
       "rule": "hardening.jwt-hardcoded-secret",
+      "line": 10,
       "note": "sign",
       "fired": true,
       "severity": "high",
@@ -134,6 +144,7 @@
       "kind": "security",
       "file": "app/api/login/route.ts",
       "rule": "hardening.jwt-none-alg",
+      "line": 10,
       "note": "sign",
       "fired": true,
       "severity": "high",
@@ -144,10 +155,11 @@
       "kind": "security",
       "file": "app/api/login/route.ts",
       "rule": "hardening.jwt-none-alg",
+      "line": 11,
       "note": "verify",
       "fired": true,
       "severity": "high",
-      "finding_location": "app/api/login/route.ts:10"
+      "finding_location": "app/api/login/route.ts:11"
     },
     {
       "id": "S15",
@@ -552,10 +564,9 @@
       "kind": "quality",
       "file": "app/dashboard/page.tsx",
       "rule": "tell.placeholder-comment",
+      "line": 22,
       "note": "TODO",
-      "fired": true,
-      "severity": "medium",
-      "finding_location": "app/dashboard/page.tsx:40"
+      "fired": false
     },
     {
       "id": "Q21",

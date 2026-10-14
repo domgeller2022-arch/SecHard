@@ -39,8 +39,9 @@ function markerRepo(name: string): { root: string; marker: string } {
   // The hostile configuration, appended like a cloned repository's would be. diff.external is
   // the live executable channel on this Git (2.55 rejects core.fsmonitor=<path> at parse time —
   // the runner still disables fsmonitor for older parsers); an unhardened diff runs the helper.
-  // The hostile configuration is written with `git config` (valid on every Git version): a
-  // pathname fsmonitor hook and a diff.external helper, both pointing at the marker script.
+  // The hostile configuration is written with `git config` (valid on every Git version,
+  // including the pathname fsmonitor vector on Git 2.55 — the earlier claim that 2.55 rejected it
+  // was wrong): a fsmonitor hook and a diff.external helper, both pointing at the marker script.
   git('config', 'core.fsmonitor', helper);
   git('config', 'diff.external', helper);
   return { root, marker };

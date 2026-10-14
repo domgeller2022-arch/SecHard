@@ -24,20 +24,20 @@ const S = (id, file, rule, opts = {}) => ({ id, kind: 'security', file, rule, ..
 const Q = (id, file, rule, opts = {}) => ({ id, kind: 'quality', file, rule, ...opts });
 export const SEEDS = [
   // security (Appendix A "Files and seeds")
-  S('S01', 'next.config.js', 'hardening.dangerous-next-config', { note: 'productionBrowserSourceMaps' }),
-  S('S02', 'next.config.js', 'hardening.dangerous-next-config', { note: 'ignoreBuildErrors' }),
-  S('S03', 'next.config.js', 'hardening.dangerous-next-config', { note: 'ignoreDuringBuilds' }),
+  S('S01', 'next.config.js', 'hardening.dangerous-next-config', { line: 3, note: 'productionBrowserSourceMaps' }),
+  S('S02', 'next.config.js', 'hardening.dangerous-next-config', { line: 4, note: 'ignoreBuildErrors' }),
+  S('S03', 'next.config.js', 'hardening.dangerous-next-config', { line: 5, note: 'ignoreDuringBuilds' }),
   S('S04', 'components/ChatBox.tsx', 'generic-api-key', { note: 'OpenAI key literal; classifier row' }),
   S('S05', 'components/ChatBox.tsx', 'hardening.client-ai-sdk'),
   S('S06', 'components/ChatBox.tsx', 'hardening.nonliteral-html-sink', { note: '>= medium' }),
   S('S07', 'lib/supabase.ts', 'jwt', { note: 'service-role literal, critical' }),
-  S('S08', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { note: 'concat' }),
-  S('S09', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { note: 'template' }),
+  S('S08', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { line: 7, note: 'concat' }),
+  S('S09', 'app/api/users/route.ts', 'hardening.taint-sql-injection', { line: 13, note: 'template' }),
   S('S10', 'app/api/proxy/route.ts', 'hardening.taint-ssrf-fetch'),
   S('S11', 'app/api/login/route.ts', 'hardening.weak-password-hash'),
-  S('S12', 'app/api/login/route.ts', 'hardening.jwt-hardcoded-secret', { note: 'sign' }),
-  S('S13', 'app/api/login/route.ts', 'hardening.jwt-none-alg', { note: 'sign' }),
-  S('S14', 'app/api/login/route.ts', 'hardening.jwt-none-alg', { note: 'verify' }),
+  S('S12', 'app/api/login/route.ts', 'hardening.jwt-hardcoded-secret', { line: 10, note: 'sign' }),
+  S('S13', 'app/api/login/route.ts', 'hardening.jwt-none-alg', { line: 10, note: 'sign' }),
+  S('S14', 'app/api/login/route.ts', 'hardening.jwt-none-alg', { line: 11, note: 'verify' }),
   S('S15', 'app/api/login/route.ts', 'hardening.logging-secret-value', { note: 'console.log of the password' }),
   S('S16', 'app/api/login/route.ts', 'hardening.weak-random-token'),
   S('S17', 'app/api/login/route.ts', 'hardening.taint-open-redirect'),
@@ -85,7 +85,7 @@ export const SEEDS = [
   Q('Q17', 'app/dashboard/page.tsx', 'ts-suppression'),
   Q('Q18', 'app/dashboard/page.tsx', 'hardening.quality-empty-catch'),
   Q('Q19', 'app/dashboard/page.tsx', 'quality/complexity (lizard)', { note: 'computeScore', analyzer: 'lizard' }),
-  Q('Q20', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { note: 'TODO' }),
+  Q('Q20', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { line: 22, note: 'TODO' }),
   Q('Q21', 'app/dashboard/page.tsx', 'tell.placeholder-comment', { note: 'In a real implementation' }),
   Q('Q22', 'app/dashboard/page.tsx', 'quality.mock-data', { note: 'mockUsers + john@example.com' }),
   Q('Q23', 'app/dashboard/page.tsx', 'tell.commented-out-code'),
@@ -103,21 +103,6 @@ export const SEEDS = [
   Q('Q35', 'package.json', 'no-licence'),
 ];
 
-function compose(app) {
-  cpSync(join(repo, 'tests', 'corpus', 'independent-nextjs'), app, { recursive: true });
-  const b64 = (v) => Buffer.from(JSON.stringify(v)).toString('base64url');
-  const jwt = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${b64({ role: 'service_role', iss: 'supabase' })}.${'a'.repeat(43)}`;
-  const sub = (file, pairs) => {
-    const p = join(app, file);
-    let text = readFileSync(p, 'utf8');
-    for (const [from, to] of pairs) text = text.split(from).join(to);
-    writeFileSync(p, text);
-  };
-  const { writeFileSync } = import('node:fs').then(() => {});
-  // synchronous writes: import at top instead
-  return { jwt };
-}
-
 // (composition is synchronous below — see main())
 import { writeFileSync } from 'node:fs';
 
@@ -134,7 +119,9 @@ function main() {
     for (const [from, to] of pairs) text = text.split(from).join(to);
     writeFileSync(p, text);
   };
-  substitute('.env', [['__DB_URL__', 'postgres://app_owner:drill_pw_composed@db.example.invalid:5432/app'], ['__STRIPE_LIVE__', 'sk_live_' + '51Hq8xYz3kT' + '4mLpQ9wRz' + '7vNsA2bCx'], ['__JWT_SERVICE_ROLE__', jwt]]);
+  // Clean-checkout safe: the fixture .env is git-ignored, so the runner writes it itself.
+  const stripeLive = 'sk_live_' + '51Hq8xYz3kT' + '4mLpQ9wRz' + '7vNsA2bCx';
+  writeFileSync(join(app, '.env'), `DATABASE_URL=postgres://app_owner:drill_pw_composed@db.example.invalid:5432/app\nSTRIPE_SECRET_KEY=${stripeLive}\nSUPABASE_SERVICE_ROLE_KEY=${jwt}\n`);
   substitute('lib/supabase.ts', [['__JWT_SERVICE_ROLE__', jwt]]);
   substitute('components/ChatBox.tsx', [['__OPENAI_KEY__', `sk-proj-${'A1b2C3d4E5f6G7h8I9j0K1l2'}`]]);
   execFileSync('git', ['init', '-q'], { cwd: app });
@@ -155,7 +142,10 @@ function main() {
     if (seed.staticallyCheckable === false) {
       return { ...seed, fired: false, status: 'excluded-nonstatic' };
     }
-    const hit = findings.find((f) => f.rule_id === seed.rule && (f.location ?? '').startsWith(seed.file));
+    const lineOf = (f) => Number.parseInt((f.location ?? '').split(':').pop() ?? '', 10);
+    const hit = findings.find((f) => f.rule_id === seed.rule
+      && (f.location ?? '').startsWith(seed.file)
+      && (seed.line === undefined || lineOf(f) === seed.line));
     return {
       ...seed,
       fired: hit !== undefined,
@@ -173,6 +163,9 @@ function main() {
     tool: 'hardening audit --depth standard',
     audit_out_digest: createHash('sha256').update(readFileSync(join(out, 'report.json'))).digest('hex'),
     denominators: { security: staticSecurity.length, quality: staticQuality.length },
+    brief_declared_denominators: { security: 31, quality: 30 },
+    pre_r1_baseline_commit: 'b71a073d1425fc55c36a5f5d3863ad18b1971949',
+    denominator_reconciliation: 'The brief declares 31 security / 30 quality statically checkable items. This runner enumerates the Appendix A itemization as it can be derived from the brief text and measures every enumerated seed. Where the enumeration exceeds the declared 31/30, the reconciliation (which items the brief counts as one) requires the auditor\'s itemization; every seed is measured either way, and the declared denominators are never used to hide a miss.',
     totals: {
       security_reported: staticSecurity.filter((o) => o.fired).length,
       quality_reported: staticQuality.filter((o) => o.fired).length,

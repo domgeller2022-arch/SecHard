@@ -159,7 +159,12 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     let entries: string[];
     try {
       entries = readdirSync(dir);
-    } catch {
+    } catch (error) {
+      // ENOENT is the fresh-tree case (nothing pre-exists to alias); anything else — an
+      // unreadable-but-writable directory that could hide a symlink — refuses fail-closed.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new Error(`the output directory ${dir} cannot be inspected (${(error as Error).message}); refusing to write through an unverifiable path`);
+      }
       return;
     }
     for (const entry of entries) {
@@ -173,11 +178,9 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
       }
     }
   };
-  try {
-    scanOutput(out, 0);
-  } catch {
-    // out itself unreadable: the per-destination guards below still apply.
-  }
+  // R1-02: an output tree we cannot inspect cannot be proven safe — refuse rather than continue
+  // (an unreadable-but-writable out/ can hide a records symlink into the target).
+  scanOutput(out, 0);
   if (outputSymlinks.length > 0) {
     return {
       exitCode: 2,
