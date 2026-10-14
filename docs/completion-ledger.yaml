@@ -1,0 +1,29 @@
+# Completion ledger — the single active task inventory (plan section 2).
+# Authority: 2026-10-14-SecHard-comprehensive-completion-plan.md (owner instruction, 14 Oct 2026).
+# One task per plan subphase; states: pending | in_progress | done(verified evidence) | blocked(owner decision).
+plan_authority:
+  document: "2026-10-14-SecHard-comprehensive-completion-plan.md"
+  instructed_at: "2026-10-14"
+  rule: "No deviation; no competing plans; evidence in docs/evidence/; historical audits unchanged."
+baseline:
+  start_commit: "8e54847"   # auditor-reviewed revision 4 state
+  branch: "completion/p0-comprehensive"
+  changelog_hash_after_governance_note: "RECORD_AT_COMMIT"
+phase_p0:
+  p0_1_repository_snapshot:
+    state: in_progress
+    remaining:
+      - "Hash CHANGELOG.md + Appendix C source inputs; record OS/Git/Node/pnpm/Docker/registry facts (observed, not invented)"
+      - "Create evidence directory outside audited roots (private permissions)"
+      - "CI integrity assertion comparing changelog bytes to the expected hash"
+      - "tests/completion/acceptance-matrix.yaml + bounded tools/verify-completion.mjs (fails on missing/stale/fixture-only evidence)"
+  p0_2_inventory:
+    state: pending
+    remaining:
+      - "Enumerate every catalogue verification method/profile requirement/registry handler; classify execution safety"
+      - "Assign every unimplemented recipe (Appendix B) to a subphase; ledger every A-01..A-32, F-01..F-17, addendum, X1..X4, acceptance scenario"
+phase_p1:
+  p1_1_git_child_regressions: { state: pending, note: "auditor-required gitleaks child marker regression lives here" }
+  p1_2_recursive_persistence: { state: pending, note: "failure-injection harness incl. failure-path raw cleanup" }
+  p1_3_bounded_io: { state: pending, note: "A-29 prerequisites" }
+  p1_4_restore_proof_and_baseline: { state: pending, note: "live drill (owner-approved disposable stack) + measured pre-R1 pinned build" }

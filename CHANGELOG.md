@@ -13,6 +13,18 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Governance — the comprehensive completion plan is the sole authority for all remaining work
+
+By explicit owner instruction (2026-10-14), `2026-10-14-SecHard-comprehensive-completion-plan.md`
+(outside the repository, in the working folder) is the governing document for every remaining
+subphase — its 13 phases and 55 subphases, execution protocol, closure map (all 32 audit findings,
+all 17 fix-brief items, all currently missing recipe handlers), 47 acceptance scenarios, decision
+register, and handoff checklist. **No session may deviate from that plan or generate a competing
+one.** This entry records that authority (the only changelog change authorised with it); the
+bytes below remain the previously audited history. All remaining status/evidence goes to
+`docs/completion-ledger.yaml` per the plan's execution protocol.
+
+
 ### Started — Batch F2: detection depth (fix brief F-04..F-09, authorised 13 October 2026)
 
 Authority: the owner's auditor re-checked F1 on 2026-10-13 and passed it ("F1 is complete"); the
