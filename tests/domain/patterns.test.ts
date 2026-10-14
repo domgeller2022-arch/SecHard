@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { loadCatalogue, loadPatterns, loadSources } from '../../src/domain/definitions.js';
-import { allPassing, evaluateWith, planFor } from '../helpers/fixtures.js';
+import { allManual, allPassing, evaluateWith, planFor } from '../helpers/fixtures.js';
 import { validateAgainstSchema } from '../../src/validation/schema.js';
 import { checkDuplicateIds, checkReference } from '../../src/validation/semantic.js';
 import { loadDocument } from '../../src/validation/loader.js';
@@ -151,7 +151,7 @@ describe('guidance can never become execution evidence', () => {
     const plan = planFor('pr');
     // Everything satisfies the plan. There is no field anywhere to inject a pattern observation, and
     // the decision is unchanged by the patterns existing at all.
-    const decision = evaluateWith({ plan, results: allPassing(plan) });
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: allManual(plan) });
     expect(decision.satisfied).toBe(true);
     expect(decision.reasons).toEqual([]);
   });

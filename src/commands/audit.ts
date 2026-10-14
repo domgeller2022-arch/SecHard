@@ -1,6 +1,8 @@
-import { mkdirSync } from 'node:fs';
-import { basename, join, relative, resolve } from 'node:path';
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { redactSecrets } from '../evidence/redaction.js';
 import { stringify as stringifyYaml } from 'yaml';
 import { detectStackAndFeatures, type Detection } from '../audit/detect.js';
 import { buildAuditReport, type Depth } from '../audit/report.js';
@@ -62,8 +64,10 @@ function slugify(name: string): string {
 }
 
 function isInside(parent: string, child: string): boolean {
+  // R1-02: segment-aware containment — `..foo` is a legitimate name, `..` and `../x` are escapes,
+  // and an absolute remainder is not a containment answer.
   const rel = relative(resolve(parent), resolve(child));
-  return rel === '' || !rel.startsWith('..');
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
 function manifestFor(detection: Detection, options: AuditOptions, policyCommit: string, catalogueDigest: string, urlEnvironment: 'local' | 'production'): ManifestRecord & { name: string } {
@@ -114,14 +118,92 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
   const target = resolve(options.target);
   const out = resolve(options.out ?? join(process.cwd(), `sechard-audit-${options.now.toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`));
 
-  if (isInside(target, out)) {
+  // A-02 / PR-03: output confinement is resolved against real paths — an output symlink (or a
+  // symlinked ancestor) pointing into the audited tree must be rejected before anything is
+  // created. The deepest existing ancestor is resolved, because the output directory itself
+  // typically does not exist yet. A concurrent link swap between this check and later writes is
+  // explicitly out of scope and documented here: the audit never writes inside the target, and
+  // every written artifact goes through writeAtomic under the checked prefix.
+  const targetReal = realpathSync(target);
+  // Walk up with lstat (never following links) to the deepest existing ancestor, then resolve it.
+  // A symlink that resolves nowhere (dangling) cannot be proven confined: refuse.
+  let probe = out;
+  for (;;) {
+    try {
+      lstatSync(probe);
+      break;
+    } catch {
+      const parent = dirname(probe);
+      if (parent === probe) break;
+      probe = parent;
+    }
+  }
+  let outBaseReal: string;
+  try {
+    outBaseReal = join(realpathSync(probe), relative(probe, out));
+  } catch {
+    return {
+      exitCode: 2,
+      stdout: [],
+      stderr: [
+        'audit: the output path could not be resolved to a real location (dangling symlink?), refusing',
+        `  out ${out}`,
+      ],
+    };
+  }
+  // R1-02: the guard must cover descendants, not just the root — a pre-existing out/records
+  // symlink into the target would otherwise carry every record write inside the audited tree.
+  const outputSymlinks: string[] = [];
+  const scanOutput = (dir: string, depth: number): void => {
+    if (depth > 6 || outputSymlinks.length > 20) return;
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch (error) {
+      // ENOENT is the fresh-tree case (nothing pre-exists to alias); anything else — an
+      // unreadable-but-writable directory that could hide a symlink — refuses fail-closed.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw new Error(`the output directory ${dir} cannot be inspected (${(error as Error).message}); refusing to write through an unverifiable path`);
+      }
+      return;
+    }
+    for (const entry of entries) {
+      const full = join(dir, entry);
+      let stats;
+      try {
+        stats = lstatSync(full);
+      } catch {
+        continue;
+      }
+      if (stats.isSymbolicLink()) outputSymlinks.push(relative(out, full));
+      // R1-02: the recursion is deliberately outside the entry try — a refusal from a deeper
+      // level (an unreadable directory that could hide a symlink) must propagate, not be
+      // swallowed as if this entry were merely missing.
+      else if (stats.isDirectory()) scanOutput(full, depth + 1);
+    }
+  };
+  // R1-02: an output tree we cannot inspect cannot be proven safe — refuse rather than continue
+  // (an unreadable-but-writable out/ can hide a records symlink into the target).
+  scanOutput(out, 0);
+  if (outputSymlinks.length > 0) {
+    return {
+      exitCode: 2,
+      stdout: [],
+      stderr: [
+        'audit: the output directory contains symlinks; refusing to write through them',
+        ...outputSymlinks.slice(0, 5).map((entry) => `  out/${entry}`),
+        '  Remove the symlinks or choose a fresh --out directory.',
+      ],
+    };
+  }
+  if (isInside(targetReal, outBaseReal)) {
     return {
       exitCode: 2,
       stdout: [],
       stderr: [
         'audit: the output directory must live outside the audited project',
-        `  target ${target}`,
-        `  out    ${out}`,
+        `  target ${target} (real: ${targetReal})`,
+        `  out    ${out} (resolves to ${outBaseReal})`,
         '  Audit mode never writes to the audited project; pass --out pointing outside it.',
       ],
     };
@@ -129,7 +211,6 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
 
   const recordsRoot = join(out, 'records');
   mkdirSync(join(recordsRoot, '.hardening'), { recursive: true });
-  mkdirSync(join(out, 'raw'), { recursive: true });
 
   const paths: Paths = { appRoot: target, policyRoot: options.policyRoot, recordsRoot };
 
@@ -183,7 +264,8 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
       ],
     };
   }
-  writeAtomic(manifestFile, manifestText);
+  // R1-04: generated records carry detection evidence (file names, details) — scrub before persisting.
+  writeAtomic(manifestFile, redactSecrets(manifestText));
 
   // 4. Live target inventory, generated from the approved URL. The inventory is validated by the
   //    same loader the recipe uses, so an invalid generated inventory can never be honoured.
@@ -205,7 +287,7 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
         },
       ],
     };
-    writeAtomic(join(recordsRoot, '.hardening', 'targets.yaml'), stringifyYaml(inventory));
+    writeAtomic(join(recordsRoot, '.hardening', 'targets.yaml'), redactSecrets(stringifyYaml(inventory)));
     const loaded = loadTargetInventory(join(recordsRoot, '.hardening', 'targets.yaml'));
     if (loaded.inventory === undefined || loaded.issues.length > 0) {
       return {
@@ -223,14 +305,21 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     return { exitCode: planned.exitCode, stdout: planned.stdout, stderr: ['audit: planning failed', ...planned.stderr] };
   }
   const planPath = join(out, 'plan.json');
-  writeJson(planPath, planned.plan);
+  writeJson(planPath, JSON.parse(redactSecrets(JSON.stringify(planned.plan))) as typeof planned.plan);
 
   // 6. Check through the real machinery. Quick depth excludes the slow and live recipes; the
   //    excluded checks report unsupported with the reason rather than vanishing.
-  const checked = await checkCommand(paths, {
+  // R1-05: raw scanner output never enters the published output tree. It is written to private
+  // staging (0700, outside `out`) and removed on every path — including a failed report write.
+  const rawStaging = mkdtempSync(join(tmpdir(), 'sechard-raw-'));
+  chmodSync(rawStaging, 0o700);
+  let checked: Awaited<ReturnType<typeof checkCommand>>;
+  try {
+    checked = await checkCommand(paths, {
     planPath,
     runId,
     outDir: out,
+    rawDir: rawStaging,
     now: options.now,
     ...(
       options.depth === 'quick'
@@ -238,8 +327,11 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
         : {}
     ),
   });
+  } finally {
+    rmSync(rawStaging, { recursive: true, force: true });
+  }
   if (checked.results !== undefined) {
-    writeJson(join(out, 'results.json'), checked.results);
+    writeJson(join(out, 'results.json'), JSON.parse(redactSecrets(JSON.stringify(checked.results))) as typeof checked.results);
   }
 
   // 7. Gate through the real machinery. An audit is advisory: the decision is reported, and a
@@ -288,11 +380,23 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     json: join(out, 'report.json'),
     sarif: join(out, 'report.sarif'),
   };
-  writeAtomic(reportPaths.markdown, report.markdown);
-  writeAtomic(reportPaths.html, report.html);
-  writeAtomic(reportPaths.json, report.json);
-  writeAtomic(reportPaths.sarif, report.sarif);
-  writeJson(join(out, 'evidence.json'), built.evidence);
+  // A-03 (PR-04): the persistence boundary. Findings are redacted at intake, but the report is
+  // the last line of defence before bytes hit disk: every artifact is scrubbed with the provider
+  // patterns (including values not assigned to a variable named "secret"), and raw scanner
+  // output is not retained in ordinary mode at all. writeAtomic already uses 0600; that is an
+  // additional protection, never the control.
+  const scrubbed = {
+    markdown: redactSecrets(report.markdown),
+    html: redactSecrets(report.html),
+    json: redactSecrets(report.json),
+    sarif: redactSecrets(report.sarif),
+  };
+  writeAtomic(reportPaths.markdown, scrubbed.markdown);
+  writeAtomic(reportPaths.html, scrubbed.html);
+  writeAtomic(reportPaths.json, scrubbed.json);
+  writeAtomic(reportPaths.sarif, scrubbed.sarif);
+  writeAtomic(join(out, 'evidence.json'), redactSecrets(JSON.stringify(built.evidence, null, 2) + '\n'));
+
 
   const errored = (checked.results ?? []).filter((result: CheckResult) => result.outcome === 'error');
   const bySeverity = new Map<string, number>();

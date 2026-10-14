@@ -13,6 +13,7 @@ import type {
   ManifestRecord,
   ManualEvidence,
   Profile,
+  TriageRecord,
 } from '../../src/domain/types.js';
 import type { ControlDefinition } from '../../src/domain/definitions.js';
 import type { ApplicabilityRule } from '../../src/domain/applicability.js';
@@ -168,6 +169,7 @@ export function evaluateWith(input: {
   results: readonly CheckResult[];
   manualEvidence?: readonly ManualEvidence[];
   exceptions?: readonly ExceptionRecord[];
+  triages?: readonly TriageRecord[];
   stage?: 'pr' | 'release' | 'operations';
   environment?: 'local' | 'preview' | 'staging' | 'production';
   manifest?: ManifestRecord;
@@ -200,6 +202,7 @@ export function evaluateWith(input: {
     results: input.results,
     manualEvidence: input.manualEvidence ?? [],
     exceptions: input.exceptions ?? [],
+    triages: input.triages ?? [],
     approvals: input.approvals ?? [],
     controlDefinitions: catalogue,
     policy,
@@ -256,5 +259,19 @@ export const exceptionFor = (overrides: Partial<ExceptionRecord> = {}): Exceptio
   approver: 'maintainer',
   self_review: true,
   expires_at: '2026-12-01T00:00:00Z',
+  ...overrides,
+});
+
+/** A reviewed false-positive record; the only triage that clears a finding (F-02/A-4). */
+export const triageFor = (overrides: Partial<TriageRecord> = {}): TriageRecord => ({
+  schema_version: 'triage/v1',
+  id: 'TRIAGE-TEST-1',
+  finding_fingerprint: 'f'.repeat(64),
+  rule_id: 'rule-x',
+  file: 'src/tool.ts',
+  triage: 'false_positive',
+  reason: 'Synthetic test value, never a real credential: composed for this fixture only',
+  reviewer: 'reviewer',
+  reviewed_at: '2026-10-05T00:00:00Z',
   ...overrides,
 });

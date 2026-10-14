@@ -4,6 +4,7 @@ import {
   POLICY_COMMIT,
   RUN_ID,
   SOURCE_COMMIT,
+  allManual,
   allPassing,
   approvalFor,
   catalogue,
@@ -97,7 +98,8 @@ describe('planning derives the expected work before execution', () => {
 describe('a satisfied decision', () => {
   it('is reached when every planned check genuinely passes', () => {
     const plan = planFor('pr');
-    const decision = evaluateWith({ plan, results: allPassing(plan) });
+    // F-03: a genuine full pass includes the human half — evidence for every manual companion.
+    const decision = evaluateWith({ plan, results: allPassing(plan), manualEvidence: allManual(plan) });
     expect(decision.reasons).toEqual([]);
     expect(decision.satisfied).toBe(true);
   });
@@ -463,7 +465,8 @@ describe('findings block regardless of a friendly label', () => {
     const results: CheckResult[] = allPassing(plan).map((result, index) =>
       index === 0 ? { ...result, findings: [finding as Finding] } : result,
     );
-    return evaluateWith({ plan, results });
+    // F-03: the manual companions are supplied so the finding is the only variable under test.
+    return evaluateWith({ plan, results, manualEvidence: allManual(plan) });
   };
 
   it('blocks an unresolved critical finding', () => {
@@ -488,7 +491,9 @@ describe('findings block regardless of a friendly label', () => {
     expect(decision.reasons.some((item) => item.code === 'finding.unknown_severity_untriaged')).toBe(true);
   });
 
-  it('accepts unknown severity once explicitly triaged with a reason', () => {
+  it('does not accept a false-positive label from a result file, whatever reason it carries', () => {
+    // A-4: only a reviewed .hardening/triage.yaml record clears a finding. A label written into a
+    // result file is not triage — the reviewed record path is tested in probes.test.ts.
     const decision = withFinding(planFor('pr'), {
       id: 'f1',
       tool: 'osv-scanner',
@@ -497,6 +502,8 @@ describe('findings block regardless of a friendly label', () => {
       triage: 'false_positive',
       triage_reason: 'Dev-only transitive package, confirmed against the lockfile',
     });
+    expect(decision.satisfied).toBe(false);
+    expect(decision.reasons.some((item) => item.code === 'finding.false_positive_unrecorded')).toBe(true);
     expect(decision.reasons.some((item) => item.code === 'finding.unknown_severity_untriaged')).toBe(false);
   });
 
@@ -508,7 +515,7 @@ describe('findings block regardless of a friendly label', () => {
       severity: 'high',
       triage: 'false_positive',
     });
-    expect(decision.reasons.some((item) => item.code === 'finding.false_positive_unsupported')).toBe(true);
+    expect(decision.reasons.some((item) => item.code === 'finding.false_positive_unrecorded')).toBe(true);
   });
 
   it('does not block a finding already triaged as fixed', () => {
@@ -529,6 +536,7 @@ describe('exceptions are narrow, current, and never erase the failure', () => {
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       exceptions: [exceptionFor({ scope: { control: 'SEC-01', finding_id: 'f1', environment: 'production' } })],
     });
     const outcome = decision.control_outcomes.find((item) => item.reasons.some((r) => r.code === 'waiver.applied'));

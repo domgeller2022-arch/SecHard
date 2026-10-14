@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { gitHardeningArgs } from '../execution/git-hardening.js';
 import { existsSync } from 'node:fs';
 import { parse } from 'yaml';
 import { readFileSync } from 'node:fs';
@@ -120,7 +121,8 @@ export const runGit: GitRunner = (cwd, args) => {
   const executable = gitExecutable();
   if (executable === undefined) return undefined;
   try {
-    return execFileSync(executable, [...args], {
+    // A-01: the audited tree's own .git/config can execute code (core.fsmonitor) during a diff.
+    return execFileSync(executable, [...gitHardeningArgs(), ...args], {
       cwd,
       encoding: 'utf8',
       timeout: 30_000,

@@ -1,4 +1,6 @@
 import type { Finding } from '../domain/types.js';
+import { sha256Hex } from '../evidence/digest.js';
+import { relativizeLocation } from '../evidence/redaction.js';
 import { isRecord, parseJsonReport, severityFromRuleLevel, stableFindingId, type AdapterOutcome } from './types.js';
 
 /**
@@ -23,13 +25,13 @@ interface OpengrepFinding {
     readonly severity?: unknown;
     readonly fingerprint?: unknown;
     readonly lines?: unknown;
-    readonly metadata?: { readonly hardening_controls?: unknown };
+    readonly metadata?: { readonly hardening_controls?: unknown; readonly hardening_severity?: unknown };
   };
 }
 
 export function parseOpengrepReport(
   raw: string,
-  options: { readonly intendedScope?: readonly string[] } = {},
+  options: { readonly intendedScope?: readonly string[]; readonly appRoot?: string } = {},
 ): AdapterOutcome | { error: string } {
   const parsed = parseJsonReport(raw, 'opengrep');
   if (!parsed.ok) return { error: parsed.error };
@@ -57,7 +59,13 @@ export function parseOpengrepReport(
   const paths = (parsed.value as { paths?: { scanned?: unknown } }).paths;
   if (isRecord(paths) && Array.isArray((paths as { scanned?: unknown }).scanned)) {
     for (const path of (paths as { scanned: unknown[] }).scanned) {
-      if (typeof path === 'string') scannedFiles.add(path);
+      if (typeof path === 'string') {
+        // Opengrep reports absolute machine paths even when run with the application root as its
+        // working directory. Ids, locations, and recorded scope are all minted from the
+        // root-relative form: the id must not embed the auditing host's layout, and recipe-level
+        // scoping keys on path segments. Relativization happens once, here, where the id is built.
+        scannedFiles.add(options.appRoot === undefined ? path : relativizeLocation(path, options.appRoot));
+      }
     }
   }
 
@@ -78,7 +86,9 @@ export function parseOpengrepReport(
     const packMarker = 'opengrep-rules.';
     const ruleId = checkId.includes(packMarker) ? checkId.slice(checkId.lastIndexOf(packMarker) + packMarker.length) : checkId;
     const path = typeof item.path === 'string' ? item.path : undefined;
-    if (path !== undefined) scannedFiles.add(path);
+    // Same root-relative form for the finding's identity and location as for the scanned files.
+    const relativePath = path === undefined || options.appRoot === undefined ? path : relativizeLocation(path, options.appRoot);
+    if (relativePath !== undefined) scannedFiles.add(relativePath);
     const line = typeof item.start?.line === 'number' ? item.start.line : undefined;
     const fingerprint = typeof item.extra?.fingerprint === 'string' ? item.extra.fingerprint : undefined;
 
@@ -86,15 +96,27 @@ export function parseOpengrepReport(
       ? (item.extra.metadata.hardening_controls as unknown[]).filter((entry): entry is string => typeof entry === 'string')
       : [];
 
+    // The reviewed rule packs may pin a severity above the level mapping (`hardening_severity`):
+    // the unverified-Stripe-webhook rule is critical, not high. Only a valid severity name is
+    // honoured; anything else falls back to the level mapping.
+    const levelSeverity = severityFromRuleLevel(typeof item.extra?.severity === 'string' ? item.extra.severity : undefined);
+    const pinned = item.extra?.metadata?.hardening_severity;
+    const severity =
+      pinned === 'critical' || pinned === 'high' || pinned === 'medium' || pinned === 'low'
+        ? pinned
+        : levelSeverity;
+
     findings.push({
-      id: stableFindingId(['opengrep', ruleId, path, line, fingerprint]),
+      id: stableFindingId(['opengrep', ruleId, relativePath, line, fingerprint]),
       tool: 'opengrep',
       rule_id: ruleId,
       title: typeof item.extra?.message === 'string' ? item.extra.message : ruleId,
-      severity: severityFromRuleLevel(typeof item.extra?.severity === 'string' ? item.extra.severity : undefined),
-      ...(path === undefined ? {} : { location: line === undefined ? path : `${path}:${line}` }),
+      severity,
+      ...(relativePath === undefined ? {} : { location: line === undefined ? relativePath : `${relativePath}:${line}` }),
       ...(fingerprint === undefined ? {} : { resource: fingerprint }),
-      ...(typeof item.extra?.lines === 'string' ? { detail: `matched: ${item.extra.lines.trim()}` } : {}),
+      // A-03 (PR-04): the matched source line is never persisted — it can carry secret material
+      // from the audited tree. The match identity is the digest; the location says where to look.
+      ...(typeof item.extra?.lines === 'string' ? { detail: `matched line digest: ${sha256Hex(item.extra.lines)}` } : {}),
       ...(controls.length === 0 ? {} : { control_ids: controls }),
       triage: 'unresolved',
     });

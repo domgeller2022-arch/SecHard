@@ -119,6 +119,28 @@ describe('gitleaks detects synthetic secrets and accepts the fixed fixture', () 
     expect(parsed.findings[0]?.detail).toMatch(/redacted/);
   });
 
+  it('relativizes absolute file paths and fingerprints against the scan root (dir mode)', () => {
+    // Dir mode pointed at an absolute root reports absolute paths in `File` and embeds them in the
+    // `Fingerprint`. The adapter mints ids from the root-relative form (F-01/F-15): an id that
+    // embeds the auditing host's layout is a leak in every report and unstable across machines.
+    const report = JSON.stringify([
+      {
+        RuleID: 'generic-api-key',
+        Description: 'Generic API key',
+        File: `${REPO}/examples/app/.env.local`,
+        StartLine: 4,
+        Fingerprint: `${REPO}/examples/app/.env.local:generic-api-key:4`,
+        Secret: 'REDACTED',
+      },
+    ]);
+    const parsed = parseGitleaksReport(report, { appRoot: REPO });
+    expect('error' in parsed).toBe(false);
+    if ('error' in parsed) return;
+    expect(parsed.findings[0]?.location).toBe('examples/app/.env.local:4');
+    expect(parsed.findings[0]?.resource).toBe('examples/app/.env.local:generic-api-key:4');
+    expect(JSON.stringify(parsed)).not.toContain(REPO);
+  });
+
   it('treats an unreadable report as an error, not an empty clean scan', () => {
     expect(parseGitleaksReport('')).toMatchObject({ error: expect.stringContaining('empty') });
     expect(parseGitleaksReport('{"not":"an array"}')).toMatchObject({ error: expect.stringContaining('not a JSON array') });
@@ -217,7 +239,10 @@ describe('osv-scanner finds advisories for a pinned vulnerable dependency', () =
 });
 
 describe('opengrep detects the vulnerable patterns and accepts the fixed fixture', () => {
-  const rules = join(REPO, 'ci', 'configs', 'opengrep-rules', 'hardening-core.yaml');
+  // Both reviewed packs: the Batch F2 detection-depth rules live in their own pack file, and the
+  // fixture expectations below cover rules from both.
+  const rules = join(REPO, 'ci', 'configs', 'opengrep-rules');
+
 
   it('finds the eval, shell-exec, and innerHTML patterns', async () => {
     const run = await runOpengrep(join(FIXTURES, 'sast', 'vulnerable.ts'), rules);
@@ -255,7 +280,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     const cases: readonly { dir: string; vulnerable: readonly string[]; fixed: readonly string[] }[] = [
       {
         dir: 'api',
-        vulnerable: ['hardening.ssrf-request-derived-url', 'hardening.api-unvalidated-response-consumption'],
+        vulnerable: ['hardening.taint-ssrf-fetch', 'hardening.api-unvalidated-response-consumption'],
         fixed: [],
       },
       { dir: 'oauth', vulnerable: ['hardening.oauth-implicit-grant'], fixed: [] },

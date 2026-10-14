@@ -47,9 +47,45 @@ export interface AnnotatedFinding {
   readonly effort: Effort;
   readonly confidence: Confidence;
   readonly prompt: string;
-  readonly exposure: 'deployed-surface' | 'source';
+  readonly exposure: ExposureClass;
   /** Security and quality are reported separately and neither can change the other's verdict. */
   readonly family: 'security' | 'quality';
+}
+
+/**
+ * How exposed a finding is, worst first: material shipped to browsers or reachable over live HTTP,
+ * then secrets in committed history (deleting the worktree copy does not remove them), then source
+ * in a request path, then ordinary source and repository/workflow hygiene. Exposure orders
+ * findings at equal severity (A-7); it never changes a score or a blocking decision.
+ */
+export type ExposureClass = 'deployed-surface' | 'committed-history' | 'request-reachable' | 'source';
+
+const EXPOSURE_RANK: Readonly<Record<ExposureClass, number>> = {
+  'deployed-surface': 4,
+  'committed-history': 3,
+  'request-reachable': 2,
+  source: 1,
+};
+
+const DEPLOYED_SURFACE_TOOLS = new Set(['client-asset-inspection', 'live-http-check']);
+
+/**
+ * A request-reachable path: an API route or handler. Server Actions cannot be judged from a path
+ * alone ('use server' is in the file, not the name), so they are not claimed here — the
+ * limitation is stated rather than approximated.
+ */
+const REQUEST_REACHABLE_PATH = /(^|\/)(api|pages\/api)\/|(^|\/)route\.(?:ts|tsx|js|jsx|mjs)$/i;
+
+function exposureOf(finding: Finding, location: string): ExposureClass {
+  if (DEPLOYED_SURFACE_TOOLS.has(finding.tool)) return 'deployed-surface';
+  if (
+    finding.category === 'secret' &&
+    (finding.commit !== undefined || (finding.detail ?? '').includes('also present in committed history'))
+  ) {
+    return 'committed-history';
+  }
+  if (REQUEST_REACHABLE_PATH.test(location)) return 'request-reachable';
+  return 'source';
 }
 
 export interface AuditReport {
@@ -115,11 +151,34 @@ function locationOf(finding: Finding, result: CheckResult): string {
 
 function annotate(input: AuditReportInput): AnnotatedFinding[] {
   const controlsById = new Map(input.controls.map((control) => [control.id, control]));
-  const deployedSurfaceTools = new Set(['client-asset-inspection', 'live-http-check']);
 
   const annotated: AnnotatedFinding[] = [];
+  const seenAtLocation = new Map<string, number>();
   for (const result of input.results) {
     for (const finding of result.findings ?? []) {
+      const location = locationOf(finding, result);
+
+      // The same issue reported twice at one location — the regex and taint rules on one SSRF
+      // sink, or two tools covering one rule — is one row, keeping the provenance of both and the
+      // higher severity (A-7). Findings with no location are never folded: there is nothing that
+      // says they are the same issue.
+      const foldKey = location.length === 0 ? undefined : `${location}|${finding.category ?? ''}`;
+      const existingIndex = foldKey === undefined ? undefined : seenAtLocation.get(foldKey);
+      if (existingIndex !== undefined) {
+        const existing = annotated[existingIndex]!;
+        const provenance = `also reported as ${finding.rule_id} (${finding.tool}) at the same location`;
+        annotated[existingIndex] = {
+          ...existing,
+          severity:
+            SEVERITY_ORDER.indexOf(finding.severity) < SEVERITY_ORDER.indexOf(existing.severity)
+              ? finding.severity
+              : existing.severity,
+          detail: existing.detail === undefined ? provenance : `${existing.detail}; ${provenance}`,
+        };
+        continue;
+      }
+      if (foldKey !== undefined) seenAtLocation.set(foldKey, annotated.length);
+
       const explanation = explainFinding(finding);
       annotated.push({
         id: finding.id,
@@ -127,7 +186,7 @@ function annotate(input: AuditReportInput): AnnotatedFinding[] {
         tool: finding.tool,
         rule_id: finding.rule_id,
         title: finding.title ?? `${finding.rule_id} reported by ${finding.tool}`,
-        location: locationOf(finding, result),
+        location,
         ...(finding.detail === undefined ? {} : { detail: finding.detail }),
         control_ids: finding.control_ids ?? result.control_ids,
         standards: standardsFor(finding, controlsById),
@@ -136,7 +195,7 @@ function annotate(input: AuditReportInput): AnnotatedFinding[] {
         effort: explanation.effort,
         confidence: explanation.confidence,
         prompt: explanation.prompt,
-        exposure: deployedSurfaceTools.has(finding.tool) ? 'deployed-surface' : 'source',
+        exposure: exposureOf(finding, location),
         family: (finding.control_ids ?? result.control_ids).some((control) => control.startsWith('QUAL-')) ? 'quality' : 'security',
       });
     }
@@ -145,7 +204,7 @@ function annotate(input: AuditReportInput): AnnotatedFinding[] {
   annotated.sort((a, b) => {
     const bySeverity = SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity);
     if (bySeverity !== 0) return bySeverity;
-    const byExposure = (b.exposure === 'deployed-surface' ? 1 : 0) - (a.exposure === 'deployed-surface' ? 1 : 0);
+    const byExposure = EXPOSURE_RANK[b.exposure] - EXPOSURE_RANK[a.exposure];
     if (byExposure !== 0) return byExposure;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
@@ -211,12 +270,28 @@ function couldNotCheck(input: AuditReportInput): string[] {
   }
   items.push(...manualObligations);
 
+  // The secret scans cover three things since the F-02 follow-up: the current working tree
+  // (committed or not — the `gitleaks/files` scan runs at every depth), the newest commit's
+  // change set, and committed history. The one honest caveat left is that the git-mode scans see
+  // only committed content; the current-files scan is what covers an uncommitted tree.
+  if (input.plan.inputs.source_dirty === true) {
+    items.push(
+      'WORKING TREE: this audit ran against a tree with uncommitted changes. The current-files secret scan covers uncommitted and untracked files; the git-mode scans cover committed content and history only',
+    );
+  }
 
   if (input.depth === 'quick') {
-    items.push('DEPTH: quick mode does not run the git-history secret scan, the browser-bundle inspection, or live HTTP checks; rerun without --depth quick for those');
+    items.push('DEPTH: quick mode does not run the git-history secret scan, the browser-bundle inspection, or live HTTP checks; the current-files secret scan still runs at every depth. Rerun without --depth quick for the full set');
   }
   if (input.depth === 'deep') {
     items.push('DEPTH: deep mode runs the same set as standard in this build. Deeper work (executing the application\'s own build and tests, exposure probes) requires the audit isolation model and is not implemented; it is refused rather than silently run');
+  }
+  // F-09: when the app calls AI models but no runtime-ai profile exists in this build, the audit
+  // must not imply AI-safety coverage it does not have. The banner is verbatim from the brief.
+  const runtimeAiDetected = input.detection.features['runtime_ai']?.state === 'enabled';
+  const runtimeAiProfileComposed = input.detection.profiles.some((profile) => profile.id === 'runtime-ai');
+  if (runtimeAiDetected && !runtimeAiProfileComposed) {
+    items.push('RUNTIME AI: This app calls AI models; prompt-injection, spend-limit, and model-output safety checks are not covered.');
   }
   items.push('TLS assessment is not part of this audit: the transport requirements beyond certificate validity need current testssl.sh output (manual evidence)');
   return items;
@@ -300,7 +375,9 @@ function buildJson(
 ): string {
   const document = {
     schema_version: 'audit-report/v1',
-    target: input.target,
+    // The target is named, never located: an absolute machine path in a published report is the
+    // auditing host's layout, not information about the audited application.
+    target: input.targetName,
     generated_at: input.generatedAt.toISOString(),
     depth: input.depth,
     ...(input.url === undefined ? {} : { live_target: input.url }),
@@ -595,7 +672,10 @@ function buildSarif(input: AuditReportInput, findings: readonly AnnotatedFinding
           },
         ],
         originalUriBaseIds: {
-          AUDITROOT: { uri: pathToFileUri(input.target), description: { text: 'The audited directory' } },
+          // The base names the audited directory, never locates it on the auditing machine: a
+          // file:// URI of the absolute target path is exactly the leak the relativized artifact
+          // URIs exist to prevent.
+          AUDITROOT: { uri: input.targetName, description: { text: 'The audited directory' } },
         },
         results,
       },
@@ -639,9 +719,4 @@ function sarifUri(location: string, target: string): { uri: string; uriBaseId: s
   // An absolute path outside the target is unusual; it is kept as-is rather than mangled,
   // because inventing a relative form would misreport the location.
   return { uri: normalized.split('/').map(encodeURIComponent).join('/') };
-}
-
-function pathToFileUri(target: string): string {
-  const encoded = target.replace(/\\/g, '/').replace(/[\u0000-\u001f\u007f"<>^`{|}]/g, encodeURIComponent);
-  return `file://${encoded.startsWith('/') ? '' : '/'}${encoded}`;
 }

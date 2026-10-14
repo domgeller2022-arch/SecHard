@@ -160,6 +160,24 @@
       },
       "maxItems": 256
     },
+    "recorded_false_positives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "rule_id", "file", "reviewer", "reason", "reviewed_at"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 64 },
+          "rule_id": { "type": "string", "maxLength": 200 },
+          "file": { "type": "string", "maxLength": 2048 },
+          "reviewer": { "type": "string", "maxLength": 200 },
+          "reason": { "type": "string", "maxLength": 4000 },
+          "reviewed_at": { "$ref": "#/$defs/timestamp" },
+          "matched_finding": { "type": "string", "maxLength": 200 }
+        }
+      },
+      "maxItems": 512
+    },
     "outstanding": {
       "type": "array",
       "items": {

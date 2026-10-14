@@ -1,18 +1,21 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parseGitleaksReport } from '../adapters/gitleaks.js';
+import { gitConfigEnv, gitHardeningArgs } from './git-hardening.js';
 import { loadTargetInventory, runHttpChecks } from '../adapters/http.js';
 import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
 import { inspectBrowserAssets } from '../build/client-assets.js';
+import { annotateSecretFindings, gradeIgnoredFileFinding, gradeUntrackedFinding, splitLocation } from '../evidence/secret-severity.js';
 import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
 import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
 import { loadQualityThresholds } from '../quality/thresholds.js';
+import { analyzeMigrations } from '../security/migrations.js';
 import { resolveTool, runTool, type ToolAvailability } from './registry.js';
 import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from '../domain/types.js';
 
@@ -91,7 +94,8 @@ function gitOutput(cwd: string, args: readonly string[]): string | undefined {
   const git = resolveTool('git');
   if (!git.available) return undefined;
   try {
-    const stdout = execFileSync(git.executable, [...args], {
+    // A-01: harden against the audited tree's own Git configuration executing code.
+    const stdout = execFileSync(git.executable, [...gitHardeningArgs(), ...args], {
       cwd,
       encoding: 'utf8',
       timeout: 30_000,
@@ -106,6 +110,13 @@ function gitOutput(cwd: string, args: readonly string[]): string | undefined {
 }
 
 const worktreeRoot = (appRoot: string): string | undefined => gitOutput(appRoot, ['rev-parse', '--show-toplevel']);
+
+/** The line a `file:line` location points at, trimmed, from the given file content. */
+function lineAt(content: string | undefined, location: string | undefined): string | undefined {
+  const parts = splitLocation(location);
+  if (content === undefined || parts?.line === undefined) return undefined;
+  return content.split('\n')[parts.line - 1]?.trimEnd();
+}
 
 async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<RecipeOutcome> {
   const worktree = worktreeRoot(context.appRoot);
@@ -126,14 +137,20 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
     '--exit-code', '0',
     '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks.toml'),
   ];
-  if (headOnly) args.push('--log-opts', '-1');
+  // R1-01: `--no-textconv` disables attribute-selected text-conversion helpers in gitleaks' own
+  // `git log -p -U0` construction, without changing what is scanned. Scope is preserved: -1 keeps
+  // the repository scan at the newest commit, history stays full.
+  args.push('--log-opts', headOnly ? '-1 --no-textconv' : '--no-textconv');
 
   // Gitleaks shells out to `git` for a git-mode scan. The child PATH names only the reviewed git's
   // directory plus the system basics, so the internal lookup cannot be redirected by the caller's
-  // environment; the parent environment is still not inherited wholesale.
+  // environment; the parent environment is still not inherited wholesale. R1-01: the hardened Git
+  // configuration rides along in the same environment (fsmonitor/hooks off for the child).
   const git = resolveTool('git');
-  const env = git.available ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':') } : undefined;
-  const run = await runTool('gitleaks', args, { cwd: worktree, timeoutMs: 600_000, ...(env === undefined ? {} : { env }) });
+  const env = git.available
+    ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':'), ...gitConfigEnv() }
+    : { ...gitConfigEnv() };
+  const run = await runTool('gitleaks', args, { cwd: worktree, timeoutMs: 600_000, env });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   if (run.outcome.exitCode !== 0) {
     return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
@@ -149,6 +166,24 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
   const parsed = parseGitleaksReport(raw, { stderr: run.outcome.stderr, intendedScope: files.slice(0, MAX_FILES_RECORDED) });
   if ('error' in parsed) return errored(`${parsed.error}; the raw report digest is ${digestOf(raw).slice(0, 12)}…`);
 
+  // Classification (F-02). The matched text is read from the source revision, never from the
+  // redacted report: the repository scan reads the worktree, the history scan reads the finding's
+  // own commit and falls back to the worktree when the secret survived to HEAD. Values are never
+  // stored — only their digest is recorded — so no secret material is written anywhere by this.
+  const annotated = annotateSecretFindings(parsed.findings, (finding) => {
+    const parts = splitLocation(finding.location);
+    if (parts === undefined) return undefined;
+    if (!headOnly && finding.commit !== undefined) {
+      const committed = lineAt(gitOutput(worktree, ['show', `${finding.commit}:${parts.file}`]), finding.location);
+      if (committed !== undefined && committed.length > 0) return committed;
+    }
+    try {
+      return lineAt(readFileSync(join(worktree, parts.file), 'utf8'), finding.location);
+    } catch {
+      return undefined;
+    }
+  });
+
   return {
     outcome: 'pass',
     coverage: parsed.coverage,
@@ -156,7 +191,7 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
     // not files, so coverage stays partial: this is why the control is classified `mixed`.
     observed: files.length,
     files: files.slice(0, MAX_FILES_RECORDED),
-    findings: parsed.findings,
+    findings: annotated,
     tool: toolIdentity('gitleaks'),
     reportPath,
     reportDigest: digestOf(raw),
@@ -165,6 +200,152 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
 }
 
 const LOCKFILE_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'npm-shrinkwrap.json', 'requirements.txt', 'go.mod', 'Cargo.lock', 'composer.lock'] as const;
+
+/**
+ * The directories the current-files scan never descends into. This is the audit's own exclusion
+ * list (F-02 follow-up, owner's auditor 13 October 2026): dependency and build-output directories
+ * hold third-party or generated content nobody can remediate. It must stay in step with the
+ * machine-dir allowlist in `ci/configs/gitleaks-dir.toml`, which is what actually bounds the scan;
+ * this walk only records the honest scope inventory.
+ */
+const DIR_SCAN_EXCLUDED_DIRS: ReadonlySet<string> = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'vendor']);
+const MAX_DIR_WALK_DEPTH = 8;
+
+/** Bounded, read-only walk of the current tree, mirroring the dir config's exclusions. */
+function currentFilesWalk(root: string): string[] {
+  const files: string[] = [];
+  const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
+  while (queue.length > 0 && files.length < MAX_FILES_RECORDED) {
+    const { dir, depth } = queue.shift() as { dir: string; depth: number };
+    let entries: readonly string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const entry of [...entries].sort()) {
+      if (files.length >= MAX_FILES_RECORDED) break;
+      if (DIR_SCAN_EXCLUDED_DIRS.has(entry)) continue;
+      const full = join(dir, entry);
+      let isDirectory = false;
+      try {
+        isDirectory = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (isDirectory) {
+        if (depth < MAX_DIR_WALK_DEPTH) queue.push({ dir: full, depth: depth + 1 });
+        continue;
+      }
+      files.push(relative(root, full));
+    }
+  }
+  return files;
+}
+
+/**
+ * The current-files secret scan (F-02 follow-up, owner's auditor 13 October 2026): `gitleaks dir`
+ * over the application root, whatever the target is. The git-mode scans read committed content
+ * and history — a folder that is not a git repository got no secret scan at all, quick mode could
+ * not see files committed before the newest commit, and uncommitted or untracked files were never
+ * scanned. This recipe runs at every depth, with or without git, and its findings go through the
+ * same classifier, de-duplication, and waiver ban as the git scans.
+ */
+async function runGitleaksDir(context: RecipeContext): Promise<RecipeOutcome> {
+  const files = currentFilesWalk(context.appRoot);
+  mkdirSync(context.rawDir, { recursive: true });
+  const reportPath = join(context.rawDir, 'gitleaks-files.json');
+  const args = [
+    'dir',
+    context.appRoot,
+    '--report-format', 'json',
+    '--report-path', reportPath,
+    '--no-banner',
+    '--redact',
+    '--exit-code', '0',
+    '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks-dir.toml'),
+  ];
+
+  // A-01/PR-02: gitleaks runs its own `git` inside the audited tree; inject the hardened config
+  // through the environment so the child's Git cannot execute repository-configured helpers.
+  const run = await runTool('gitleaks', args, { cwd: context.appRoot, timeoutMs: 600_000, env: { ...gitConfigEnv() } });
+  if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
+  if (run.outcome.exitCode !== 0) {
+    return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(reportPath, 'utf8');
+  } catch {
+    return errored(`gitleaks did not write a report to ${reportPath}`);
+  }
+
+  const parsed = parseGitleaksReport(raw, {
+    stderr: run.outcome.stderr,
+    intendedScope: files.slice(0, MAX_FILES_RECORDED),
+    // Dir mode was pointed at an absolute root, so gitleaks reports absolute paths; the adapter
+    // relativizes them before ids and locations are minted (F-01/F-15).
+    appRoot: context.appRoot,
+  });
+  if ('error' in parsed) return errored(`${parsed.error}; the raw report digest is ${digestOf(raw).slice(0, 12)}…`);
+
+  // Classification (F-02), same boundary as the git scans: the matched text is read from the
+  // current file, never from the redacted report, and only the digest is recorded.
+  const annotated = annotateSecretFindings(parsed.findings, (finding) => {
+    const parts = splitLocation(finding.location);
+    if (parts === undefined) return undefined;
+    try {
+      return lineAt(readFileSync(join(context.appRoot, parts.file), 'utf8'), finding.location);
+    } catch {
+      return undefined;
+    }
+  });
+
+  // Exposure grading (owner decisions, 13 October 2026): inside a git repository, the file's
+  // relation to git decides the grade. Tracked files keep the classifier's grade (the content is
+  // in the repository). Untracked files are graded down, but by how far the next `git add` is:
+  // gitignored files are a local-file risk (medium — git add will not pick them up), while
+  // untracked files that are not gitignored will be committed by the next `git add -A` and are
+  // graded high. A target with no git at all is never graded down: nothing there is tracked or
+  // committed, so the tree is the whole truth and the classifier's grade stands. When git cannot
+  // answer, nothing is graded down — the safe direction is to keep the severity.
+  const isGitWorktree = worktreeRoot(context.appRoot) !== undefined;
+  const trackedListing = isGitWorktree ? gitOutput(context.appRoot, ['ls-files']) : undefined;
+  const tracked = trackedListing === undefined
+    ? undefined
+    : new Set(trackedListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
+  let graded = annotated;
+  if (tracked !== undefined) {
+    const untrackedFiles = [...new Set(annotated.flatMap((finding) => {
+      const parts = splitLocation(finding.location);
+      if (parts === undefined || tracked.has(parts.file)) return [];
+      return [parts.file];
+    }))];
+    // One batched check-ignore: the paths it echoes are the ignored ones. An empty answer (exit 1
+    // or an error) means none of the given paths is ignored, and those files grade high — the
+    // conservative direction when git cannot say.
+    const ignoredListing = untrackedFiles.length === 0 ? '' : gitOutput(context.appRoot, ['check-ignore', '--', ...untrackedFiles]) ?? '';
+    const ignored = new Set(ignoredListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
+    graded = annotated.map((finding) => {
+      const parts = splitLocation(finding.location);
+      if (parts === undefined || tracked.has(parts.file)) return finding;
+      return ignored.has(parts.file) ? gradeIgnoredFileFinding(finding) : gradeUntrackedFinding(finding);
+    });
+  }
+
+  return {
+    outcome: 'pass',
+    coverage: parsed.coverage,
+    observed: files.length,
+    files: files.slice(0, MAX_FILES_RECORDED),
+    findings: graded,
+    tool: toolIdentity('gitleaks'),
+    reportPath,
+    reportDigest: digestOf(raw),
+    ...(parsed.parserErrors.length === 0 ? {} : { diagnostic: parsed.parserErrors.join('; ') }),
+  };
+}
 
 function findLockfile(root: string): string | undefined {
   for (const name of LOCKFILE_NAMES) {
@@ -264,7 +445,7 @@ async function runOpengrepWithPack(context: RecipeContext, packRelativePath: str
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   if (run.outcome.exitCode !== 0) return errored(`opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
 
-  const parsed = parseOpengrepReport(run.outcome.stdout);
+  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot });
   if ('error' in parsed) return errored(parsed.error);
   if (parsed.scope.observed === 0) {
     return unsupported(`opengrep scanned no files in the application root; there is nothing for the ${packRuleId} rules to analyse`);
@@ -282,8 +463,44 @@ async function runOpengrepWithPack(context: RecipeContext, packRelativePath: str
   };
 }
 
-const runOpengrep = (context: RecipeContext): Promise<RecipeOutcome> =>
-  runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
+/**
+ * The Supabase migration rules (Batch F2, fix brief F-06): the six reviewed SQL rule families
+ * over `supabase/migrations/*.sql`, implemented as an internal statement-shape analyser
+ * (`src/security/migrations.ts`) so no SQL parser dependency enters the pack. The DATA-01
+ * catalogue entry declared this recipe before it existed; it reports `unsupported` until now.
+ */
+const runMigrationInventory = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const result = analyzeMigrations(context.appRoot);
+  return Promise.resolve(qualityOutcome('migration-inventory', result.findings, result.filesRead.length,
+    'statement-shape rules over supabase/migrations/*.sql; no SQL parser is used, and only the reviewed shapes are claimed'));
+};
+
+const runOpengrep = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  // Two reviewed packs run in one check: the core pack (F-01) and the detection-depth pack
+  // (Batch F2 — taint and pattern rules). Findings merge; the packs are independent scans, so a
+  // pack that finds nothing does not mask the other's findings.
+  const core = await runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
+  const depth = await runOpengrepWithPack(context, 'detection-depth.yaml', 'security');
+  // A pack that is unsupported (no files to analyse at all) is fine as long as the other ran;
+  // the combined result is a pass when at least one pack scanned files.
+  const passes = [core, depth].filter((outcome) => outcome.outcome === 'pass');
+  if (passes.length === 0) return core.outcome === 'error' ? core : depth;
+  const mergedFindings = passes.flatMap((outcome) => outcome.findings ?? []);
+  const observed = Math.max(...passes.map((outcome) => outcome.observed ?? 0));
+  const files = [...new Set(passes.flatMap((outcome) => outcome.files ?? []))];
+  const diagnostics = [core, depth]
+    .map((outcome) => (outcome.outcome === 'pass' ? outcome.diagnostic : outcome.diagnostic))
+    .filter((note): note is string => note !== undefined && note.length > 0);
+  return {
+    outcome: 'pass',
+    coverage: passes.some((outcome) => outcome.coverage === 'partial') ? 'partial' : 'complete',
+    observed,
+    files: files.slice(0, MAX_FILES_RECORDED),
+    findings: mergedFindings,
+    tool: { ...toolIdentity('opengrep'), rule_pack: 'ci/configs/opengrep-rules/{hardening-core,detection-depth}.yaml' },
+    ...(diagnostics.length === 0 ? {} : { diagnostic: diagnostics.join('; ') }),
+  };
+};
 
 /**
  * The console-log rule scopes to production source directories by convention (src, app, lib,
@@ -325,14 +542,17 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
   }
   if (workflowFiles.length === 0) return unsupported(`${workflowsDir} contains no workflow files`);
 
-  const run = await runTool('zizmor', ['--format', 'json', '--no-progress', workflowsDir], { cwd: root, timeoutMs: 120_000 });
+  const run = await runTool('zizmor', ['--format', 'json', '--no-progress', '--persona', 'auditor', workflowsDir], { cwd: root, timeoutMs: 120_000 });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   // zizmor exits 14 when it reports findings; both are completed executions.
   if (run.outcome.exitCode !== 0 && run.outcome.exitCode !== 14) {
     return errored(`zizmor exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
   }
 
-  const parsed = parseZizmorReport(run.outcome.stdout, { intendedScope: workflowFiles.map((name) => join(workflowsDir, name)) });
+  const parsed = parseZizmorReport(run.outcome.stdout, {
+    intendedScope: workflowFiles.map((name) => join(workflowsDir, name)),
+    appRoot: context.appRoot,
+  });
   if ('error' in parsed) return errored(parsed.error);
 
   return {
@@ -350,7 +570,32 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
 const BUILD_OUTPUT_CANDIDATES = ['.next/static', '.output/public', 'dist', 'build', 'out'] as const;
 
 async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
-  const inspected = BUILD_OUTPUT_CANDIDATES.map((candidate) => join(context.appRoot, candidate)).find((candidate) => existsSync(candidate));
+  // R1-02: containment against the application root — every ancestor below the root is
+  // inspected before enumeration, because a symlinked .next/.output parent is followed by any
+  // enumeration of an ordinary-looking child. A candidate behind a symlinked ancestor becomes an
+  // explicit incomplete-coverage refusal, never a read of outside bytes.
+  const containedCandidate = (candidate: string): string | undefined => {
+    let ancestor = context.appRoot;
+    for (const segment of relative(context.appRoot, candidate).split(sep)) {
+      ancestor = join(ancestor, segment);
+      try {
+        if (lstatSync(ancestor).isSymbolicLink()) {
+          return `${relative(context.appRoot, candidate)} refused: its ancestor ${relative(context.appRoot, ancestor)} is a symlink and was not followed`;
+        }
+      } catch {
+        break;
+      }
+    }
+    return undefined;
+  };
+  const candidatePaths = BUILD_OUTPUT_CANDIDATES.map((candidate) => join(context.appRoot, candidate));
+  const refusal = candidatePaths.map(containedCandidate).find((reason) => reason !== undefined);
+  if (refusal !== undefined) {
+    return { outcome: 'pass', coverage: 'partial', observed: 0, files: [], findings: [],
+      tool: { name: 'client-asset-inspection', observed_version: '1' },
+      diagnostic: `browser-output scan incomplete (R1-02): ${refusal}` };
+  }
+  const inspected = candidatePaths.find((candidate) => existsSync(candidate));
   if (inspected === undefined) {
     return unsupported(`no browser build output found under ${context.appRoot}; looked for ${BUILD_OUTPUT_CANDIDATES.join(', ')}. Run the application build first`);
   }
@@ -459,6 +704,7 @@ function qualityOutcome(toolName: string, findings: readonly Finding[], observed
 }
 
 export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
+  'gitleaks/files': runGitleaksDir,
   'gitleaks/repository': (context) => runGitleaks(context, true),
   'gitleaks/history': (context) => runGitleaks(context, false),
   'osv/lockfile': runOsv,
@@ -471,6 +717,7 @@ export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'quality/test-quality': runTestQuality,
   'quality/vibe-tells': runVibeTells,
   'quality/repo-hygiene': runRepoHygiene,
+  'data/migration-inventory': runMigrationInventory,
   'quality/dependency-health': runDependencyHealth,
 };
 

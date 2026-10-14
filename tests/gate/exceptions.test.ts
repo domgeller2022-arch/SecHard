@@ -149,6 +149,7 @@ describe('H2: a valid waiver is acceptable, while a forbidden one is not', () =>
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       exceptions: [exceptionFor({ scope: { control: 'SEC-01', finding_id: 'f-medium', environment: 'production' } })],
     });
     expect(decision.control_outcomes.find((item) => item.control === 'SEC-01')?.outcome).toBe('waived');
@@ -222,6 +223,7 @@ describe('H2: a valid waiver is acceptable, while a forbidden one is not', () =>
     const decision = evaluateWith({
       plan,
       results,
+      manualEvidence: allManual(plan),
       exceptions: [exceptionFor({ self_review: true, scope: { control: 'SEC-01', finding_id: 'f-high', environment: 'production' } })],
     });
     expect(decision.control_outcomes.find((item) => item.control === 'SEC-01')?.outcome).toBe('waived');

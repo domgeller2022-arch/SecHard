@@ -10,6 +10,7 @@ import { evaluate } from '../domain/evaluator.js';
 import { loadConsumer, loadPolicy, recordsRootFor, resolveSourceIdentity, type LoadedPolicy, type Paths } from './io.js';
 import { buildReport } from './report.js';
 import { escapeMarkdown, redactSecrets } from '../evidence/redaction.js';
+import { dedupeSecretFindings } from '../evidence/secret-severity.js';
 import type { ApplicabilityRule } from '../domain/applicability.js';
 import type { PlanInput } from '../domain/planner.js';
 import type { AssessmentRecord, CheckResult, ExecutionPlan, GateDecision, ManifestRecord, ReleaseEvidence } from '../domain/types.js';
@@ -179,7 +180,7 @@ export function planCommand(
 
 export async function checkCommand(
   paths: Paths,
-  options: { planPath: string; runId: string; outDir?: string; now: Date; skipRecipes?: readonly string[]; skipReason?: string },
+  options: { planPath: string; runId: string; outDir?: string; rawDir?: string; now: Date; skipRecipes?: readonly string[]; skipReason?: string },
 ): Promise<CheckOutcome> {
   const planLoad = loadPlanFile(options.planPath);
   if (planLoad === undefined) {
@@ -199,12 +200,14 @@ export async function checkCommand(
   }
 
   const source = resolveSourceIdentity(paths.appRoot);
-  const rawDir = join(options.outDir ?? dirname(options.planPath), 'raw');
+  // R1-05: an explicit rawDir lets audit mode keep sensitive scanner output out of the published
+  // output tree entirely (private staging, deleted on every path).
+  const rawDir = options.rawDir ?? join(options.outDir ?? dirname(options.planPath), 'raw');
 
   // Independent checks run concurrently with a bounded pool. One recipe failing never stops the
   // others: each handler is isolated and converts its own failure into an error result.
   const planned = plan.expected_checks.filter((check) => check.execution?.mode !== 'manual');
-  const results = await runPool(planned, 4, async (check) => {
+  const rawResults = await runPool(planned, 4, async (check) => {
     const startedAt = new Date();
 
     // The built-in record-consistency recipe is internal: it re-reads the policy records and
@@ -227,6 +230,7 @@ export async function checkCommand(
         source.commit,
         startedAt,
         new Date(),
+        paths.appRoot,
       );
     }
 
@@ -250,6 +254,7 @@ export async function checkCommand(
         source.commit,
         startedAt,
         new Date(),
+        paths.appRoot,
       );
     }
 
@@ -271,6 +276,7 @@ export async function checkCommand(
         source.commit,
         startedAt,
         new Date(),
+        paths.appRoot,
       );
     }
 
@@ -295,8 +301,13 @@ export async function checkCommand(
         diagnostic: `recipe ${check.recipe} threw: ${(error as Error).message}`,
       };
     }
-    return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date());
+    return makeResult(check, plan, outcome, options.runId, source.commit, startedAt, new Date(), paths.appRoot);
   });
+
+  // The three secret scans (current files, repository, history — F-02 and its follow-up) report
+  // the same committed secret as one finding, not duplicate rows: kept once, preferring the
+  // current-files scan, with the other scans' occurrences noted on the kept row.
+  const results = dedupeSecretFindings(rawResults);
 
   // The CLI contract (02-implementation-plan): 0 satisfied, 1 blocked by unmet required work, 2 on
   // execution or evidence errors. `check` runs everything it safely can and still exits nonzero when
@@ -411,6 +422,7 @@ export function gateCommand(
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
     exceptions: consumer.value?.exceptions ?? [],
+    triages: consumer.value?.triages ?? [],
     assessments: consumer.value?.assessments ?? [],
     approvals: policy.approvals,
     controlDefinitions: policy.controls,
@@ -618,6 +630,7 @@ export function reportCommand(
     results,
     manualEvidence: consumer.value?.manualEvidence ?? [],
     exceptions: consumer.value?.exceptions ?? [],
+    triages: consumer.value?.triages ?? [],
     appId: consumer.value?.manifest?.id ?? 'unknown',
     ...(options.appName === undefined ? {} : { appName: options.appName }),
     sourceCommit: plan.inputs.source_commit,
@@ -716,6 +729,18 @@ export function renderMarkdown(evidence: ReleaseEvidence, outstandingCount: numb
       const reasons = (outcome.reasons ?? []).filter((item) => item.includes('waiver.applied')).join('; ');
       lines.push(
         `| ${reportSafe(outcome.control)} | ${outcome.outcome} | ${(outcome.waiver_refs ?? []).map((ref) => reportSafe(ref)).join(', ')} | ${reportSafe(reasons || '-')} |`,
+      );
+    }
+  }
+
+  // Recorded false positives are their own section: a cleared finding stays visible with the
+  // record that cleared it, and a record matching nothing now is shown as stale — the content
+  // changed, so the finding is back and the record needs review (F-02/A-4).
+  if ((evidence.recorded_false_positives ?? []).length > 0) {
+    lines.push('', '## Recorded false positives', '', '| Record | Rule | File | Reviewer | Reason | Current finding |', '| --- | --- | --- | --- | --- | --- |');
+    for (const entry of evidence.recorded_false_positives ?? []) {
+      lines.push(
+        `| ${reportSafe(entry.id)} | ${reportSafe(entry.rule_id)} | ${reportSafe(entry.file)} | ${reportSafe(entry.reviewer)} | ${reportSafe(entry.reason)} | ${entry.matched_finding === undefined ? 'none — content changed since review?' : `\`${reportSafe(entry.matched_finding)}\``} |`,
       );
     }
   }

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import type { Finding } from '../domain/types.js';
 
@@ -109,7 +109,23 @@ export interface InspectOptions {
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024 * 1024;
 const DEFAULT_MAX_TEXT_FILE_BYTES = 8 * 1024 * 1024;
 
-export function inspectBrowserAssets(root: string, options: InspectOptions = {}): ClientAssetReport {
+export function inspectBrowserAssets(root: string, options: InspectOptions = {
+}): ClientAssetReport {
+  // R1-02: the scan root itself is checked before enumeration — a symlinked build-output root
+  // would read outside the application and must become an explicit gap, not a complete scan.
+  try {
+    if (lstatSync(root).isSymbolicLink()) {
+      return { inspectedRoot: root, files: [], totalBytes: 0, findings: [], classifications: [], sourceMaps: [], coverage: 'partial', scopeStatement: 'the browser-output root was not inspected',
+        parseErrors: [`the browser-output root ${root} is a symlink and was not followed (R1-02)`] };
+    }
+  } catch (error) {
+    // A missing root keeps the original empty/missing contract (unknown coverage); an
+    // unreadable-but-present root is the explicit-gap case.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      return { inspectedRoot: root, files: [], totalBytes: 0, findings: [], classifications: [], sourceMaps: [], coverage: 'partial', scopeStatement: 'the browser-output root was not inspected',
+        parseErrors: [`the browser-output root ${root} could not be inspected; nothing was scanned`] };
+    }
+  }
   const markers = options.markers ?? DEFAULT_MARKERS;
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
   const maxTextFileBytes = options.maxTextFileBytes ?? DEFAULT_MAX_TEXT_FILE_BYTES;
@@ -124,7 +140,9 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {})
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry);
-      const stats = statSync(full);
+      // R1-03: lstat — a symlinked build-output directory or file is skipped, not followed.
+      const stats = lstatSync(full);
+      if (stats.isSymbolicLink()) continue;
       if (stats.isDirectory()) {
         walk(full);
         continue;
@@ -173,6 +191,7 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {})
           rule_id: marker.id,
           title: `privileged credential material in browser-shipped output (${marker.id})`,
           severity: 'critical',
+          category: 'secret',
           location: shown,
           detail: `marker '${marker.id}' found in a file that ships to the browser; value withheld`,
           redacted: true,
@@ -195,6 +214,7 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {})
           rule_id: 'jwt-privileged-role',
           title: 'a JWT with a privileged or unreadable role claim ships to the browser',
           severity: 'critical',
+          category: 'secret',
           location: shown,
           detail: 'the decoded payload claims a privileged role (or could not be decoded); value withheld',
           redacted: true,

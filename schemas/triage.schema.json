@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.hardening.invalid/schemas/triage.schema.json",
+  "title": "Triage record",
+  "description": "A reviewed false-positive record. This is the only way a false-positive label clears a finding: labels written into result files are not accepted, and a PR cannot triage the findings it introduces (the base-branch records are what a PR is evaluated against).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "finding_fingerprint",
+    "rule_id",
+    "file",
+    "triage",
+    "reason",
+    "reviewer",
+    "reviewed_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "triage/v1" },
+    "id": { "type": "string", "pattern": "^TRIAGE-[A-Za-z0-9-]{3,60}$" },
+    "finding_fingerprint": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 200,
+      "description": "The finding's `secret_digest` when present, otherwise its stable id. Revalidation is automatic: when the matched content changes, the fingerprint no longer matches and the finding returns."
+    },
+    "rule_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "file": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^(?!.*:[0-9]+$).+$",
+      "description": "The finding's file, without a line number. A record scoped to one file cannot clear the same rule in another."
+    },
+    "triage": { "const": "false_positive" },
+    "reason": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 4000,
+      "description": "Why this is a false positive (a test value, an example key, a documentation sample). At least 20 characters: a bare label is not triage."
+    },
+    "reviewer": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "reviewed_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "timestamp": { "type": "string", "format": "date-time", "maxLength": 64 }
+  }
+}
