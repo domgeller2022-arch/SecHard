@@ -57,7 +57,11 @@ subphases:
       - docs/evidence/p1-2-failure-path-regressions.md
   p1_3:
     title: "Real bounded I/O, downloads and child termination — A-29"
-    state: pending
+    state: done
+    evidence:
+      - src/evidence/bounded-io.ts
+      - tests/commands/bounded-io.test.ts
+      - docs/evidence/p1-3-bounded-io.md
   p1_4:
     title: "Restore safety proof and pinned pre-R1 baseline"
     state: pending

@@ -1,4 +1,5 @@
 import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, statSync } from 'node:fs';
+import { readBoundedSync } from '../evidence/bounded-io.js';
 import { join, relative } from 'node:path';
 
 /**
@@ -145,12 +146,8 @@ function hasDep(packageJson: PackageJson | undefined, name: string): boolean {
 }
 
 function readText(file: string, limitBytes = 512 * 1024): string | undefined {
-  try {
-    const handle = readFileSync(file);
-    return handle.subarray(0, limitBytes).toString('utf8');
-  } catch {
-    return undefined;
-  }
+  // P1.3: the bound is enforced at open time; unreadable files are counted, not silently lost.
+  return readBoundedSync(file, limitBytes);
 }
 
 const IMPORT_MARKERS: readonly { readonly feature: string; readonly pattern: RegExp; readonly detail: string }[] = [
@@ -301,9 +298,10 @@ export function detectStackAndFeatures(root: string): Detection {
   const gaps: string[] = [];
   const scanLimit = 800;
   const scannedImports = sourceFiles.slice(0, scanLimit);
+  let unreadable = 0;
   for (const file of scannedImports) {
     const text = readText(file.path, 256 * 1024);
-    if (text === undefined) continue;
+    if (text === undefined) { unreadable += 1; continue; }
     for (const marker of IMPORT_MARKERS) {
       if (marker.pattern.test(text)) {
         enable(marker.feature, { file: rel(root, file.path), detail: marker.detail });
@@ -327,7 +325,10 @@ export function detectStackAndFeatures(root: string): Detection {
     gaps.push(`the import scan covered ${scanLimit} of ${sourceFiles.length} source files (bounded walk); feature detection beyond that is unknown`);
   }
   // R1-03: a skipped link is an omission on every project size, not only large ones.
-  if (skippedLinks.length > 0) {
+  if (unreadable > 0) {
+    gaps.push(`source files that could not be read: ${String(unreadable)}`);
+  }
+    if (skippedLinks.length > 0) {
     gaps.push(`symlinks not followed: ${skippedLinks.slice(0, 5).join(', ')}${skippedLinks.length > 5 ? ` and ${String(skippedLinks.length - 5)} more` : ''}`);
   }
 

@@ -1,4 +1,5 @@
-import { lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { lstatSync, readdirSync } from 'node:fs';
+import { readBoundedSync } from '../evidence/bounded-io.js';
 import { join } from 'node:path';
 import type { Finding } from '../domain/types.js';
 
@@ -44,7 +45,10 @@ function readMigrationFiles(appRoot: string): MigrationFile[] {
     try {
       // A-02: never follow symlinks out of the audited tree.
       if (!lstatSync(full).isFile()) continue;
-      files.push({ path: full, location: `supabase/migrations/${name}`, text: readFileSync(full, 'utf8').slice(0, MAX_MIGRATION_BYTES) });
+      // P1.3: bounded at open time.
+      const text = readBoundedSync(full, MAX_MIGRATION_BYTES);
+      if (text === undefined) continue;
+      files.push({ path: full, location: `supabase/migrations/${name}`, text });
     } catch {
       continue;
     }
