@@ -531,3 +531,290 @@ closure_map:
     closure: "Self-detection and actual browser artifact scope"
     assigned_subphases: "P3.4/5, P9.4"
     state: pending
+
+closure_map_followup:
+  f_01:
+    id: "F-01"
+    table: "B2"
+    closure_and_tasks: "Preserve absolute-path production console detection; P1.2/P9.2 regressions"
+    state: pending
+  f_02:
+    id: "F-02"
+    table: "B2"
+    closure_and_tasks: "Preserve exposure tiers/waiver bans; span/FP/dedup repair P2.5/P4.4; top-priority evidence P9.4"
+    state: pending
+  f_03:
+    id: "F-03"
+    table: "B2"
+    closure_and_tasks: "Preserve mixed manual companions; scope/latest/state/grade behavior P2.4 and D-06 review"
+    state: pending
+  f_04:
+    id: "F-04"
+    table: "B2"
+    closure_and_tasks: "Taint source/sink matrix and product-level Python execution P3.2/5"
+    state: pending
+  f_05:
+    id: "F-05"
+    table: "B2"
+    closure_and_tasks: "Pattern rules/safe twins/correct explanations and auditor persona P3.2/P8.5"
+    state: pending
+  f_06:
+    id: "F-06"
+    table: "B2"
+    closure_and_tasks: "Static tokenizer P3.3; license verdict and read-only live depth P8.3"
+    state: pending
+  f_07:
+    id: "F-07"
+    table: "B2"
+    closure_and_tasks: "Provisioning/analyzers/internal structural quality P4; isolated app execution P5"
+    state: pending
+  f_08:
+    id: "F-08"
+    table: "B2"
+    closure_and_tasks: "Narration instances, recall and rationale negatives P4.4/P9.4"
+    state: pending
+  f_09:
+    id: "F-09"
+    table: "B2"
+    closure_and_tasks: "Actual executable payment/AI feature evidence and self-detection P3.5/P8.4"
+    state: pending
+  f_10:
+    id: "F-10"
+    table: "B2"
+    closure_and_tasks: "Actual self-audit and explicit severity review P9.4"
+    state: pending
+  f_11:
+    id: "F-11"
+    table: "B2"
+    closure_and_tasks: "Tracked matrices and generator drift CI P9.1"
+    state: pending
+  f_12:
+    id: "F-12"
+    table: "B2"
+    closure_and_tasks: "Pinned baseline/development/held-out/external ground truth P1.4/P9.4"
+    state: pending
+  f_13:
+    id: "F-13"
+    table: "B2"
+    closure_and_tasks: "Wired recipes and observed requirement coverage P9.1"
+    state: pending
+  f_14:
+    id: "F-14"
+    table: "B2"
+    closure_and_tasks: "Base records, reporting, reviewed merge path P6"
+    state: pending
+  f_15:
+    id: "F-15"
+    table: "B2"
+    closure_and_tasks: "Preserve relative/sanitized paths; SARIF correctness P9.2"
+    state: pending
+  f_16:
+    id: "F-16"
+    table: "B2"
+    closure_and_tasks: "Explicit selected private/public/vendor/local adoption P6.3/P10.2"
+    state: pending
+  f_17:
+    id: "F-17"
+    table: "B2"
+    closure_and_tasks: "fail-on/path/typecheck/CSP/triage/AUTHZ/DNS/guidance/authorization record tasks P0/P2.5/P7.7/P8.1/P9.2/3/P10.3"
+    state: pending
+  manifest_validate:
+    id: "manifest/validate"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Actual current manifest/schema/semantic inspection"
+    state: pending
+  control_validate:
+    id: "control/validate"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Catalogue/profile/mapping/approval references validated"
+    state: pending
+  governance_protections:
+    id: "governance/protections"
+    table: "B3"
+    closure_and_tasks: "P5.3/P6.4 | Real approved platform snapshot plus manual boundary"
+    state: pending
+  agent_permissions:
+    id: "agent/permissions"
+    table: "B3"
+    closure_and_tasks: "P5.3 | Actual supported restriction config and harmless denied actions"
+    state: pending
+  agent_untrusted_context:
+    id: "agent/untrusted-context"
+    table: "B3"
+    closure_and_tasks: "P5.3 | Untrusted-text behavioral fixtures plus operator boundary"
+    state: pending
+  agent_test_change_review:
+    id: "agent/test-change-review"
+    table: "B3"
+    closure_and_tasks: "P5.3/P6.2 | Actual diff identity and trusted acknowledgement"
+    state: pending
+  agent_security_test_suite:
+    id: "agent/security-test-suite"
+    table: "B3"
+    closure_and_tasks: "P5.3 | Declared critical suite actually executed safely"
+    state: pending
+  dependency_lockfile_policy:
+    id: "dependency/lockfile-policy"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Current supported lockfile/registry/policy graph"
+    state: pending
+  dependency_pins:
+    id: "dependency/pins"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Exact dependency/runtime/manager pins and permitted exceptions"
+    state: pending
+  dependency_install_scripts:
+    id: "dependency/install-scripts"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Effective deny/approved hooks inspected"
+    state: pending
+  dependency_install_hook_test:
+    id: "dependency/install-hook-test"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Harmless denied/permitted hook in isolated environment"
+    state: pending
+  build_leak_fixture:
+    id: "build/leak-fixture"
+    table: "B3"
+    closure_and_tasks: "P5.4 | Actual secure/leaking build and classified output"
+    state: pending
+  ci_pins:
+    id: "ci/pins"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Whole action/workflow/download/image/config chain"
+    state: pending
+  ci_toolchain_pins:
+    id: "ci/toolchain-pins"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Verified current policy/tool metadata and digests"
+    state: pending
+  gate_completeness:
+    id: "gate/completeness"
+    table: "B3"
+    closure_and_tasks: "P5.5 | Final expected/result cardinality/identity, no circular success"
+    state: pending
+  quality_test_suite:
+    id: "quality/test-suite"
+    table: "B3"
+    closure_and_tasks: "P5.4 | Explicit isolated real suite; meaningful case counts"
+    state: pending
+  quality_type_and_lint:
+    id: "quality/type-and-lint"
+    table: "B3"
+    closure_and_tasks: "P5.4 | Actual approved scripts/config/type graph in isolation"
+    state: pending
+  quality_duplication:
+    id: "quality/duplication"
+    table: "B3"
+    closure_and_tasks: "P4.2 | Actual jscpd clones and clean twin"
+    state: pending
+  quality_complexity:
+    id: "quality/complexity"
+    table: "B3"
+    closure_and_tasks: "P4.2 | Actual Lizard function metrics and twin"
+    state: pending
+  quality_dead_code:
+    id: "quality/dead-code"
+    table: "B3"
+    closure_and_tasks: "P4.2/P8.5 | Actual Knip/Vulture supported graphs; no config execution"
+    state: pending
+  quality_module_structure:
+    id: "quality/module-structure"
+    table: "B3"
+    closure_and_tasks: "P4.2 | Actual reviewed dependency graph/layer rules"
+    state: pending
+  quality_formatting:
+    id: "quality/formatting"
+    table: "B3"
+    closure_and_tasks: "P4.3 | Own check-only formatter, unchanged target"
+    state: pending
+  quality_frontend_quality:
+    id: "quality/frontend-quality"
+    table: "B3"
+    closure_and_tasks: "P4.3/P8.2 | Approved live target/browser with axe/performance scope"
+    state: pending
+  auth_session_behaviour:
+    id: "auth/session-behaviour"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.3 | Actual session expiry/cache/sign-out matrix"
+    state: pending
+  auth_recovery_isolation:
+    id: "auth/recovery-isolation"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.3 | Real mail-capture recovery flow, correct account"
+    state: pending
+  web_oauth_flow:
+    id: "web/oauth-flow"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.3 | Supported static evidence plus manual/flow requirements"
+    state: pending
+  authorization_ownership:
+    id: "authorization/ownership"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Real owner/non-owner/anonymous app/provider operations"
+    state: pending
+  authorization_role_and_tenant:
+    id: "authorization/role-and-tenant"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Declared enabled actor/tenant matrix or justified exclusion"
+    state: pending
+  authorization_security_fields:
+    id: "authorization/security-fields"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Denied protected writes with stored state unchanged"
+    state: pending
+  data_grants_and_policies:
+    id: "data/grants-and-policies"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Actual effective grants/RLS/functions/views inventory/tests"
+    state: pending
+  web_negative_inputs:
+    id: "web/negative-inputs"
+    table: "B3"
+    closure_and_tasks: "P5.4/P8.2 | Approved controlled negative-input matrix with safe limits"
+    state: pending
+  web_tls:
+    id: "web/tls"
+    table: "B3"
+    closure_and_tasks: "P8.2 | Actual pinned TLS tool/config and good/bad controlled endpoints"
+    state: pending
+  abuse_resource_limits:
+    id: "abuse/resource-limits"
+    table: "B3"
+    closure_and_tasks: "P5.4/P8.2/4 | Bounded controlled quota/window/concurrency/header cases"
+    state: pending
+  biz_transaction_integrity:
+    id: "biz/transaction-integrity"
+    table: "B3"
+    closure_and_tasks: "P5.4/P8.7 | Controlled event/replay/entitlement fixture, no real money"
+    state: pending
+  deploy_environment:
+    id: "deploy/environment"
+    table: "B3"
+    closure_and_tasks: "P8.1/2 | Approved environment/target/config and actual exposure checks"
+    state: pending
+  ops_redaction:
+    id: "ops/redaction"
+    table: "B3"
+    closure_and_tasks: "P5.3/P7.7 | Actual declared log/output redaction and synthetic event"
+    state: pending
+  release_evidence_assembly:
+    id: "release/evidence-assembly"
+    table: "B3"
+    closure_and_tasks: "P5.5 | Validated source/build/target/result/manually verified bundle"
+    state: pending
+  release_rollback_drill:
+    id: "release/rollback-drill"
+    table: "B3"
+    closure_and_tasks: "P5.5/P7.6 | Guarded disposable real rollback and data integrity"
+    state: pending
+  exception_validate:
+    id: "exception/validate"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Current conjunctive validity/scope/freshness inspection"
+    state: pending
+  exception_expiry_drill:
+    id: "exception/expiry-drill"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Actual record expiry plus preserved lifecycle regressions"
+    state: pending
