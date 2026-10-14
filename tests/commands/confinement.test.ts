@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -81,5 +81,42 @@ describe('A-03: provider values are scrubbed at the persistence boundary', () =>
     expect(scrubbed).not.toContain(dbUrl);
     expect(scrubbed).not.toContain(google);
     expect(scrubbed).toContain('[REDACTED]');
+  });
+});
+
+describe('P1.2 (auditor R1-02): nested unreadable output directories cannot hide aliases into the target', () => {
+  it('refuses before any write when a nested records directory is unreadable and hides a symlink', async () => {
+    const target = app();
+    const outside = mkdtempSync(join(tmpdir(), 'sechard-confine-nested-'));
+    roots.push(outside);
+    const out = join(outside, 'out');
+    mkdirSync(join(out, 'records', '.hardening'), { recursive: true });
+    // records itself: no read permission (write/search only) — enumeration of its .hardening
+    // symlink must not be skipped as a mere missing entry.
+    symlinkSync(join(target, 'owned'), join(out, 'records', '.hardening', 'stolen'));
+    const before = existsSync(join(target, 'owned'));
+    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
+    const stderr = run.stderr.join('\n');
+    expect(
+      stderr.includes('cannot be inspected') || stderr.includes('contains symlinks') || stderr.includes('must live outside'),
+      `expected a confinement refusal, got: ${stderr.slice(0, 200)}`,
+    ).toBe(true);
+    // The target is unchanged: nothing was created inside it by the run.
+    expect(existsSync(join(target, 'owned'))).toBe(before);
+    expect(existsSync(join(target, 'owned', '.hardening'))).toBe(false);
+  });
+
+  it('fails loudly when the final report write fails, and leaves no raw scanner bytes (R1-05)', async () => {
+    const target = app();
+    const outside = mkdtempSync(join(tmpdir(), 'sechard-confine-rawfail-'));
+    roots.push(outside);
+    const out = join(outside, 'out');
+    mkdirSync(join(out, 'report.md'), { recursive: true });
+    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
+    // The R1-05 contract: loud failure (nonzero, whichever guard fires first) and no raw leftovers.
+    expect(run.exitCode).not.toBe(0);
+    // The private staging area is removed on the failure path: no sechard-raw-* directory remains.
+    const leftovers = readdirSync(tmpdir()).filter((entry) => entry.startsWith('sechard-raw-'));
+    expect(leftovers, `raw staging left behind: ${leftovers.join(', ')}`).toEqual([]);
   });
 });
