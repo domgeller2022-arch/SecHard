@@ -1,5 +1,5 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
@@ -810,4 +810,46 @@ describe('F-02 follow-ups (owner\'s auditor, 13 October 2026): current-files sca
     expect(ruleText('gitleaks.toml')).not.toBe('');
     expect(ruleText('gitleaks-dir.toml')).toBe(ruleText('gitleaks.toml'));
   });
+});
+
+describe('P1.1: scanner-owned Git cannot execute repository-configured helpers (comprehensive plan; auditor R1-01)', () => {
+  it('gitleaks git-mode scans run no textconv helper while history secrets stay detectable', () => {
+    // Counterexample-first: the fixture must execute the helper through an UNHARDENED patch log
+    // (the auditor's exact vector: .gitattributes textconv + .git/config driver), or the
+    // regression proves nothing.
+    const name = `sechard-p11-gitchild-${randomUUID().slice(0, 8)}`;
+    const root = join(scratch, 'apps', name);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name, dependencies: { next: '14.0.0' } }, null, 2));
+    const marker = join(root, 'helper-ran.txt');
+    const helper = join(root, 'helper.sh');
+    writeFileSync(helper, `#!/bin/sh\necho ran >> "${marker}"\nexit 0\n`);
+    chmodSync(helper, 0o755);
+    writeFileSync(join(root, '.gitattributes'), '*.key diff=obfuscate\n');
+    const secretJwt = `${f02B64({ alg: 'HS256', typ: 'JWT' })}.${f02B64({ role: 'service_role', iss: 'supabase' })}.${'a'.repeat(43)}`;
+    writeFileSync(join(root, 'leak.key'), `K=${secretJwt}\n`);
+    const git = (...args: string[]): void => { execFileSync('git', args, { cwd: root }); };
+    git('init', '-q');
+    git('config', 'user.email', 'fixture@example.invalid');
+    git('config', 'user.name', 'fixture');
+    git('config', 'diff.obfuscate.textconv', helper);
+    git('add', '-A');
+    git('commit', '-q', '-m', 'add key');
+
+    execFileSync('git', ['log', '-p', '-U0', 'HEAD'], { cwd: root, stdio: 'ignore' });
+    expect(existsSync(marker), 'fixture invalid: the textconv helper did not run unhardened').toBe(true);
+    rmSync(marker);
+
+    const outDir = join(scratch, 'out', `run-p11-${randomUUID().slice(0, 8)}`);
+    const run = cli(['audit', root, '--out', outDir, '--depth', 'standard'], scratch);
+    expect(run.status, run.stderr).toBe(0);
+    expect(existsSync(marker), 'the textconv helper executed through a gitleaks git-mode child').toBe(false);
+    const results = JSON.parse(readFileSync(join(outDir, 'results.json'), 'utf8')) as AuditOutput['results'];
+    const detected = [
+      ...findingsFor(results, 'gitleaks/files'),
+      ...findingsFor(results, 'gitleaks/history'),
+    ] as GitleaksSecretFinding[];
+    expect(detected.some((finding) => (finding.location ?? '').startsWith('leak.key')), 'the history secret must stay detectable through the hardened scan').toBe(true);
+    expect(JSON.stringify(detected)).not.toContain(secretJwt);
+  }, 600_000);
 });

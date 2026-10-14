@@ -33,7 +33,10 @@ p0_2:
 subphases:
   p0_1:
     title: "Repository and source snapshot"
-    state: in_progress
+    state: done
+    evidence:
+      - docs/evidence/p0-1-environment.md
+      - docs/evidence/p0-1-appendix-c-hashes.md
   p0_2:
     title: "Complete recipe/requirement inventory"
     state: in_progress
