@@ -16,7 +16,7 @@ baseline:
   branch: "completion/p0-comprehensive"
   changelog_sha256_frozen: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
 p0_1:
-  state: in_progress
+  state: done
   evidence:
     - docs/evidence/p0-1-environment.md
     - docs/evidence/p0-1-appendix-c-hashes.md
@@ -24,9 +24,10 @@ p0_1:
     - tools/verify-completion.mjs
     - tests/completion/acceptance-matrix.yaml
 p0_2:
-  state: in_progress
+  state: done
   evidence:
     - docs/completion-ledger.yaml
+    - docs/evidence/p0-2-classification-check.md
   remaining:
     - "Appendix B closure classification: assign every unimplemented recipe to a subphase (beyond this subphase/AC enumeration)"
 subphases:
