@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-10-14T06:33:57.597Z",
+  "generated_at": "2026-10-15T17:07:24.496Z",
   "measured_build": {
-    "commit": "802bc1862c5b0384de38fbea74c6dbb46c83b541",
+    "commit": "90eed2a575f0afceaf974285318281dfd41f122b",
     "tool": "hardening audit --depth standard from this checkout"
   },
   "reference_baseline_note": "b71a073d1425fc55c36a5f5d3863ad18b1971949 is recorded as the pre-R1 reference commit only; a MEASURED baseline of that build (per-seed outcomes from a pinned build of it) is still outstanding and is not claimed here.",
   "tool": "hardening audit --depth standard",
-  "audit_out_digest": "d10040bddd5f25dbe823ec3d4b8c15ddc3f80fe59666e97cae761759cc86b1c1",
+  "audit_out_digest": "7bd6b8746dfc2f7c3dbf45e4a2131b3c025e6ce6cc3c938a3a7f61eeb37b125a",
   "denominators": {
     "security": 38,
     "quality": 36

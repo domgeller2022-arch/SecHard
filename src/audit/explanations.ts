@@ -112,11 +112,23 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
     effort: 'S', confidence: 'confirmed',
     promptIntro: 'A fetch uses a request-controlled URL. Add a protocol and host allowlist check before the request (reject everything not explicitly permitted), keep the legitimate destinations working, and add a test for a blocked host.',
   },
+  'hardening.taint-ssrf-python': {
+    what: 'A Python HTTP request (requests.get and friends) is made with a request-controlled URL. The request then goes wherever the caller wants - internal metadata services, admin endpoints behind the firewall, cloud credentials. This is server-side request forgery.',
+    fix: 'Validate the destination against an allowlist of protocols and hosts before making the request, and prefer fixed URLs with user data limited to path parameters.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Python requests call uses a request-controlled URL. Add a protocol and host allowlist check before the request (reject everything not explicitly permitted), keep the legitimate destinations working, and add a test for a blocked host.',
+  },
   'hardening.taint-path-traversal': {
     what: 'A file path is built from request-controlled data. A value like ../../etc/passwd escapes the intended directory: the request reads or writes arbitrary files on the server.',
     fix: 'Resolve the requested name against a fixed base directory and verify the resolved real path is still inside it (path.resolve plus a startsWith check) before touching the filesystem.',
     effort: 'S', confidence: 'confirmed',
     promptIntro: 'A filesystem call uses a request-controlled path. Resolve the name against a fixed base and reject anything that escapes it, keep legitimate reads working, and add a test for a ../ escape.',
+  },
+  'hardening.taint-path-traversal-python': {
+    what: 'A Python file access (send_file, open) is built from request-controlled data. A value like ../../etc/passwd escapes the intended directory: the request reads or writes arbitrary files on the server.',
+    fix: 'Resolve the requested name against a fixed base directory and verify the resolved real path is still inside it before touching the filesystem.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Python file call uses a request-controlled path. Resolve the name against a fixed base and reject anything that escapes it, keep legitimate reads working, and add a test for a ../ escape.',
   },
   'hardening.path-traversal-concat': {
     what: 'A filesystem read is built by concatenating or joining a value into a fixed path prefix. A value like ../../etc/passwd escapes the directory: the request reads or writes arbitrary files.',
@@ -167,10 +179,22 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
     promptIntro: 'A session cookie is set without httpOnly/secure. Set httpOnly: true, secure: true, and a SameSite policy, and confirm the login flow still works in the browser.',
   },
   'hardening.cors-wildcard-credentials': {
-    what: 'Cross-origin access is granted to any origin together with credentials. Any site a user visits can read authenticated responses from this API with the user\'s cookies.',
+    what: 'A wildcard origin is configured together with Allow-Credentials. Browsers refuse this exact combination, so responses are not readable cross-origin through it alone; it is a broken configuration that usually sits next to the reflected-origin exposure that does grant access.',
     fix: 'Replace the wildcard with an explicit allowlist of trusted origins and reflect the request\'s origin only when it is on the list; keep credentials opt-in per origin.',
     effort: 'S', confidence: 'confirmed',
-    promptIntro: 'CORS grants any origin access with credentials. Replace the wildcard with an explicit origin allowlist, keep the legitimate frontends working, and add a test that an unknown origin is rejected.',
+    promptIntro: 'CORS pairs a wildcard origin with credentials, which browsers reject as a combination. Replace the wildcard with an explicit origin allowlist, keep the legitimate frontends working, and add a test that an unknown origin is rejected.',
+  },
+  'hardening.cors-origin-reflection': {
+    what: 'The response copies the request Origin header into Access-Control-Allow-Origin. Every origin is then allowed with credentials: any site the visitor opens can read authenticated responses from this API. This is the exposure the wildcard-plus-credentials combination cannot deliver by itself.',
+    fix: 'Reflect the origin only when it is on a reviewed allowlist of trusted origins; reject everything else and keep credentials opt-in per origin.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'CORS reflects the request Origin header without an allowlist. Reflect only origins on a reviewed list, reject the rest, keep the legitimate frontends working, and add a test that an unknown origin is not reflected.',
+  },
+  'hardening.cookie-missing-attributes': {
+    what: 'A session cookie is set without stating httpOnly. A cookie without httpOnly is readable by any script that runs in the page, so one injection turns into session theft. The rule judges cookies by session-like names; cookies whose options live in a variable are not seen.',
+    fix: 'Set httpOnly: true and secure: true (plus a SameSite policy) explicitly on every session cookie.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A session cookie is set without httpOnly/secure. Set httpOnly: true, secure: true, and a SameSite policy, and confirm the login flow still works in the browser.',
   },
   'hardening.weak-random-token': {
     what: 'Math.random() feeds a security value (a token, reset code, OTP, or session identifier). Its output is predictable: an attacker can reproduce the sequence and guess issued values.',

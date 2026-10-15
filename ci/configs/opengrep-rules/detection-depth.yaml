@@ -9,10 +9,12 @@
 #   used only where the brief demands it (the unverified webhook is critical, not high).
 #
 # Limitations recorded here on purpose: opengrep has no file-level absence operator, so the
-# webhook rule excludes verification calls in the same function only (a verification in another
-# function of the same file is not seen); the "OpenAI SDK in a 'use client' file" disjunct is
-# covered through `dangerouslyAllowBrowser`, the mechanically checkable half. opengrep reports
-# each step of a taint flow as a result, so one flow can produce more than one row.
+# webhook rule excludes handlers whose covered function shape (function, async function, one- or
+# two-parameter arrow) assigns the verified event from constructEvent; a verification in an
+# uncovered shape or elsewhere in the file is not seen, so such handlers still fire (conservative).
+# The "OpenAI SDK in a 'use client' file" disjunct is covered through `dangerouslyAllowBrowser`,
+# the mechanically checkable half. The cookie rule judges session-named cookies by name; cookies
+# whose options live in a variable are not seen.
 rules:
 - id: hardening.taint-sql-injection
   languages:
@@ -37,14 +39,31 @@ rules:
     - pattern: $REQ.nextUrl.searchParams.get(...)
     - pattern: (await $REQ.json())
     - pattern: (await $REQ.formData()).get(...)
+    - patterns:
+      - pattern: $B.get(...)
+      - pattern-inside: |
+          $B = await $REQ.formData()
+          ...
   pattern-sinks:
-  - pattern-either:
-    - pattern: $POOL.query(...)
-    - pattern: $CLIENT.query(...)
-    - pattern: $DB.execute(...)
-    - pattern: $SEQ.query(...)
-    - pattern: $KNX.raw(...)
-    - pattern: $PRISMA.$queryRawUnsafe(...)
+  # A-15: the sink is any argument EXCEPT when the statement text is a string literal — the
+  # reviewed usage query("... id=$1", [req.query.id]) keeps the parameters out of the statement,
+  # however tainted they are. A non-literal text argument (concat, template, variable) is a sink.
+  # focus-metavariable was tried first and is broken on the pinned build for intermediate-variable
+  # flows (the corpus S08/S09 shapes stopped firing); the structural exclusion is the fix.
+  - patterns:
+    - pattern-either:
+      - pattern: $POOL.query(...)
+      - pattern: $CLIENT.query(...)
+      - pattern: $DB.execute(...)
+      - pattern: $SEQ.query(...)
+      - pattern: $KNX.raw(...)
+      - pattern: $PRISMA.$queryRawUnsafe(...)
+    - pattern-not: '$POOL.query("...", ...)'
+    - pattern-not: '$CLIENT.query("...", ...)'
+    - pattern-not: '$DB.execute("...", ...)'
+    - pattern-not: '$SEQ.query("...", ...)'
+    - pattern-not: '$KNX.raw("...", ...)'
+    - pattern-not: '$PRISMA.$queryRawUnsafe("...", ...)'
 - id: hardening.taint-sql-injection-python
   languages:
   - python
@@ -64,11 +83,13 @@ rules:
     - pattern: $REQ.form.get(...)
     - pattern: $REQ.json()
     - pattern: (await $REQ.json())
+  # A-16: any execute argument is the sink, so a query built into an assigned variable fires;
+  # A-15: a literal statement text with bound parameters is excluded — the parameters never
+  # reach the statement. An f-string or interpolated text is not a literal and stays a sink.
   pattern-sinks:
-  - pattern-either:
-    - pattern: $CUR.execute(f"...")
-    - pattern: $CUR.execute("..." % ...)
-    - pattern: $CUR.execute("..." % ($A, ...))
+  - patterns:
+    - pattern: $CUR.execute($QUERY, ...)
+    - pattern-not: '$CUR.execute("...", ...)'
 - id: hardening.taint-xss-innerhtml
   languages:
   - typescript
@@ -189,7 +210,6 @@ rules:
     - pattern: $FS.readFile($X, ...)
     - pattern: $FS.readFileSync($X, ...)
     - pattern: $FS.createReadStream($X, ...)
-    - pattern: send_file($X)
 - id: hardening.taint-open-redirect
   languages:
   - typescript
@@ -338,9 +358,9 @@ rules:
   - typescript
   - javascript
   severity: ERROR
-  message: Cross-origin access is granted to any origin together with credentials. A wildcard origin with Allow-Credentials
-    lets any site read authenticated responses from your API. List the trusted origins explicitly and keep credentials opt-in
-    per origin.
+  message: A wildcard origin is configured together with Allow-Credentials. Browsers refuse this exact combination, so responses
+    are not readable cross-origin through it alone - it is a broken configuration that usually accompanies the reflected-origin
+    exposure that does grant access. List the trusted origins explicitly and keep credentials opt-in per origin.
   metadata:
     hardening_controls:
     - WEB-01
@@ -441,6 +461,32 @@ rules:
     - pattern: '''invoice.paid'''
   - pattern-not-inside: stripe.webhooks.constructEvent(...)
   - pattern-not-inside: $STRIPE.webhooks.constructEvent(...)
+  # A-15: a handler that verifies the signature is silent — the event-type literal sits in a
+  # function that assigns the verified event. Uncovered function shapes still fire (conservative).
+  - pattern-not-inside: |
+      function $F(...) {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+  - pattern-not-inside: |
+      async function $F(...) {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+  - pattern-not-inside: |
+      async ($REQ, $RES) => {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+  - pattern-not-inside: |
+      async ($REQ) => {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
 - id: hardening.path-traversal-concat
   languages:
   - typescript
@@ -453,12 +499,120 @@ rules:
     hardening_controls:
     - WEB-01
     - CODE-01
+  # A-15: a join of two fixed strings is not a traversal. The joined value must be a
+  # non-literal (variable, call result, interpolation) for this rule to fire; request-tainted
+  # paths are additionally covered by hardening.taint-path-traversal.
+  patterns:
+  - pattern-either:
+    - pattern: fs.readFileSync($BASE + $X, ...)
+    - pattern: fs.readFile($BASE + $X, ...)
+    - pattern: fs.createReadStream($BASE + $X)
+    - pattern: fs.writeFileSync($BASE + $X, ...)
+    - pattern: fs.readFileSync(path.join($BASE, $X), ...)
+    - pattern: fs.readFile(path.join($BASE, $X), ...)
+    - pattern: $FS.readFileSync($BASE + $X, ...)
+  - metavariable-regex:
+      metavariable: $X
+      regex: ^(?!['"]).*
+- id: hardening.taint-ssrf-python
+  languages:
+  - python
+  severity: ERROR
+  mode: taint
+  message: A network request is made with a request-controlled URL (requests with a URL from request data). The request then
+    goes wherever the caller wants - internal metadata services, admin endpoints behind the firewall, cloud credentials. This
+    is server-side request forgery. Validate the destination against a protocol and host allowlist before fetching.
+  metadata:
+    hardening_controls:
+    - WEB-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.args
+    - pattern: $REQ.args.get(...)
+    - pattern: $REQ.form
+    - pattern: $REQ.form.get(...)
+    - pattern: $REQ.json()
+  pattern-sinks:
+  - pattern-either:
+    - pattern: requests.get($X, ...)
+    - pattern: requests.post($X, ...)
+    - pattern: requests.put($X, ...)
+    - pattern: requests.delete($X, ...)
+    - pattern: requests.head($X, ...)
+    - pattern: requests.request($M, $X, ...)
+- id: hardening.taint-path-traversal-python
+  languages:
+  - python
+  severity: ERROR
+  mode: taint
+  message: A file path is built from request-controlled data. A path like ../../etc/passwd escapes the intended directory and
+    reads arbitrary files (path traversal). Resolve against a fixed base, then verify the real path is still inside it.
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - CODE-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.args
+    - pattern: $REQ.args.get(...)
+    - pattern: $REQ.form
+    - pattern: $REQ.form.get(...)
+    - pattern: $REQ.json()
+  pattern-sinks:
+  - pattern-either:
+    - pattern: send_file($X)
+    - pattern: send_file($X, ...)
+    - pattern: open($X)
+    - pattern: open($X, ...)
+- id: hardening.cookie-missing-attributes
+  languages:
+  - typescript
+  - javascript
+  severity: WARNING
+  message: A session cookie is set without httpOnly. A cookie without httpOnly is readable by any injected script, and session
+    theft is the outcome. Set httpOnly (and secure) explicitly on every session cookie.
+  metadata:
+    hardening_controls:
+    - AUTH-02
+    - WEB-01
+  patterns:
+  - pattern-either:
+    - patterns:
+      - pattern-either:
+        - pattern: $RES.cookies.set($NAME, $VALUE, $OPTS)
+        - pattern: $RES.cookie($NAME, $VALUE, $OPTS)
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)['\"]?(session|sess|sid|auth|token|jwt|refresh)
+      - metavariable-pattern:
+          metavariable: $OPTS
+          patterns:
+          - pattern: '{ ... }'
+          - pattern-not: '{ ..., httpOnly: $H, ... }'
+    - patterns:
+      - pattern-either:
+        - pattern: $RES.cookies.set($NAME, $VALUE)
+        - pattern: $RES.cookie($NAME, $VALUE)
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)['\"]?(session|sess|sid|auth|token|jwt|refresh)
+- id: hardening.cors-origin-reflection
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: The response copies the request Origin header into Access-Control-Allow-Origin. Every origin is then allowed together
+    with credentials, so any site the visitor opens can read authenticated responses from this API. Reflect the origin only
+    when it is on a reviewed allowlist.
+  metadata:
+    hardening_controls:
+    - WEB-01
   pattern-either:
-  - pattern: fs.readFileSync($BASE + $X, ...)
-  - pattern: fs.readFile($BASE + $X, ...)
-  - pattern: fs.createReadStream($BASE + $X)
-  - pattern: fs.writeFileSync($BASE + $X, ...)
-  - pattern: fs.readFileSync(path.join($BASE, $X), ...)
-  - pattern: fs.readFile(path.join($BASE, $X), ...)
-  - pattern: $FS.readFileSync($BASE + $X, ...)
-  - pattern: send_file($BASE + $X)
+  - pattern: $RES.set('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.setHeader('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.header('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.append('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.set('Access-Control-Allow-Origin', $REQ.headers['origin'])
+  - pattern: $RES.setHeader('Access-Control-Allow-Origin', $REQ.headers['origin'])
+  - pattern: '''Access-Control-Allow-Origin'': $REQ.headers.origin'
+  - pattern: '"Access-Control-Allow-Origin": $REQ.headers.origin'

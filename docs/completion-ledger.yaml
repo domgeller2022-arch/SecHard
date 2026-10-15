@@ -112,7 +112,17 @@ subphases:
       - docs/evidence/p3-1-mandatory-packs.md
   p3_2:
     title: "Vulnerable/safe security-rule matrix — A-15, A-16, F-04/05"
-    state: pending
+    state: done
+    note: "A-15 false positives silenced at the rule: SQL sinks exclude the reviewed literal-text binding usage (focus-metavariable is broken on the pinned build for intermediate-variable flows — bisected and replaced with the structural exclusion after the corpus disclosure diff caught S08/S09 going quiet); verified Stripe handlers are silent through the covered function shapes; literal path joins stay silent; the CORS wildcard+credentials message is now factual (browsers refuse that combination) and the reflected-origin exposure is its own rule. A-16 missed shapes fire: split formData sources, assigned Python query variables, Python requests SSRF and send_file/open traversal (new rules), session cookies with omitted httpOnly (new rule), reflected-origin CORS (new rule). Permanent matrix: ci/configs/opengrep-rules/manifest.yaml — one entry per rule in the three packs (35) with languages, grade, confidence, limitations and twin/corpus/adapters anchors, enforced by tests/scanners/rule-manifest.test.ts. Observed 2026-10-16: rule-twins 20/20 (19 vulnerable/safe cases through the compiled CLI, twice re-verified), manifest sync 4/4, corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes vs the pre-P3.2 baseline, audit-cli 19/19, all other suites green, typecheck and lint clean — docs/evidence/p3-2-rule-matrix.md. Accuracy against held-out apps is the auditor's measurement (p0_d_03); A-17 (Python audit planning) is P3.5"
+    evidence:
+      - ci/configs/opengrep-rules/detection-depth.yaml
+      - ci/configs/opengrep-rules/manifest.yaml
+      - src/audit/explanations.ts
+      - tests/scanners/rule-twin-cases.ts
+      - tests/scanners/rule-twins.test.ts
+      - tests/scanners/rule-manifest.test.ts
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p3-2-rule-matrix.md
   p3_3:
     title: "Supabase tokenizer and final-state inventory — A-13, A-14, F-06"
     state: pending

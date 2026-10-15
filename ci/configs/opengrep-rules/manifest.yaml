@@ -1,0 +1,268 @@
+# The permanent rule matrix (P3.2, A-15/A-16): one entry per rule in the three packs. A rule
+# change is reviewed against this manifest — new rules land here with their twins and limits, and
+# no broad "all rules verified" claim may be made without it. Each entry carries the rule's
+# supported languages, its expected grade (the pack's declared severity mapping), its confidence,
+# its recorded limitations, and its fixture anchors: `twins` names cases in
+# tests/scanners/rule-twins.test.ts (vulnerable shape and safe twin through the compiled CLI);
+# `corpus` names seed IDs in tests/corpus/measure-corpus.mjs; `adapters` names the pack-level
+# fixtures in tests/scanners/adapters.test.ts. The source/sink shapes themselves live in the pack
+# files (kept literal there for review) and are demonstrated by the anchored cases.
+#
+# Accuracy against held-out apps is measured by the independent auditor (decision p0_d_03); this
+# matrix pins what each rule claims and where it is exercised, not a general coverage promise.
+rules:
+  # ---- ci/configs/opengrep-rules/hardening-core.yaml
+  - id: hardening.no-eval
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Pattern rule; the direct eval call shape only.'
+    corpus: [S34]
+    adapters: [core]
+  - id: hardening.child-process-exec-interpolation
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Pattern rule; the interpolated exec/execSync shape only.'
+    corpus: [S36]
+    adapters: [core]
+  - id: hardening.dom-innerhtml-assignment
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Pattern rule; the direct innerHTML assignment shape only.'
+    adapters: [core]
+  - id: hardening.api-unvalidated-response-consumption
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint only; no cross-file promise.'
+    adapters: [core]
+  - id: hardening.oauth-implicit-grant
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The implicit-grant response type shape only.'
+    adapters: [oauth]
+  - id: hardening.electron-node-integration
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The renderer-configuration literal only.'
+    adapters: [electron]
+  - id: hardening.electron-context-isolation-off
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The renderer-configuration literal only.'
+    adapters: [electron]
+  - id: hardening.electron-sandbox-off
+    pack: hardening-core.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The renderer-configuration literal only.'
+    adapters: [electron]
+  # ---- ci/configs/opengrep-rules/detection-depth.yaml
+  - id: hardening.taint-sql-injection
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The sink is any argument except when the statement text is a string literal — the reviewed bound-parameter usage stays silent however tainted the parameters are (a constant-text variable is not recognised as literal and may flag). Intra-file taint; no cross-file promise.'
+    twins: { fires: [a15-sql-concat, a16-formdata-split], silent: [a15-sql-binding-safe] }
+    corpus: [S08, S09]
+  - id: hardening.taint-sql-injection-python
+    pack: detection-depth.yaml
+    languages: [python]
+    grade: high
+    confidence: confirmed
+    limitations: 'The sink is any execute argument except when the statement text is a string literal — parameter binding stays silent however tainted the parameters are. Intra-file taint only.'
+    twins: { fires: [a16-py-sql-assigned], silent: [a16-py-sql-binding-safe] }
+  - id: hardening.taint-xss-innerhtml
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint only. A literal template stays silent; an interpolated template fires through taint.'
+    twins: { fires: [a16-xss-interpolated], silent: [a16-xss-literal] }
+    corpus: [S37]
+  - id: hardening.nonliteral-html-sink
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: likely
+    limitations: 'Pattern rule: any non-literal at an HTML sink, at least medium. Reviewed-sanitiser recognition is not attempted; a literal template is exempt.'
+    corpus: [S06]
+  - id: hardening.taint-ssrf-fetch
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint only. Allowlisted destinations are not recognised — flagged flows may be reviewed-allowed.'
+    corpus: [S10]
+    adapters: [api]
+  - id: hardening.taint-ssrf-python
+    pack: detection-depth.yaml
+    languages: [python]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint; module-level requests functions only — session objects are not sinks.'
+    twins: { fires: [a16-py-requests-ssrf], silent: [a16-py-requests-ssrf-safe] }
+  - id: hardening.taint-path-traversal
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint only. Fixed-base-then-verify patterns are not recognised — flagged flows may be reviewed-allowed.'
+    twins: { fires: [a15-path-tainted], silent: [a15-path-literal] }
+  - id: hardening.taint-path-traversal-python
+    pack: detection-depth.yaml
+    languages: [python]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint; send_file and open only — send_from_directory is not a sink.'
+    twins: { fires: [a16-py-sendfile], silent: [a16-py-sendfile-safe] }
+  - id: hardening.taint-open-redirect
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint; NextResponse.redirect, res.redirect and redirect only.'
+    corpus: [S17]
+  - id: hardening.taint-command-injection
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint; exec/execSync only — execFile argument arrays are the reviewed shape and are not sinks.'
+  - id: hardening.taint-command-injection-python
+    pack: detection-depth.yaml
+    languages: [python]
+    grade: high
+    confidence: confirmed
+    limitations: 'Intra-file taint; shell=True invocations only.'
+  - id: hardening.weak-password-hash
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Name-based: the hashed variable must match password/passwd/pwd and the algorithm md5/sha1.'
+    corpus: [S11]
+  - id: hardening.jwt-none-alg
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Object-literal algorithm options only; string-typed options are not seen.'
+    corpus: [S13, S14]
+  - id: hardening.jwt-hardcoded-secret
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The secret must be a string literal; env-sourced secrets are not flagged.'
+    corpus: [S12]
+  - id: hardening.insecure-cookie
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'Explicit false only — omitted attributes are covered by hardening.cookie-missing-attributes.'
+    corpus: [S18]
+  - id: hardening.cookie-missing-attributes
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'Session-named cookies only (name regex); options held in a variable are not seen; only httpOnly absence is judged.'
+    twins: { fires: [a16-cookie-omitted], silent: [a16-cookie-safe] }
+  - id: hardening.cors-wildcard-credentials
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The literal wildcard-plus-credentials combination only; browsers reject that combination, so the finding is a broken configuration, not a proven exposure — origin reflection is hardening.cors-origin-reflection.'
+    corpus: [S19]
+  - id: hardening.cors-origin-reflection
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Direct origin-header copies only; the cors-middleware callback shape is not seen.'
+    twins: { fires: [a16-cors-reflection], silent: [a16-cors-allowlist] }
+  - id: hardening.weak-random-token
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'Name-based on the assigned variable.'
+    corpus: [S16]
+  - id: hardening.logging-secret-value
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'Name-based on the logged variable.'
+    corpus: [S15]
+  - id: hardening.client-ai-sdk
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'dangerouslyAllowBrowser only — the mechanically checkable half of browser-side SDK use.'
+    corpus: [S05]
+  - id: hardening.dangerous-next-config
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'The three literal build rails only.'
+    corpus: [S01, S02, S03]
+  - id: hardening.stripe-webhook-unverified
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: critical
+    confidence: confirmed
+    limitations: 'Handlers whose covered function shape (function, async function, one- or two-parameter arrow) assigns the verified event from constructEvent are silent; a verification in an uncovered shape or elsewhere in the file is not seen (conservative).'
+    twins: { fires: [a15-stripe-unverified], silent: [a15-stripe-verified] }
+    corpus: [S20]
+  - id: hardening.path-traversal-concat
+    pack: detection-depth.yaml
+    languages: [typescript, javascript]
+    grade: high
+    confidence: confirmed
+    limitations: 'The joined value must be a non-literal — a join of two fixed strings stays silent; request-tainted paths are additionally covered by hardening.taint-path-traversal.'
+    twins: { fires: [a15-path-tainted], silent: [a15-path-literal] }
+    corpus: [S35]
+  # ---- ci/configs/opengrep-rules/quality-errors.yaml
+  - id: hardening.quality-empty-catch
+    pack: quality-errors.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'The empty-catch block shape only.'
+    corpus: [Q18]
+    adapters: [quality]
+  - id: hardening.quality-floating-promise
+    pack: quality-errors.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'The un-awaited promise statement shape only.'
+    adapters: [quality]
+  - id: hardening.quality-console-log-production
+    pack: quality-errors.yaml
+    languages: [typescript, javascript]
+    grade: medium
+    confidence: confirmed
+    limitations: 'console.log in the reviewed production source directories only; the recipe scopes it.'
+    corpus: [Q25]
+    adapters: [quality]
