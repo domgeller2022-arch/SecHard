@@ -7,6 +7,11 @@ plan_authority:
   instructed_at: "2026-10-14"
   rule: "No deviation; no competing plans; evidence in docs/evidence/; historical audits unchanged."
 decisions:
+  p0_d_03_owner_priority_reorder:
+    date: "2026-10-15"
+    owner_instruction_verbatim: "the completion plan stays the governing plan, but its order changes to put the product mission first. Do now, in this order: P1 limited to B-03, B-04, B-05 and B-06. P3 (security detection accuracy: A-15, A-16, A-13/14, A-21, A-17). P4 (structural quality analysers, narration recall, A-18, A-20). P9.2 (report usability, including grouping could-not-check). P11 (updater and scheduled checks). Defer B-01, B-02 and B-07, plus P2, P5, P6, P7, P8, P10 and P12, until I re-authorise them; record them as deferred-by-owner, not done. Accuracy is measured on held-out apps supplied by the independent auditor, never written by the implementer. Don't edit CHANGELOG.md."
+    resolution: "Plan remains governing; execution order is the owner's list above. Deferral rows are marked blocked (deferred-by-owner) — never done. The B-01..B-07 IDs do not exist in the plan; the owner is supplying the B-item list, and ALL work on the P1/B subset is held until it arrives and is mapped to plan subphases. The held-out-app accuracy rule is binding for all P3/P4 detection work. No changelog edits."
+    changelog_rule: "frozen again (no edits) until a further explicit owner instruction"
   p0_d_01_changelog_authority_location:
     owner_instruction_verbatim: "ensure you state that in the changelog so every session you are aware that you are not to deviate from this plan"
     resolution: "Auditor correction (14 Oct, review of 1406851): the changelog stays frozen at the immutable hash; plan authority lives in this ledger and living documents. Superseded on 15 Oct by p0_d_02 (the owner explicitly authorised a changelog entry)."
