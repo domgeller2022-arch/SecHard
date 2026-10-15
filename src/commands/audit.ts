@@ -184,7 +184,15 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
   };
   // R1-02: an output tree we cannot inspect cannot be proven safe — refuse rather than continue
   // (an unreadable-but-writable out/ can hide a records symlink into the target).
-  scanOutput(out, 0);
+  try {
+    scanOutput(out, 0);
+  } catch (error) {
+    return {
+      exitCode: 2,
+      stdout: [],
+      stderr: [`audit: ${(error as Error).message}`],
+    };
+  }
   if (outputSymlinks.length > 0) {
     return {
       exitCode: 2,
@@ -391,11 +399,21 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     json: redactSecrets(report.json),
     sarif: redactSecrets(report.sarif),
   };
-  writeAtomic(reportPaths.markdown, scrubbed.markdown);
-  writeAtomic(reportPaths.html, scrubbed.html);
-  writeAtomic(reportPaths.json, scrubbed.json);
-  writeAtomic(reportPaths.sarif, scrubbed.sarif);
-  writeAtomic(join(out, 'evidence.json'), redactSecrets(JSON.stringify(built.evidence, null, 2) + '\n'));
+  // B-06/R1-05: a failed report write is a loud nonzero exit with the reason, never a crash —
+  // the raw staging cleanup already ran in the finally above.
+  try {
+    writeAtomic(reportPaths.markdown, scrubbed.markdown);
+    writeAtomic(reportPaths.html, scrubbed.html);
+    writeAtomic(reportPaths.json, scrubbed.json);
+    writeAtomic(reportPaths.sarif, scrubbed.sarif);
+    writeAtomic(join(out, 'evidence.json'), redactSecrets(JSON.stringify(built.evidence, null, 2) + '\n'));
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stdout: [],
+      stderr: [`audit: the report could not be written to ${out}: ${(error as Error).message}`],
+    };
+  }
 
 
   const errored = (checked.results ?? []).filter((result: CheckResult) => result.outcome === 'error');

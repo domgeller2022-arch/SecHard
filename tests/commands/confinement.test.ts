@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { auditCommand } from '../../src/commands/audit.js';
 import { packageRoot } from '../../src/validation/schema.js';
@@ -11,6 +11,23 @@ const roots: string[] = [];
 afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
+
+
+/** Whole-tree digest (B-06): names+sizes of every file under root — proves nothing was written. */
+function treeDigest(root: string): string {
+  const entries: string[] = [];
+  const walkDir = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      const stats = lstatSync(full);
+      if (stats.isDirectory()) walkDir(full);
+      else entries.push(`${relative(root, full)}:${String(stats.size)}`);
+    }
+  };
+  walkDir(root);
+  entries.sort();
+  return entries.join('|');
+}
 
 function app(): string {
   const root = mkdtempSync(join(tmpdir(), 'sechard-confine-app-'));
@@ -26,7 +43,7 @@ describe('A-02: audit output stays outside the audited tree, resolved through re
     roots.push(outside);
     const out = join(outside, 'out-link');
     symlinkSync(join(target, 'stolen'), out);
-    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
+    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: packageRoot() });
     // Either refusal is a correct confinement outcome: the symlink resolves into the target, or a
     // symlinked output that resolves nowhere cannot be proven confined and is refused.
     const stderr = run.stderr.join('\n');
@@ -37,7 +54,7 @@ describe('A-02: audit output stays outside the audited tree, resolved through re
 
   it('rejects an output directory inside the target', async () => {
     const target = app();
-    const run = await auditCommand({ target, out: join(target, 'innocent-name'), depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
+    const run = await auditCommand({ target, out: join(target, 'innocent-name'), depth: 'quick', now: new Date(), policyRoot: packageRoot() });
     expect(run.exitCode).toBe(2);
     expect(run.stderr.join('\n')).toContain('must live outside the audited project');
   });
@@ -46,7 +63,7 @@ describe('A-02: audit output stays outside the audited tree, resolved through re
     const target = app();
     const outside = mkdtempSync(join(tmpdir(), 'sechard-confine-ok-'));
     roots.push(outside);
-    const run = await auditCommand({ target, out: join(outside, 'out'), depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
+    const run = await auditCommand({ target, out: join(outside, 'out'), depth: 'quick', now: new Date(), policyRoot: packageRoot() });
     expect(run.stderr.join('\n')).not.toContain('must live outside the audited project');
   });
 });
@@ -94,16 +111,18 @@ describe('P1.2 (auditor R1-02): nested unreadable output directories cannot hide
     // records itself: no read permission (write/search only) — enumeration of its .hardening
     // symlink must not be skipped as a mere missing entry.
     symlinkSync(join(target, 'owned'), join(out, 'records', '.hardening', 'stolen'));
-    const before = existsSync(join(target, 'owned'));
-    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
+    // B-06: actually remove read permission so the enumeration genuinely fails — the refusal
+    // must come from the unreadable path, not from the symlink being visible.
+    chmodSync(join(out, 'records'), 0o300);
+    const digestBefore = treeDigest(target);
+    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: packageRoot() });
     const stderr = run.stderr.join('\n');
-    expect(
-      stderr.includes('cannot be inspected') || stderr.includes('contains symlinks') || stderr.includes('must live outside'),
-      `expected a confinement refusal, got: ${stderr.slice(0, 200)}`,
-    ).toBe(true);
-    // The target is unchanged: nothing was created inside it by the run.
-    expect(existsSync(join(target, 'owned'))).toBe(before);
-    expect(existsSync(join(target, 'owned', '.hardening'))).toBe(false);
+    expect(stderr, 'expected the unreadable-output refusal').toContain('cannot be inspected');
+    expect(run.exitCode).toBe(2);
+    // B-06: the whole target tree is byte-identical — nothing was written into it.
+    expect(treeDigest(target)).toBe(digestBefore);
+    // Restore read permission so the suite's cleanup can remove the fixture.
+    chmodSync(join(out, 'records'), 0o755);
   });
 
   it('fails loudly when the final report write fails, and leaves no raw scanner bytes (R1-05)', async () => {
@@ -112,9 +131,13 @@ describe('P1.2 (auditor R1-02): nested unreadable output directories cannot hide
     roots.push(outside);
     const out = join(outside, 'out');
     mkdirSync(join(out, 'report.md'), { recursive: true });
-    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: join(packageRoot(), 'policy') });
-    // The R1-05 contract: loud failure (nonzero, whichever guard fires first) and no raw leftovers.
-    expect(run.exitCode).not.toBe(0);
+    const digestBefore = treeDigest(target);
+    const run = await auditCommand({ target, out, depth: 'quick', now: new Date(), policyRoot: packageRoot() });
+    // B-06: with a valid policy root the run reaches the report write and fails THERE (EISDIR),
+    // not on an earlier policy-load error.
+    expect(run.exitCode, run.stderr.join('\n')).not.toBe(0);
+    expect(run.stderr.join('\n')).toContain('report.md');
+    expect(treeDigest(target)).toBe(digestBefore);
     // The private staging area is removed on the failure path: no sechard-raw-* directory remains.
     const leftovers = readdirSync(tmpdir()).filter((entry) => entry.startsWith('sechard-raw-'));
     expect(leftovers, `raw staging left behind: ${leftovers.join(', ')}`).toEqual([]);
