@@ -813,7 +813,7 @@ describe('F-02 follow-ups (owner\'s auditor, 13 October 2026): current-files sca
 });
 
 describe('P1.1: scanner-owned Git cannot execute repository-configured helpers (comprehensive plan; auditor R1-01)', () => {
-  it('gitleaks git-mode scans run no textconv helper while history secrets stay detectable', () => {
+  it('gitleaks git-mode scans run no textconv helper while a history-only secret stays detectable', () => {
     // Counterexample-first: the fixture must execute the helper through an UNHARDENED patch log
     // (the auditor's exact vector: .gitattributes textconv + .git/config driver), or the
     // regression proves nothing.
@@ -840,16 +840,27 @@ describe('P1.1: scanner-owned Git cannot execute repository-configured helpers (
     expect(existsSync(marker), 'fixture invalid: the textconv helper did not run unhardened').toBe(true);
     rmSync(marker);
 
+    // B-06 (p0_d_04): the secret must be HISTORY-ONLY. The second commit removes leak.key, so the
+    // current-files scan cannot see it and only the hardened history scan can prove detection —
+    // the earlier version left the file in the worktree, which let the files scan satisfy the
+    // detection claim without the history scan finding anything.
+    rmSync(join(root, 'leak.key'));
+    git('add', '-A');
+    git('commit', '-q', '-m', 'remove key');
+
     const outDir = join(scratch, 'out', `run-p11-${randomUUID().slice(0, 8)}`);
     const run = cli(['audit', root, '--out', outDir, '--depth', 'standard'], scratch);
     expect(run.status, run.stderr).toBe(0);
     expect(existsSync(marker), 'the textconv helper executed through a gitleaks git-mode child').toBe(false);
     const results = JSON.parse(readFileSync(join(outDir, 'results.json'), 'utf8')) as AuditOutput['results'];
-    const detected = [
-      ...findingsFor(results, 'gitleaks/files'),
-      ...findingsFor(results, 'gitleaks/history'),
-    ] as GitleaksSecretFinding[];
-    expect(detected.some((finding) => (finding.location ?? '').startsWith('leak.key')), 'the history secret must stay detectable through the hardened scan').toBe(true);
-    expect(JSON.stringify(detected)).not.toContain(secretJwt);
+    const files = findingsFor(results, 'gitleaks/files') as GitleaksSecretFinding[];
+    const history = findingsFor(results, 'gitleaks/history') as GitleaksSecretFinding[];
+    // Fixture guard: leak.key exists only in history, so the current-files scan must hold no row
+    // for it — if it does, the removal commit failed and this test would prove nothing.
+    expect(files.some((finding) => (finding.location ?? '').startsWith('leak.key')), 'fixture invalid: leak.key is still in the worktree, so the files scan could satisfy the claim').toBe(false);
+    // B-06 (p0_d_04): the history scan alone must find the history-only secret through the
+    // hardened, helper-free scan.
+    expect(history.some((finding) => (finding.location ?? '').startsWith('leak.key')), 'the history-only secret must be found by the hardened history scan').toBe(true);
+    expect(JSON.stringify([...files, ...history])).not.toContain(secretJwt);
   }, 600_000);
 });

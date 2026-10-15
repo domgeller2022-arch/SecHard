@@ -57,11 +57,13 @@ subphases:
       - docs/evidence/p1-1-git-child-regression.md
   p1_2:
     title: "Recursive persistence and failure-injection harness"
-    state: in_progress
-    note: "B-06 (p0_d_04) re-opened P1.2: two of three test repairs done (policyRoot + unreadable-dir + whole-tree digests, with the product fixes they exposed: the unreadable-output refusal returns an outcome; a failed report write exits 1 instead of crashing); remaining: the history-only secret assertion in audit-cli"
+    state: done
+    note: "B-06 (p0_d_04) re-opened P1.2; all three test repairs complete: policyRoot + unreadable-dir + whole-tree digests (commit 08ab9b5, with the product fixes they exposed: the unreadable-output refusal returns an outcome; a failed report write exits 1 instead of crashing), and the history-only secret assertion in audit-cli (leak.key removed in a second commit; gitleaks/files holds no row for it; gitleaks/history alone reports it; observed 2026-10-15 — docs/evidence/p1-1-git-child-regression.md addendum)"
     evidence:
       - tests/commands/confinement.test.ts
+      - tests/scanners/audit-cli.test.ts
       - docs/evidence/p1-2-failure-path-regressions.md
+      - docs/evidence/p1-1-git-child-regression.md
   p1_3:
     title: "Real bounded I/O, downloads and child termination — A-29"
     state: done
