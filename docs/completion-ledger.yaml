@@ -7,6 +7,18 @@ plan_authority:
   instructed_at: "2026-10-14"
   rule: "No deviation; no competing plans; evidence in docs/evidence/; historical audits unchanged."
 decisions:
+  p0_d_04_b_item_mapping:
+    date: "2026-10-15"
+    source: "the independent auditor's 15 Oct branch review of 0874eec"
+    b_map:
+      b_03: "P1.3 (with P1.1): truncated reads must not claim complete coverage — structured read results (complete/truncated/omitted/error), carried into recipe coverage/report/gate; all readers; per-file+aggregate+count+depth limits"
+      b_04: "P1.3: process and download limits — output overflow uses TERM->grace->KILL; streamed downloads with hashing and cumulative byte/deadline limits; archive validation (traversal/links/size); recipes honour failure/outputTruncated/signal"
+      b_05: "P1.2: one shared reviewed provider-shape module (detection/classification/redaction, incl. Twilio SK shapes); every persisted string field protected incl. filenames/resources; acceptance: byte-search every emitted artifact on success AND failure paths"
+      b_06: "P1.1/P1.2: fix three self-deceiving tests — confinement policyRoot (use packageRoot(); assert the specific report-write failure, this run's staging dir, whole-tree digest); the unreadable-directory test must actually chmod; the history assertion must use a history-only secret and assert gitleaks/history alone"
+    still_deferred: "B-01/B-02 (ledger verifier), B-07 (restore drill), B-08 (status/CI paperwork) — deferred-by-owner, not done"
+    p3_1_reactivated: true
+    ci: "draft PR opened so repo-checks runs on the exact head"
+    changelog_rule: "no edits"
   p0_d_03_owner_priority_reorder:
     date: "2026-10-15"
     owner_instruction_verbatim: "the completion plan stays the governing plan, but its order changes to put the product mission first. Do now, in this order: P1 limited to B-03, B-04, B-05 and B-06. P3 (security detection accuracy: A-15, A-16, A-13/14, A-21, A-17). P4 (structural quality analysers, narration recall, A-18, A-20). P9.2 (report usability, including grouping could-not-check). P11 (updater and scheduled checks). Defer B-01, B-02 and B-07, plus P2, P5, P6, P7, P8, P10 and P12, until I re-authorise them; record them as deferred-by-owner, not done. Accuracy is measured on held-out apps supplied by the independent auditor, never written by the implementer. Don't edit CHANGELOG.md."
@@ -86,8 +98,8 @@ subphases:
     note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p3_1:
     title: "Mandatory packs, parser failures and independent scope — A-09, A-10"
-    state: blocked
-    note: "deferred-by-owner (decision p0_d_03): the active P3 set is A-15/A-16 (P3.2), A-13/14 (P3.3), A-21 (P3.4), A-17 (P3.5)"
+    state: pending
+    note: "re-activated by owner correction to p0_d_03 (decision p0_d_04): a failed or missing pack, parser failure, or unreviewed ignore must never produce a clean complete result — core product"
   p3_2:
     title: "Vulnerable/safe security-rule matrix — A-15, A-16, F-04/05"
     state: pending
