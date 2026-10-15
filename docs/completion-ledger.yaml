@@ -66,22 +66,28 @@ subphases:
       - "The measured pre-R1 pinned-build baseline (worktree at b71a073, build, corpus measurement against that binary)"
   p2_1:
     title: "One real policy root and enforced policy lock — A-08"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p2_2:
     title: "Current source/build/configuration identities — A-04, A-12"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p2_3:
     title: "Validate results at every ingestion boundary — A-05"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p2_4:
     title: "Manual evidence and exceptions — A-06, A-07"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p2_5:
     title: "Secret span classification, false positives and blocking floors — A-11, A-12, F-17"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p3_1:
     title: "Mandatory packs, parser failures and independent scope — A-09, A-10"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): the active P3 set is A-15/A-16 (P3.2), A-13/14 (P3.3), A-21 (P3.4), A-17 (P3.5)"
   p3_2:
     title: "Vulnerable/safe security-rule matrix — A-15, A-16, F-04/05"
     state: pending
@@ -108,85 +114,111 @@ subphases:
     state: pending
   p5_1:
     title: "Enforceable execution-mode contract"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p5_2:
     title: "Pure/internal policy and supply-chain handlers"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p5_3:
     title: "Governance and agent verification handlers"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p5_4:
     title: "Functional, build, auth, data and business handler interfaces"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p5_5:
     title: "Gate completeness and release finalizers"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p6_1:
     title: "Fail-closed change report — A-24"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p6_2:
     title: "Trusted human acknowledgement — A-25, F-14"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p6_3:
     title: "Identical trusted records and actual provisioned scanners — A-23, F-14/16"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p6_4:
     title: "Full platform trust matrix and settings verification"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_1:
     title: "Disposable stack and loopback-only exposure"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_2:
     title: "Browser and functional suite — A-26"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_3:
     title: "Session, recovery and OAuth verification"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_4:
     title: "Authorization matrix and effective provider access"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_5:
     title: "Correct weakened-policy and failure harness — A-28"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_6:
     title: "Live restore/rollback verification — A-27, OPS-02, REL-02"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p7_7:
     title: "Reference security posture and operational evidence"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_1:
     title: "Live-target environment and pinned DNS — A-22, F-17"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_2:
     title: "Read-only live exposure probes, TLS and passive ZAP — X3"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_3:
     title: "Supabase linter and live unprivileged probe — X1/F-06"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_4:
     title: "Runtime-AI profile — X2, AI-01–AI-06"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_5:
     title: "Remaining stack/artifact expansion — X4"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_6:
     title: "Git URL and URL-only entry-point truth"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p8_7:
     title: "Business integrity and abuse limits behind the handler interface"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p9_1:
     title: "Honest observed standards coverage — A-19, F-11/13"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): only P9.2 is in the active set"
   p9_2:
     title: "Report identity, usability, paths and exits — A-18/20/30, F-15/17"
     state: pending
   p9_3:
     title: "Curate guidance and comparison projects — S3/S4, F-17"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): only P9.2 is in the active set"
   p9_4:
     title: "Real self-audit and independent calibration — F-10/12"
-    state: pending
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): only P9.2 is in the active set"
   p10_1:
     title: "Actual maintained dependency graph — A-31"
     state: pending
