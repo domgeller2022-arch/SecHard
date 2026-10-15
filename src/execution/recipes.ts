@@ -5,6 +5,7 @@ import { dirname, join, relative, sep } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parseGitleaksReport } from '../adapters/gitleaks.js';
 import { gitConfigEnv, gitHardeningArgs } from './git-hardening.js';
+import { buildSourceInventory, inventorySuppressions, type FileInventory, type SuppressionInventory } from './inventory.js';
 import { loadTargetInventory, runHttpChecks } from '../adapters/http.js';
 import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
@@ -59,11 +60,31 @@ export interface RecipeOutcome {
   readonly tool?: CheckResult['tool'];
   readonly reportPath?: string;
   readonly reportDigest?: string;
+  /** P3.1: the independent intended scope (inventoried relevant files), when one was built. */
+  readonly expected?: number;
+  /** P3.1: inventoried files the scanner did not report examining. */
+  readonly unexamined?: number;
+  /** P3.1: failures the scanner itself reported. */
+  readonly failed?: number;
+  /** P3.1: target-controlled suppressions (.semgrepignore entries plus inline nosemgrep annotations). */
+  readonly suppressions?: number;
 }
 
 export type RecipeHandler = (context: RecipeContext) => Promise<RecipeOutcome>;
 
 const MAX_FILES_RECORDED = 5000;
+
+const COVERAGE_RANK: Record<Coverage, number> = { complete: 0, partial: 1, unknown: 2 };
+const worse = (a: Coverage, b: Coverage): Coverage => (COVERAGE_RANK[a] <= COVERAGE_RANK[b] ? a : b);
+
+/**
+ * P3.1: the reviewed opengrep target set — the extensions of the packs' declared languages
+ * (typescript, javascript) and exactly the directories the recipe's reviewed exclusion flags
+ * exclude. The independent inventory applies the same sets, so a reviewed exclusion is never
+ * counted as an unexamined gap, and everything else relevant is.
+ */
+const OPENGREP_SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const OPENGREP_EXCLUDED_DIRS: ReadonlySet<string> = new Set(['node_modules', '.next', 'dist', '.git']);
 
 function unsupported(diagnostic: string): RecipeOutcome {
   return { outcome: 'unsupported', coverage: 'unknown', observed: 0, files: [], findings: [], diagnostic };
@@ -426,12 +447,66 @@ async function runOsv(context: RecipeContext): Promise<RecipeOutcome> {
   };
 }
 
-async function runOpengrepWithPack(context: RecipeContext, packRelativePath: string, packRuleId: string): Promise<RecipeOutcome> {
+interface SharedPackScan {
+  readonly inventory: FileInventory;
+  readonly suppressions: SuppressionInventory;
+}
+
+/**
+ * The opengrep child's environment: a reviewed PATH carrying git — the tool resolves .gitignore
+ * through git, and runTool children start with an empty environment — plus the hardened git
+ * configuration so any internal git child cannot execute repository-configured helpers (R1-01).
+ */
+function buildOpengrepEnv(): Readonly<Record<string, string>> {
+  const git = resolveTool('git');
+  return git.available
+    ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':'), ...gitConfigEnv() }
+    : { ...gitConfigEnv() };
+}
+
+/**
+ * Runs one reviewed pack under the P3.1 honesty rules (A-09/A-10). The intended scope is the
+ * independent inventory built before the scan — never the scanner's self-report. A parser
+ * failure, an unexamined inventoried file, a target-controlled suppression, or an incomplete
+ * inventory makes the result an explicit error carrying the findings (so real detections still
+ * render in the report) with the reason named; only a fully examined, uninterrupted,
+ * suppression-free scan passes.
+ */
+async function runOpengrepWithPack(
+  context: RecipeContext,
+  packRelativePath: string,
+  packRuleId: string,
+  shared?: SharedPackScan,
+): Promise<RecipeOutcome> {
   const configPath = join(context.policyRoot, 'ci', 'configs', 'opengrep-rules', packRelativePath);
   if (!existsSync(configPath)) return errored(`the reviewed rule pack is missing at ${configPath}`);
 
+  const inventory = shared?.inventory ?? buildSourceInventory(context.appRoot, OPENGREP_SOURCE_EXTENSIONS, OPENGREP_EXCLUDED_DIRS);
+  const suppressions = shared?.suppressions ?? inventorySuppressions(context.appRoot, inventory);
+  const packLine = `pack ci/configs/opengrep-rules/${packRelativePath} (sha256:${digestOf(readFileSync(configPath, 'utf8')).slice(0, 12)})`;
+
+  // Nothing to analyse: the inventory is the scope determination, so the tool is never pointed at
+  // an empty relevant scope (with the pinned experimental target selection, the scanner misbehaves
+  // on such a target — observed hanging on a Python-only tree). When the inventory itself could
+  // not be established (unreadable entries, the walk cap), that is an error: "no relevant files"
+  // is a claim an incomplete inventory cannot support.
+  if (inventory.intended.length === 0) {
+    if (inventory.truncated || inventory.skipped.length > 0) {
+      return errored(
+        `${packLine}: the relevant-file inventory could not be established (${String(inventory.skipped.length)} unreadable entr${inventory.skipped.length === 1 ? 'y' : 'ies'}${inventory.truncated ? ', the walk cap was hit' : ''})`,
+      );
+    }
+    return unsupported(`no relevant source files (${OPENGREP_SOURCE_EXTENSIONS.join(', ')}) under the application root; there is nothing for the ${packRuleId} rules to analyse`);
+  }
+
   const args = [
     'scan',
+    '--experimental',
+    // The reviewed target-selection policy: replaces the tool's built-in default ignore (which
+    // silently skipped whole source trees such as tests/) and any .semgrepignore the audited
+    // target ships, so a target-controlled file cannot shrink the reviewed scan scope. Its
+    // presence is still inventoried and recorded on the result.
+    '--semgrepignore-filename', join(context.policyRoot, 'ci', 'configs', 'opengrep-semgrepignore'),
     '--config', configPath,
     '--json',
     '--quiet',
@@ -441,25 +516,94 @@ async function runOpengrepWithPack(context: RecipeContext, packRelativePath: str
     '--exclude', '.git',
     context.appRoot,
   ];
-  const run = await runTool('opengrep', args, { cwd: context.appRoot, timeoutMs: 600_000 });
+  const run = await runTool('opengrep', args, {
+    cwd: context.appRoot,
+    timeoutMs: 600_000,
+    // runTool children start with an empty environment. The tool resolves .gitignore through git,
+    // so the child PATH must carry a reviewed git executable — without it the scanner silently
+    // loses gitignore resolution and the inventory comparison draws the wrong conclusion. The
+    // hardened git configuration rides along for any internal git child (R1-01: fsmonitor and
+    // hooks off).
+    env: buildOpengrepEnv(),
+  });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
-  if (run.outcome.exitCode !== 0) return errored(`opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
+  // Nonzero covers invalid rules and config parse failures; a timeout kills the process and
+  // surfaces as a null exit code. None of these may look like a clean scan.
+  if (run.outcome.exitCode !== 0) return errored(`${packLine}: opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
 
-  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot });
+  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot, intendedScope: inventory.intended });
   if ('error' in parsed) return errored(parsed.error);
-  if (parsed.scope.observed === 0) {
-    return unsupported(`opengrep scanned no files in the application root; there is nothing for the ${packRuleId} rules to analyse`);
+
+  const examined = parsed.scope.observed;
+  const files = (parsed.scope.files ?? []).slice(0, MAX_FILES_RECORDED);
+  const unexamined = parsed.scope.unexamined ?? 0;
+  const failed = parsed.scope.failed ?? 0;
+  const suppressionsTotal = suppressions.nosemgrep.annotations + (suppressions.semgrepignore?.entries ?? 0);
+
+  if (examined === 0) {
+    return errored(
+      `${packLine}: opengrep examined none of the ${String(inventory.intended.length)} inventoried relevant files` +
+      `${suppressions.semgrepignore === undefined ? '' : `; the target ships .semgrepignore (${String(suppressions.semgrepignore.entries)} entries), an unreviewed suppression the tool honours`}`,
+    );
+  }
+
+  // Explicit incomplete coverage (P3.1 requirement 3): the findings are carried so the report
+  // keeps them, but the result is an error — a pass requires complete coverage, and a sibling's
+  // success must never mask an incomplete pack.
+  const incompleteness: string[] = [];
+  if (parsed.coverage !== 'complete') {
+    const examinedSet = new Set(parsed.scope.files ?? []);
+    const unexaminedNames = inventory.intended.filter((file) => !examinedSet.has(file));
+    incompleteness.push(
+      unexamined > 0
+        ? `${String(unexamined)} of ${String(inventory.intended.length)} inventoried relevant files were not examined (first: ${unexaminedNames.slice(0, 5).join(', ')}${unexaminedNames.length > 5 ? ', …' : ''}; a gitignore rule may be hiding them)`
+        : `examined ${String(examined)} of ${String(inventory.intended.length)} inventoried relevant files`,
+    );
+  }
+  if (failed > 0) incompleteness.push(`${String(failed)} scanner-reported failure(s)`);
+  if (parsed.parserErrors.length > 0) incompleteness.push(parsed.parserErrors.join('; '));
+  if (inventory.truncated) incompleteness.push('the inventory walk hit its entry cap, so the intended scope is a lower bound');
+  if (inventory.skipped.length > 0) {
+    incompleteness.push(
+      `${String(inventory.skipped.length)} target entries could not be inventoried (${inventory.skipped.slice(0, 3).map((s) => `${s.path}: ${s.reason}`).join('; ')})`,
+    );
+  }
+  if (suppressions.nosemgrep.annotations > 0) {
+    incompleteness.push(`${String(suppressions.nosemgrep.annotations)} inline nosemgrep annotation(s) across ${String(suppressions.nosemgrep.files)} file(s) suppress findings without review`);
+  }
+  if (suppressions.uninspected > 0) incompleteness.push(`${String(suppressions.uninspected)} inventoried file(s) were too large to inspect for inline suppressions`);
+
+  if (incompleteness.length > 0) {
+    return {
+      outcome: 'error',
+      coverage: 'partial',
+      observed: examined,
+      expected: inventory.intended.length,
+      ...(unexamined === 0 ? {} : { unexamined }),
+      ...(failed === 0 ? {} : { failed }),
+      ...(suppressionsTotal === 0 ? {} : { suppressions: suppressionsTotal }),
+      files,
+      findings: parsed.findings,
+      tool: { ...toolIdentity('opengrep'), rule_pack: `ci/configs/opengrep-rules/${packRelativePath}` },
+      reportDigest: digestOf(run.outcome.stdout),
+      diagnostic: `${packLine}: ${incompleteness.join('; ')}`,
+    };
   }
 
   return {
     outcome: 'pass',
-    coverage: parsed.coverage,
-    observed: parsed.scope.observed,
-    files: (parsed.scope.files ?? []).slice(0, MAX_FILES_RECORDED),
+    coverage: 'complete',
+    observed: examined,
+    expected: inventory.intended.length,
+    ...(suppressionsTotal === 0 ? {} : { suppressions: suppressionsTotal }),
+    files,
     findings: parsed.findings,
     tool: { ...toolIdentity('opengrep'), rule_pack: `ci/configs/opengrep-rules/${packRelativePath}` },
     reportDigest: digestOf(run.outcome.stdout),
-    ...(parsed.parserErrors.length === 0 ? {} : { diagnostic: parsed.parserErrors.join('; ') }),
+    diagnostic: `${packLine}: examined ${String(examined)}/${String(inventory.intended.length)} inventoried relevant files` +
+      (suppressions.semgrepignore === undefined
+        ? ''
+        : `; target .semgrepignore (${String(suppressions.semgrepignore.entries)} entries) cannot affect the reviewed scan scope and is recorded`),
   };
 }
 
@@ -478,25 +622,52 @@ const runMigrationInventory = (context: RecipeContext): Promise<RecipeOutcome> =
 const runOpengrep = async (context: RecipeContext): Promise<RecipeOutcome> => {
   // Two reviewed packs run in one check: the core pack (F-01) and the detection-depth pack
   // (Batch F2 — taint and pattern rules). Findings merge; the packs are independent scans, so a
-  // pack that finds nothing does not mask the other's findings.
-  const core = await runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
-  const depth = await runOpengrepWithPack(context, 'detection-depth.yaml', 'security');
-  // A pack that is unsupported (no files to analyse at all) is fine as long as the other ran;
-  // the combined result is a pass when at least one pack scanned files.
-  const passes = [core, depth].filter((outcome) => outcome.outcome === 'pass');
-  if (passes.length === 0) return core.outcome === 'error' ? core : depth;
-  const mergedFindings = passes.flatMap((outcome) => outcome.findings ?? []);
-  const observed = Math.max(...passes.map((outcome) => outcome.observed ?? 0));
-  const files = [...new Set(passes.flatMap((outcome) => outcome.files ?? []))];
-  const diagnostics = [core, depth]
-    .map((outcome) => (outcome.outcome === 'pass' ? outcome.diagnostic : outcome.diagnostic))
+  // pack that finds nothing does not mask the other's findings. P3.1 (A-09): one shared
+  // independent inventory feeds both packs, and the aggregator is strictly conjunctive — a pack
+  // that failed, is incomplete, or is suppressed makes the combined result that pack's error. A
+  // successful sibling never masks a failed one.
+  const inventory = buildSourceInventory(context.appRoot, OPENGREP_SOURCE_EXTENSIONS, OPENGREP_EXCLUDED_DIRS);
+  const suppressions = inventorySuppressions(context.appRoot, inventory);
+  const core = await runOpengrepWithPack(context, 'hardening-core.yaml', 'security', { inventory, suppressions });
+  const depth = await runOpengrepWithPack(context, 'detection-depth.yaml', 'security', { inventory, suppressions });
+  if (core.outcome === 'error' && depth.outcome === 'error') {
+    return {
+      ...core,
+      // The failing check still carries the healthy sibling's real detections, so the report
+      // keeps them while the check itself fails.
+      findings: [...core.findings, ...depth.findings],
+      diagnostic: [core.diagnostic, depth.diagnostic]
+        .filter((note): note is string => note !== undefined && note.length > 0)
+        .join('; '),
+    };
+  }
+  if (core.outcome === 'error') return { ...core, findings: [...core.findings, ...depth.findings] };
+  if (depth.outcome === 'error') return { ...depth, findings: [...core.findings, ...depth.findings] };
+  // Both packs share the same inventory, so they have relevant files or neither does.
+  if (core.outcome === 'unsupported' || depth.outcome === 'unsupported') {
+    return unsupported(core.diagnostic ?? depth.diagnostic ?? 'no relevant source files under the application root');
+  }
+  const files = [...new Set([...core.files, ...depth.files])];
+  const diagnostics = [core.diagnostic, depth.diagnostic]
     .filter((note): note is string => note !== undefined && note.length > 0);
   return {
     outcome: 'pass',
-    coverage: passes.some((outcome) => outcome.coverage === 'partial') ? 'partial' : 'complete',
-    observed,
+    coverage: worse(core.coverage, depth.coverage),
+    observed: Math.max(core.observed, depth.observed),
+    ...(core.expected === undefined ? (depth.expected === undefined ? {} : { expected: depth.expected }) : { expected: core.expected }),
+    // P3.1 observations flow through from the packs: both share one inventory and one suppression
+    // inventory, so the combined result records them once.
+    ...(core.unexamined === undefined && depth.unexamined === undefined
+      ? {}
+      : { unexamined: Math.max(core.unexamined ?? 0, depth.unexamined ?? 0) }),
+    ...(core.failed === undefined && depth.failed === undefined
+      ? {}
+      : { failed: (core.failed ?? 0) + (depth.failed ?? 0) }),
+    ...(core.suppressions === undefined && depth.suppressions === undefined
+      ? {}
+      : { suppressions: Math.max(core.suppressions ?? 0, depth.suppressions ?? 0) }),
     files: files.slice(0, MAX_FILES_RECORDED),
-    findings: mergedFindings,
+    findings: [...core.findings, ...depth.findings],
     tool: { ...toolIdentity('opengrep'), rule_pack: 'ci/configs/opengrep-rules/{hardening-core,detection-depth}.yaml' },
     ...(diagnostics.length === 0 ? {} : { diagnostic: diagnostics.join('; ') }),
   };

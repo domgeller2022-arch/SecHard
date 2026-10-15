@@ -311,6 +311,46 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     if ('error' in parsed) return;
     expect(parsed.parserErrors.join(' ')).toMatch(/timeout on a\.ts/);
   });
+
+  it('verifies the scan against the independent inventory: unexamined files, scanner failures, and malformed entries keep coverage from complete (P3.1)', () => {
+    // The intended scope is the inventory built before the scan. One inventoried file the scanner
+    // never reported examining, one scanner-reported failure, and one malformed finding entry are
+    // each, alone, enough to keep the scan from claiming complete coverage.
+    const partial = parseOpengrepReport(
+      JSON.stringify({
+        results: [
+          { check_id: 'hardening.no-eval', path: 'a.ts', start: { line: 1 }, extra: { severity: 'ERROR', message: 'eval', fingerprint: 'f' } },
+        ],
+        errors: [{ message: 'parse error on b.ts' }],
+        paths: { scanned: ['a.ts'] },
+      }),
+      { intendedScope: ['a.ts', 'b.ts'] },
+    );
+    if ('error' in partial) throw new Error('the report must parse');
+    expect(partial.coverage).toBe('partial');
+    expect(partial.scope.unexamined).toBe(1);
+    expect(partial.scope.failed).toBe(1);
+    expect(partial.scope.notes).toContain('unexamined: 1');
+    expect(partial.scope.notes).toContain('independent inventory');
+
+    // The same scan over the full inventory — no errors, nothing unexamined — is complete.
+    const complete = parseOpengrepReport(
+      JSON.stringify({ results: [], paths: { scanned: ['a.ts', 'b.ts'] } }),
+      { intendedScope: ['a.ts', 'b.ts'] },
+    );
+    if ('error' in complete) throw new Error('the report must parse');
+    expect(complete.coverage).toBe('complete');
+    expect(complete.scope.unexamined).toBe(0);
+
+    // A malformed finding entry (skipped by the parser) also interrupts, even at full examination.
+    const malformed = parseOpengrepReport(
+      JSON.stringify({ results: ['not-an-object'], paths: { scanned: ['a.ts', 'b.ts'] } }),
+      { intendedScope: ['a.ts', 'b.ts'] },
+    );
+    if ('error' in malformed) throw new Error('the report must parse');
+    expect(malformed.coverage).toBe('partial');
+    expect(malformed.scope.notes).toContain('malformed report entries skipped: 1');
+  });
 });
 
 async function runZizmorToStdout(target: string): Promise<{ json: string; exitCode: number | null }> {

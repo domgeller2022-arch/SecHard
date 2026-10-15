@@ -270,6 +270,12 @@ export interface CheckResult {
     readonly routes?: readonly string[];
     readonly fingerprint?: string;
     readonly notes?: string;
+    /** P3.1: inventoried relevant files the scanner did not report examining. */
+    readonly unexamined?: number;
+    /** P3.1: failures the scanner itself reported (per-file errors, malformed entries). */
+    readonly failed?: number;
+    /** P3.1: target-controlled suppressions (a .semgrepignore plus inline nosemgrep annotations). */
+    readonly suppressions?: number;
   };
   readonly findings?: readonly Finding[];
   readonly report?: { readonly path?: string; readonly raw_digest?: string; readonly bytes?: number };

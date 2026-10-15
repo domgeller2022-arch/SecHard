@@ -25,6 +25,14 @@ export interface InternalCheckOutcome {
   /** Raw report, recorded as a basename within the run directory plus its digest. */
   readonly reportPath?: string;
   readonly reportDigest?: string;
+  /** P3.1: the independent intended scope (inventoried relevant files), when the recipe built one. */
+  readonly expected?: number;
+  /** P3.1: inventoried files the scanner did not report examining. */
+  readonly unexamined?: number;
+  /** P3.1: failures the scanner itself reported. */
+  readonly failed?: number;
+  /** P3.1: target-controlled suppressions (.semgrepignore entries plus inline nosemgrep annotations). */
+  readonly suppressions?: number;
 }
 
 export interface ConsistencyInput {
@@ -135,10 +143,13 @@ export function makeResult(
     duration_ms: Math.max(0, finishedAt.getTime() - startedAt.getTime()),
     exit_code: outcome.outcome === 'pass' ? 0 : 1,
     scope: {
-      expected: 1,
+      expected: outcome.expected ?? 1,
       observed: outcome.observed,
       files: outcome.files.map((file) => redactSecrets(relativizeLocation(file, appRoot))),
       ...(outcome.routes === undefined ? {} : { routes: outcome.routes.map((route) => redactSecrets(route)) }),
+      ...(outcome.unexamined === undefined ? {} : { unexamined: outcome.unexamined }),
+      ...(outcome.failed === undefined ? {} : { failed: outcome.failed }),
+      ...(outcome.suppressions === undefined ? {} : { suppressions: outcome.suppressions }),
     },
     ...(outcome.reportDigest === undefined
       ? {}

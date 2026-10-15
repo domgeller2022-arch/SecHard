@@ -1,0 +1,12 @@
+# The reviewed target-selection policy for the opengrep packs (P3.1, A-10).
+#
+# Deliberately EMPTY of patterns. The recipe passes this file via --semgrepignore-filename, which
+# replaces both the tool's built-in default ignore (which silently skipped whole source trees such
+# as tests/) and any .semgrepignore the audited target ships. A target-controlled ignore file must
+# not be able to shrink the reviewed scan scope; the recipe still inventories its presence and
+# records it on the result.
+#
+# Reviewed scope is therefore: every file matching the packs' languages under the application
+# root, minus the recipe's reviewed directory exclusions. Declaration files (*.d.ts) carry no
+# runtime behaviour, are not inventoried, and are not scanned by the tool; secret material in any
+# file is covered by the gitleaks recipes regardless of extension.

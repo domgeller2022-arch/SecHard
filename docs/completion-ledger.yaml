@@ -101,8 +101,15 @@ subphases:
     note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
   p3_1:
     title: "Mandatory packs, parser failures and independent scope — A-09, A-10"
-    state: pending
-    note: "re-activated by owner correction to p0_d_03 (decision p0_d_04): a failed or missing pack, parser failure, or unreviewed ignore must never produce a clean complete result — core product"
+    state: done
+    note: "independent relevant-file inventory built before each scan; coverage verified against it (unexamined files, scanner failures, malformed entries and target suppressions never pass as complete; findings carried on the error so the report keeps them); strictly conjunctive pack aggregation — one shared inventory, a failed/missing/invalid pack is never masked by a sibling, same rules for the quality-error pack; target .semgrepignore cannot shrink the reviewed scope (pinned reviewed ignore file, presence recorded), inline nosemgrep forces explicit incomplete coverage, gitignore preserved via the child PATH (runTool children start with an empty environment); the tool is never pointed at an empty relevant scope (the pinned experimental target selection hangs there — unsupported from the inventory alone, error when the inventory itself is incomplete). Approved-suppression records remain with the deferred P2.4/P6 machinery. Reference-app repairs the honesty rules exposed: notes.spec.ts import-type PartialParsing; tests/ no longer silently skipped. Observed 2026-10-15, full audit-cli 19/19 — see docs/evidence/p3-1-mandatory-packs.md"
+    evidence:
+      - src/execution/inventory.ts
+      - src/adapters/opengrep.ts
+      - src/execution/recipes.ts
+      - ci/configs/opengrep-semgrepignore
+      - tests/scanners/pack-failures.test.ts
+      - docs/evidence/p3-1-mandatory-packs.md
   p3_2:
     title: "Vulnerable/safe security-rule matrix — A-15, A-16, F-04/05"
     state: pending

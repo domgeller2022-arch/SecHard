@@ -1,4 +1,4 @@
-import type { Finding } from '../domain/types.js';
+import type { Coverage, Finding } from '../domain/types.js';
 import { sha256Hex } from '../evidence/digest.js';
 import { relativizeLocation } from '../evidence/redaction.js';
 import { isRecord, parseJsonReport, severityFromRuleLevel, stableFindingId, type AdapterOutcome } from './types.js';
@@ -124,6 +124,39 @@ export function parseOpengrepReport(
 
   const observed = scannedFiles.size;
   const expected = options.intendedScope?.length ?? observed;
+  // P3.1 (A-10): the intended scope is the independent inventory, so coverage is verified against
+  // it, never against the scanner's self-report alone. Inventoried files the scanner did not
+  // report examining, and any tool-reported failure or malformed report entry, keep the scan from
+  // claiming complete.
+  const scannerErrorCount = Array.isArray(errors) ? errors.length : 0;
+  const unexaminedPaths =
+    options.intendedScope === undefined ? [] : options.intendedScope.filter((path) => !scannedFiles.has(path));
+  const unexamined = options.intendedScope === undefined ? undefined : unexaminedPaths.length;
+  const interrupted = parserErrors.length > 0;
+  const coverage: Coverage =
+    observed === 0
+      ? 'unknown'
+      : options.intendedScope === undefined
+        ? !interrupted && (expected === 0 || observed >= expected)
+          ? 'complete'
+          : 'partial'
+        : !interrupted && unexamined === 0
+          ? 'complete'
+          : 'partial';
+
+  const scopeNotes = [
+    'Files opengrep reported scanning. Its rules are syntactic; cross-file analysis is not performed and not claimed.',
+    ...(options.intendedScope === undefined
+      ? []
+      : [`intended scope: ${String(expected)} relevant file(s) from the independent inventory`]),
+    ...(unexamined !== undefined && unexamined > 0
+      ? [`unexamined: ${String(unexamined)} inventoried file(s) the scanner did not report examining (${unexaminedPaths.slice(0, 5).join(', ')}${unexaminedPaths.length > 5 ? ', …' : ''})`]
+      : []),
+    ...(scannerErrorCount > 0 ? [`scanner-reported failures: ${String(scannerErrorCount)}`] : []),
+    ...(parserErrors.length - scannerErrorCount > 0
+      ? [`malformed report entries skipped: ${String(parserErrors.length - scannerErrorCount)}`]
+      : []),
+  ];
 
   return {
     tool: 'opengrep',
@@ -132,9 +165,11 @@ export function parseOpengrepReport(
       expected,
       observed,
       files: [...scannedFiles].sort(),
-      notes: 'Files opengrep reported scanning. Its rules are syntactic; cross-file analysis is not performed and not claimed.',
+      ...(unexamined === undefined ? {} : { unexamined }),
+      ...(scannerErrorCount === 0 ? {} : { failed: scannerErrorCount }),
+      notes: scopeNotes.join(' '),
     },
-    coverage: observed === 0 ? 'unknown' : expected === 0 || observed >= expected ? 'complete' : 'partial',
+    coverage,
     parserErrors,
   } satisfies AdapterOutcome;
 }

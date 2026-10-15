@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /**
  * The checks a user's session and their data actually have to pass.
@@ -11,7 +11,7 @@ import { expect, test } from '@playwright/test';
 const USER_A = { email: 'user-a@example.invalid', password: 'local-development-only' };
 const USER_B = { email: 'user-b@example.invalid', password: 'local-development-only' };
 
-async function signIn(page: import('@playwright/test').Page, user: { email: string; password: string }) {
+async function signIn(page: Page, user: { email: string; password: string }) {
   await page.goto('/');
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);

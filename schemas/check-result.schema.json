@@ -96,7 +96,10 @@
         "truncated": { "type": "boolean" },
         "routes": { "type": "array", "items": { "type": "string", "maxLength": 1024 }, "maxItems": 2000 },
         "fingerprint": { "type": "string", "maxLength": 256 },
-        "notes": { "type": "string", "maxLength": 4000 }
+        "notes": { "type": "string", "maxLength": 4000 },
+        "unexamined": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "suppressions": { "type": "integer", "minimum": 0 }
       }
     },
     "findings": {
