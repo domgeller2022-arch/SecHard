@@ -620,7 +620,7 @@ controls:
       - method: quality_scan
         recipe: quality/duplication
         coverage: automated
-        notes: "Requires a token-level clone detector (jscpd is the reviewed candidate). Not wired in this build; the recipe reports unsupported with this reason rather than a fabricated pass."
+        notes: "Wired in P4.2: jscpd runs from the isolated tools/quality package with SecHard's own configuration (token-level clone detection over TypeScript and JavaScript sources). Python-source duplication is a recorded gap."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -647,7 +647,7 @@ controls:
       - method: quality_scan
         recipe: quality/complexity
         coverage: automated
-        notes: "Requires a per-function complexity analyser (Lizard is the reviewed candidate). Not wired in this build; a file-line count is not complexity and would be a fabricated measurement, so the recipe reports unsupported with this reason."
+        notes: "Wired in P4.2: Lizard runs from a private virtual environment against reviewed calibrated thresholds (cyclomatic at or above 10, function length above 50, parameters above 5). Lizard cannot parse JSX/TSX in its own directory walk, so the analyser names source files explicitly; other languages are recorded gaps."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -674,7 +674,7 @@ controls:
       - method: quality_scan
         recipe: quality/dead-code
         coverage: automated
-        notes: "Requires a reference-aware dead-code analyser (Knip for JS/TS, Vulture for Python are the reviewed candidates). Not wired in this build; the recipe reports unsupported with this reason."
+        notes: "Wired in P4.2: Knip runs from the isolated tools/quality package with every config-loading plugin disabled and SecHard's own entry declarations (JS/TS dead files, exports and dependencies). Vulture for Python is a recorded gap."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -701,7 +701,7 @@ controls:
       - method: quality_scan
         recipe: quality/module-structure
         coverage: automated
-        notes: "Requires a dependency-graph analyser with reviewed rules (dependency-cruiser is the reviewed candidate). Not wired in this build; the recipe reports unsupported with this reason."
+        notes: "Wired in P4.2: dependency-cruiser 17.0.1 runs from the isolated tools/quality package with SecHard's own static rules (dependency cycles, UI to database/server-only imports matched against raw import specifiers). The target's webpack/JS configuration is never loaded; tsconfig alias resolution did not apply on the pinned version, so the raw-specifier patterns are the reviewed shape."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:

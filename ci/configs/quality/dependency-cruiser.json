@@ -1,0 +1,28 @@
+{
+ "forbidden": [
+  {
+   "name": "no-ui-database-access",
+   "severity": "error",
+   "from": {
+    "path": "^(app/(?!api/)|pages/|src/)"
+   },
+   "to": {
+    "path": [
+     "^@/lib/(db|supabase)",
+     "^(\\.\\./)+lib/(db|supabase)"
+    ]
+   }
+  },
+  {
+   "name": "no-cycles",
+   "severity": "error",
+   "from": {},
+   "to": {
+    "circular": true
+   }
+  }
+ ],
+ "options": {
+  "doNotFollow": "node_modules"
+ }
+}

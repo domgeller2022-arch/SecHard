@@ -171,7 +171,21 @@ subphases:
       - docs/evidence/p4-1-provisioning-execution.md
   p4_2:
     title: "Four real analyzers, execution-safe configuration — F-07"
-    state: pending
+    state: done
+    note: "The four staged quality analysers are real tools run for real from the isolated tools/quality package (its committed lockfile pins jscpd 5.4.1, knip 6.41.0, dependency-cruiser 17.0.1 — pinned at 17.0.1 because 18.x refuses this runner's Node and 16.x crashes on it; allowBuilds {} via onlyBuiltDependencies []; frozen-install route), with Lizard 1.24.1 from a private virtual environment. SecHard-owned configurations live in ci/configs/quality/ (jscpd clone thresholds calibrated on the corpus; Knip with every config-loading plugin disabled and SecHard's own entry declarations — no target JS/TS config import via jiti; dependency-cruiser static JSON rules for cycles and UI-to-database/server-only imports matched against raw import specifiers in both the alias and relative-upward forms — the target's webpack/JS configuration is never loaded). Four recipe handlers (quality/duplication, quality/complexity, quality/dead-code, quality/module-structure) run the tools via the process layer and parse their real outputs; a missing tool is an explicit unsupported (P4.1: provisioning is separate from checking), an application with no applicable sources or no package manifest is an explicit unsupported rather than an error (the Python-only and FastAPI fixture audits carry the four staged checks as could-not-check), and a tool crash is an error with the diagnostic, never an empty success (plan item 6). Observed 2026-10-16: the four corpus positives fire through the compiled CLI — duplication 1 clone (formatPrice/legacyFormatter, 11 files, 3.3%), complexity 19 functions with computeScore at CCN 10 flagged (the Q19 calibration: at-or-above the reviewed threshold 10), dead code 12 findings over 5 files (unused left-pad dependency, dead utils/format.ts file), module structure the UI data-access violation at app/dashboard/page.tsx — quality 17/36 to 22/36 in the corpus, exactly the five staged seeds (Q03/Q04/Q05/Q19/Q27) flipping fired-false-to-true, nothing else. tests/scanners/staged-quality.test.ts 5/5: the positives, the clean twins (a simplified computeScore twin silent, used dependencies silent, allowed server-layer imports silent), and the execution-safety contract — a hostile next.config.js proven executable in an isolated validation step is never loaded during the scans, and the audited tree is byte-identical before and after (tree digest). The five staged seeds' rule strings moved from their pre-landing recipe-name placeholders to the real analyser rule ids (knip-unused-dependency, jscpd-clone, knip-unused-file, lizard-cyclomatic-complexity, depcruise-no-ui-database-access) — the corpus-contract change that lands with the analysers; the security seeds untouched. The four stale 'Not wired in this build' control notes updated to the wired reality with the recorded gaps (Python-source duplication, Vulture for Python, Lizard's JSX/TSX walk gap worked around by naming source files explicitly, dependency-cruiser's tsconfig alias resolution not applying on the pinned version — raw-specifier patterns are the reviewed shape). Execution suite 79/79; staged-quality 5/5; fast suite 610/610; typecheck and lint clean; preflight 179 open. See docs/evidence/p4-2-staged-analyzers.md"
+    evidence:
+      - src/quality/staged.ts
+      - src/execution/recipes.ts
+      - ci/configs/quality/jscpd.json
+      - ci/configs/quality/knip.json
+      - ci/configs/quality/dependency-cruiser.json
+      - tools/quality/package.json
+      - tools/quality/pnpm-lock.yaml
+      - tests/scanners/staged-quality.test.ts
+      - tests/corpus/measure-corpus.mjs
+      - tests/corpus/EXPECTED-outcomes.json
+      - controls/controls.yaml
+      - docs/evidence/p4-2-staged-analyzers.md
   p4_3:
     title: "Finish remaining quality capabilities — QUAL-02/08/10/11/12/13"
     state: pending

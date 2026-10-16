@@ -17,6 +17,7 @@ import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.
 import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
 import { loadQualityThresholds } from '../quality/thresholds.js';
+import { analyzeComplexity, analyzeDeadCode, analyzeDuplication, analyzeModuleStructure, resolveStagedTool } from '../quality/staged.js';
 import { analyzeMigrations } from '../security/migrations.js';
 import { resolveTool, runTool, type ToolAvailability } from './registry.js';
 import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from '../domain/types.js';
@@ -917,6 +918,48 @@ const runDependencyHealth = (context: RecipeContext): Promise<RecipeOutcome> => 
     'lockfile duplicate-role scan; registry-based deprecation and major-drift checks are recorded gaps'));
 };
 
+/**
+ * The four staged quality analysers (P4.2 — F-07) run the provisioned tools in `tools/quality/`
+ * for real, with SecHard-owned configurations. A missing tool is an explicit unsupported (P4.1:
+ * provisioning is separate from checking and never runs inside an audit); a tool crash is an
+ * error carrying the diagnostic — neither is ever an empty success.
+ */
+const runQualityDuplication = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('jscpd');
+  if ('unavailable' in tool) return unsupported(`quality/duplication: ${tool.unavailable}`);
+  const result = await analyzeDuplication(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/duplication: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/duplication: ${result.failed}`);
+  return qualityOutcome('jscpd', result.findings, result.observed, `token-level clone detection with SecHard's own configuration (jscpd ${tool.version}); ${result.notes.join('; ')}`);
+};
+
+const runQualityComplexity = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('lizard');
+  if ('unavailable' in tool) return unsupported(`quality/complexity: ${tool.unavailable}`);
+  const result = await analyzeComplexity(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/complexity: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/complexity: ${result.failed}`);
+  return qualityOutcome('lizard', result.findings, result.observed, `per-function complexity from the private virtual environment (lizard ${tool.version}) against reviewed thresholds; ${result.notes.join('; ')}`);
+};
+
+const runQualityDeadCode = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('knip');
+  if ('unavailable' in tool) return unsupported(`quality/dead-code: ${tool.unavailable}`);
+  const result = await analyzeDeadCode(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/dead-code: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/dead-code: ${result.failed}`);
+  return qualityOutcome('knip', result.findings, result.observed, `reference-aware dead-code analysis with every config-loading plugin disabled (knip ${tool.version}); ${result.notes.join('; ')}`);
+};
+
+const runQualityModuleStructure = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('dependency-cruiser');
+  if ('unavailable' in tool) return unsupported(`quality/module-structure: ${tool.unavailable}`);
+  const result = await analyzeModuleStructure(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/module-structure: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/module-structure: ${result.failed}`);
+  return qualityOutcome('dependency-cruiser', result.findings, result.observed, `static module-structure rules — cycles and UI data-access (dependency-cruiser ${tool.version}); the target's webpack/JS configuration is never loaded; ${result.notes.join('; ')}`);
+};
+
 function qualityOutcome(toolName: string, findings: readonly Finding[], observed: number, coverageNote: string): RecipeOutcome {
   return {
     outcome: 'pass',
@@ -945,6 +988,10 @@ export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'quality/repo-hygiene': runRepoHygiene,
   'data/migration-inventory': runMigrationInventory,
   'quality/dependency-health': runDependencyHealth,
+  'quality/duplication': runQualityDuplication,
+  'quality/complexity': runQualityComplexity,
+  'quality/dead-code': runQualityDeadCode,
+  'quality/module-structure': runQualityModuleStructure,
 };
 
 export const IMPLEMENTED_RECIPES: readonly string[] = Object.keys(RECIPES);

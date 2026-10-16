@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-10-16T10:08:02.510Z",
+  "generated_at": "2026-10-16T13:02:23.991Z",
   "measured_build": {
-    "commit": "d0502c3b49115cec33a2527de8e7b3cc5adb5033",
+    "commit": "fc1b7f9ea7d439d82cf850b5bca4637305fb1b75",
     "tool": "hardening audit --depth standard from this checkout"
   },
   "reference_baseline_note": "b71a073d1425fc55c36a5f5d3863ad18b1971949 is recorded as the pre-R1 reference commit only; a MEASURED baseline of that build (per-seed outcomes from a pinned build of it) is still outstanding and is not claimed here.",
   "tool": "hardening audit --depth standard",
-  "audit_out_digest": "c8ec2fb1e5450c815cbaf7ca34a45c159216cd13dc2adca74ed4a3a9bfc17254",
+  "audit_out_digest": "7f5ed524bf39b61b6b2b2bfb0153fbca2577682d258508cbc23eb856c30c2315",
   "denominators": {
     "security": 38,
     "quality": 36
@@ -19,7 +19,7 @@
   "denominator_reconciliation": "The brief declares 31 security / 30 quality statically checkable items. This runner enumerates the Appendix A itemization as it can be derived from the brief text and measures every enumerated seed. Where the enumeration exceeds the declared 31/30, the reconciliation (which items the brief counts as one) requires the auditor's itemization; every seed is measured either way, and the declared denominators are never used to hide a miss.",
   "totals": {
     "security_reported": 31,
-    "quality_reported": 17
+    "quality_reported": 22
   },
   "outcomes": [
     {
@@ -423,28 +423,34 @@
       "id": "Q03",
       "kind": "quality",
       "file": "package.json",
-      "rule": "quality/dead-code (knip)",
+      "rule": "knip-unused-dependency",
       "note": "unused left-pad",
       "analyzer": "knip",
-      "fired": false
+      "fired": true,
+      "severity": "low",
+      "finding_location": "package.json"
     },
     {
       "id": "Q04",
       "kind": "quality",
       "file": "utils/format.ts",
-      "rule": "quality/duplication (jscpd)",
-      "note": "formatPrice/formatMoney clone",
+      "rule": "jscpd-clone",
+      "note": "formatPrice/legacyFormatter clone",
       "analyzer": "jscpd",
-      "fired": false
+      "fired": true,
+      "severity": "low",
+      "finding_location": "utils/format.ts:4"
     },
     {
       "id": "Q05",
       "kind": "quality",
       "file": "utils/format.ts",
-      "rule": "quality/dead-code (knip)",
-      "note": "dead export legacyFormatter",
+      "rule": "knip-unused-file",
+      "note": "dead file with the legacyFormatter export",
       "analyzer": "knip",
-      "fired": false
+      "fired": true,
+      "severity": "low",
+      "finding_location": "utils/format.ts"
     },
     {
       "id": "Q06",
@@ -559,10 +565,12 @@
       "id": "Q19",
       "kind": "quality",
       "file": "app/dashboard/page.tsx",
-      "rule": "quality/complexity (lizard)",
-      "note": "computeScore",
+      "rule": "lizard-cyclomatic-complexity",
+      "note": "computeScore at CCN 10",
       "analyzer": "lizard",
-      "fired": false
+      "fired": true,
+      "severity": "low",
+      "finding_location": "app/dashboard/page.tsx:7"
     },
     {
       "id": "Q20",
@@ -630,10 +638,12 @@
       "id": "Q27",
       "kind": "quality",
       "file": "app/dashboard/page.tsx",
-      "rule": "quality/module-structure (dependency-cruiser)",
+      "rule": "depcruise-no-ui-database-access",
       "note": "data access in UI",
       "analyzer": "dependency-cruiser",
-      "fired": false
+      "fired": true,
+      "severity": "medium",
+      "finding_location": "app/dashboard/page.tsx"
     },
     {
       "id": "Q28",
