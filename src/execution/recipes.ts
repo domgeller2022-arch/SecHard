@@ -10,7 +10,8 @@ import { loadTargetInventory, runHttpChecks } from '../adapters/http.js';
 import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
-import { inspectBrowserAssets } from '../build/client-assets.js';
+import { inspectBrowserAssets, selectBrowserOutput } from '../build/client-assets.js';
+import { detectStackAndFeatures } from '../audit/detect.js';
 import { annotateSecretFindings, gradeIgnoredFileFinding, gradeUntrackedFinding, splitLocation } from '../evidence/secret-severity.js';
 import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
 import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
@@ -739,9 +740,16 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
   };
 }
 
-const BUILD_OUTPUT_CANDIDATES = ['.next/static', '.output/public', 'dist', 'build', 'out'] as const;
-
 async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
+  // A-32: browser output is identified from the detected stack's reviewed build shape — a Node
+  // CLI's compiled `dist` is server output and is never scanned as browser-shipped merely
+  // because the directory exists.
+  const detection = detectStackAndFeatures(context.appRoot);
+  const selection = selectBrowserOutput(context.appRoot, detection.stack.kind);
+  if ('unsupported' in selection) {
+    return unsupported(`browser-output inspection: ${selection.unsupported}. Run the application build first`);
+  }
+  const inspected = selection.root;
   // R1-02: containment against the application root — every ancestor below the root is
   // inspected before enumeration, because a symlinked .next/.output parent is followed by any
   // enumeration of an ordinary-looking child. A candidate behind a symlinked ancestor becomes an
@@ -760,16 +768,11 @@ async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
     }
     return undefined;
   };
-  const candidatePaths = BUILD_OUTPUT_CANDIDATES.map((candidate) => join(context.appRoot, candidate));
-  const refusal = candidatePaths.map(containedCandidate).find((reason) => reason !== undefined);
+  const refusal = containedCandidate(inspected);
   if (refusal !== undefined) {
     return { outcome: 'pass', coverage: 'partial', observed: 0, files: [], findings: [],
       tool: { name: 'client-asset-inspection', observed_version: '1' },
       diagnostic: `browser-output scan incomplete (R1-02): ${refusal}` };
-  }
-  const inspected = candidatePaths.find((candidate) => existsSync(candidate));
-  if (inspected === undefined) {
-    return unsupported(`no browser build output found under ${context.appRoot}; looked for ${BUILD_OUTPUT_CANDIDATES.join(', ')}. Run the application build first`);
   }
 
   const report = inspectBrowserAssets(inspected);
@@ -781,7 +784,7 @@ async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
     findings: report.findings,
     tool: { name: 'client-asset-inspection', observed_version: '1' },
     diagnostic: [
-      `${report.classifications.length} intended-public classification(s). ${report.scopeStatement}`,
+      `${detection.stack.kind}: ${selection.basis}. ${report.classifications.length} intended-public classification(s). ${report.scopeStatement}`,
       ...report.parseErrors,
     ].join(' '),
   };

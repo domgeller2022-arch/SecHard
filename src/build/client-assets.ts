@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import type { StackKind } from '../audit/detect.js';
+import { sha256Hex } from '../evidence/digest.js';
 import type { Finding } from '../domain/types.js';
 
 /**
@@ -77,6 +79,8 @@ export function classifyJwt(value: string): 'privileged' | 'publishable' {
 export interface AssetInventoryEntry {
   readonly path: string;
   readonly bytes: number;
+  /** SHA-256 of the file bytes, present when the file was read within the review bounds. */
+  readonly digest?: string;
 }
 
 export interface ClassificationRecord {
@@ -149,42 +153,55 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {
       }
 
       const shown = relative(root, full).split(sep).join('/');
-      files.push({ path: shown, bytes: stats.size });
+      const isSourceMap = shown.endsWith('.map');
+      if (isSourceMap) sourceMaps.push(shown);
       totalBytes += stats.size;
 
-      if (shown.endsWith('.map')) {
-        sourceMaps.push(shown);
-        continue;
-      }
       if (stats.size > maxFileBytes) {
+        files.push({ path: shown, bytes: stats.size });
         parseErrors.push(`${shown} is ${stats.size} bytes and was not inspected`);
         continue;
       }
       if (stats.size > maxTextFileBytes) {
         // Recorded in the inventory, but not read: a bundle this large is not text we can search
         // meaningfully, and pretending to have inspected it would overstate coverage.
+        files.push({ path: shown, bytes: stats.size });
         parseErrors.push(`${shown} is ${stats.size} bytes and was not read as text`);
         continue;
       }
 
-      let text: string;
+      let bytes: Buffer;
       try {
-        text = readFileSync(full, 'utf8');
+        bytes = readFileSync(full);
       } catch {
         parseErrors.push(`${shown} could not be read as text`);
         continue;
       }
+      const text = bytes.toString('utf8');
+      files.push({ path: shown, bytes: stats.size, digest: sha256Hex(bytes) });
+
+      if (isSourceMap) {
+        // A-21: the map is inspected below with the same markers and JWT classification as any
+        // other shipped file — its raw text includes any embedded sourcesContent, so a secret in
+        // the original source fires exactly as it would in a bundle. The structure check keeps a
+        // malformed map from passing as verified coverage.
+        try {
+          JSON.parse(text) as unknown;
+        } catch {
+          parseErrors.push(`${shown} is not valid JSON — scanned as text, but the map structure (sources/sourcesContent) is unverified`);
+        }
+      }
 
       for (const marker of markers) {
         const pattern = new RegExp(marker.pattern.source, marker.pattern.flags);
-        if (!pattern.test(text)) continue;
+        const match = pattern.exec(text);
+        if (match === null) continue;
 
         if (marker.kind === 'publishable') {
           classifications.push({ marker: marker.id, path: shown, kind: marker.kind });
           continue;
         }
 
-        const match = new RegExp(marker.pattern.source, marker.pattern.flags).exec(text);
         findings.push({
           id: `client-assets:${marker.id}:${shown}`,
           tool: 'client-asset-inspection',
@@ -195,10 +212,10 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {
           location: shown,
           detail: `marker '${marker.id}' found in a file that ships to the browser; value withheld`,
           redacted: true,
+          secret_digest: sha256Hex(match[0] ?? ''),
           control_ids: ['SEC-02'],
           triage: 'unresolved',
         });
-        void match;
       }
 
       // JWT-shaped values are judged by their decoded role claim, not their shape: the legacy
@@ -218,6 +235,7 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {
           location: shown,
           detail: 'the decoded payload claims a privileged role (or could not be decoded); value withheld',
           redacted: true,
+          secret_digest: sha256Hex(match),
           control_ids: ['SEC-02'],
           triage: 'unresolved',
         });
@@ -274,7 +292,95 @@ export function inspectBrowserAssets(root: string, options: InspectOptions = {
 export function inventoryDigest(report: ClientAssetReport): string {
   const hash = createHash('sha256');
   for (const entry of [...report.files].sort((a, b) => (a.path < b.path ? -1 : 1))) {
-    hash.update(`${entry.path}:${entry.bytes}\n`);
+    // The per-file content digest makes same-size edits distinguishable in the inventory.
+    hash.update(`${entry.path}:${entry.bytes}:${entry.digest ?? ''}\n`);
   }
   return hash.digest('hex');
+}
+
+/**
+ * The reviewed browser-output directory shapes per stack. A stack with no reviewed browser
+ * output has no candidates: Node CLI and server output are never browser-shipped merely because
+ * a `dist` directory exists (A-32).
+ */
+export function browserOutputCandidates(kind: StackKind): readonly string[] {
+  switch (kind) {
+    case 'nextjs':
+      return ['.next/static'];
+    case 'sveltekit':
+      return ['.svelte-kit/output/client', 'build'];
+    case 'react-spa':
+      return ['dist', 'build', 'out'];
+    default:
+      return [];
+  }
+}
+
+/** The reviewed browser-output shape for their stack, trusted without further evidence. */
+const FRAMEWORK_TRUSTED_BROWSER_DIRS: ReadonlySet<string> = new Set(['.next/static', '.svelte-kit/output/client']);
+
+/** Bounded walk: does anything under this directory look like a browser entry point (.html)? */
+function hasBrowserEntryPoint(dir: string): boolean {
+  const stack: string[] = [dir];
+  let visited = 0;
+  while (stack.length > 0 && visited < 2000) {
+    const current = stack.pop() as string;
+    let entries: string[];
+    try {
+      entries = readdirSync(current);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      visited += 1;
+      if (visited >= 2000) return false;
+      const full = join(current, entry);
+      let stats;
+      try {
+        stats = lstatSync(full);
+      } catch {
+        continue;
+      }
+      if (stats.isSymbolicLink()) continue;
+      if (stats.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (entry.endsWith('.html')) return true;
+    }
+  }
+  return false;
+}
+
+export type BrowserOutputSelection =
+  | { readonly root: string; readonly basis: string }
+  | { readonly unsupported: string };
+
+/**
+ * Picks the browser-output root from the detected stack's reviewed candidates. A generic
+ * candidate (`dist`, `build`, `out`) qualifies only with a browser entry point — a Node CLI's
+ * compiled `dist` is server output and must not be scanned as browser-shipped (A-32).
+ */
+export function selectBrowserOutput(appRoot: string, kind: StackKind): BrowserOutputSelection {
+  const candidates = browserOutputCandidates(kind);
+  if (candidates.length === 0) {
+    return { unsupported: `the detected stack (${kind}) has no reviewed browser-output shape; Node CLI and server output are not browser-shipped` };
+  }
+  const rejections: string[] = [];
+  for (const candidate of candidates) {
+    const full = join(appRoot, candidate);
+    if (!existsSync(full)) {
+      rejections.push(`${candidate}: not present`);
+      continue;
+    }
+    if (FRAMEWORK_TRUSTED_BROWSER_DIRS.has(candidate)) {
+      return { root: full, basis: `${candidate} is the reviewed browser-output directory for the detected ${kind} stack` };
+    }
+    if (!hasBrowserEntryPoint(full)) {
+      rejections.push(`${candidate}: present but has no browser entry point (.html) — server or CLI output is not browser-shipped`);
+      continue;
+    }
+    return { root: full, basis: `${candidate} contains a browser entry point (.html)` };
+  }
+  return { unsupported: `no browser build output for the detected ${kind} stack (${rejections.join('; ')})` };
 }

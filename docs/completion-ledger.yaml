@@ -137,7 +137,14 @@ subphases:
       - docs/evidence/p3-3-sql-tokenizer-final-state.md
   p3_4:
     title: "Browser assets, source maps and scope identification — A-21, A-32"
-    state: pending
+    state: done
+    note: "A-21 fixed at the analyzer (src/build/client-assets.ts): a shipped .map is no longer inventoried-only — it flows through the same size bounds, read, marker scan and JWT role classification as any other shipped file, so a privileged value only in a map (including embedded sourcesContent) fires with the same blocking secret class as a bundle; a malformed map is recorded as explicit incompleteness (structure unverified, text still scanned) and an oversized map is recorded-not-read with explicitly partial coverage; the map-publication warning stays a separate weaker finding (publication ≠ proven sensitive exposure). Match digests (plan item 4, existing sha256Hex primitive): every secret finding carries secret_digest (SHA-256 of the matched text, never the value) and every inventoried file read within bounds carries a per-file content digest folded into inventoryDigest — same-size edits are distinguishable. A-32 browser-scope half: browser output is identified from the detected stack's reviewed build shape (nextjs → .next/static; sveltekit → .svelte-kit/output/client, build; react-spa → dist/build/out) and a generic candidate qualifies only with a browser entry point (.html, bounded walk) — a Node CLI's compiled dist is server output and is never scanned as browser-shipped merely because the directory exists; stacks with no reviewed browser shape get an explicit unsupported naming the stack; the scope statement keeps server output, browser output, maps and deployment configuration separate; the old static framework-blind candidate list is deleted. The payments/Vite-detection half of A-32 is P3.5 per the plan's split of assigned_subphases P3.4/5. Observed 2026-10-16: tests/build 19/19 (secret-only-in-map critical with the value withheld, map match digest, publishable-in-map classified, malformed and oversized maps explicitly partial, same-size digest change, selection matrix including the SecHard self-audit shape), fast suite 610/610, example real-build 5/5, scanners 75/75 including audit-cli, typecheck and lint clean, corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes (metadata-only diff), preflight 182 open. See docs/evidence/p3-4-browser-assets-sourcemaps.md"
+    evidence:
+      - src/build/client-assets.ts
+      - src/execution/recipes.ts
+      - tests/build/client-assets.test.ts
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p3-4-browser-assets-sourcemaps.md
   p3_5:
     title: "Product-level planning and detection — A-17, A-32, F-09"
     state: pending
