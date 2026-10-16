@@ -125,7 +125,16 @@ subphases:
       - docs/evidence/p3-2-rule-matrix.md
   p3_3:
     title: "Supabase tokenizer and final-state inventory — A-13, A-14, F-06"
-    state: pending
+    state: done
+    note: "Conservative SQL tokenizer (src/security/sql-tokens.ts): strings with ''/E'' escapes, quoted identifiers with '' doubling, line and nested block comments, dollar-quoted bodies ($$/$tag$); statements split only on semicolons outside those, so function bodies keep their internal semicolons and commented-out SQL never matches; unquoted identifiers fold to lowercase, quoted keep case and identity — no SQL parser dependency (A-13). migrations.ts evaluates the sequence in order to a final state: create/drop/rename (rename carries protection), RLS enable/disable/force (later statements overwrite — the enabled set is no longer monotonic), policy create/alter/drop (permissive vs restrictive, roles, operation, using/check true), grants/revokes as final privilege sets, views (security_invoker), definer functions (search_path pinned in the definition header only — a body-level pin no longer silences), buckets (named/positional insert, update set public); dropped/revoked/disabled state silences what it removes. Exposure read from reviewed configuration only — supabase/config.toml [api].schemas (bounded text read, default public, recorded in limits); created schemas never auto-exposed, and rls-missing/view checks are scoped to it (was: every create schema auto-exposed and rls-missing ignored exposure). Bounded wording (A-14): RLS-protected anon writes are medium and 'does not bypass RLS', the implicit-UPDATE case names the with-check default, bucket publication is separated from proven sensitive exposure. Gaps recorded in the recipe coverage note and the analyzer limits result (dynamic SQL/DO blocks inside bodies, exposure beyond [api].schemas, P7/P8 live probes, counted skipped files). Observed 2026-10-16: 36/36 new tokenizer+fixture tests (every plan-required fixture; corpus S21–S25 pinned at the analyzer level with locations :7/:10/:12/:17), corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes (metadata-only diff), fast suite 610/610, scanners 75/75 incl. audit-cli, typecheck and lint clean, preflight 184 open. P3.2 leftover fixed here with disclosure: tests/scanners/adapters.test.ts passed the pack directory as --config (manifest.yaml parses as rules → InvalidRuleSchemaError) and omitted the production --experimental flag (the legacy engine reads pack YAML with the locale codec — ASCII under runTool's stripped child env — and died on the UTF-8 em-dashes P3.2 added to detection-depth.yaml); production scans were never affected; the test now mirrors the production invocation — docs/evidence/p3-3-sql-tokenizer-final-state.md"
+    evidence:
+      - src/security/sql-tokens.ts
+      - src/security/migrations.ts
+      - src/execution/recipes.ts
+      - tests/security/sql-tokens.test.ts
+      - tests/security/migrations.test.ts
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p3-3-sql-tokenizer-final-state.md
   p3_4:
     title: "Browser assets, source maps and scope identification — A-21, A-32"
     state: pending

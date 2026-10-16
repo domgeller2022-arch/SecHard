@@ -239,13 +239,17 @@ describe('osv-scanner finds advisories for a pinned vulnerable dependency', () =
 });
 
 describe('opengrep detects the vulnerable patterns and accepts the fixed fixture', () => {
-  // Both reviewed packs: the Batch F2 detection-depth rules live in their own pack file, and the
-  // fixture expectations below cover rules from both.
-  const rules = join(REPO, 'ci', 'configs', 'opengrep-rules');
+  // Both reviewed packs, by file — the same invocation the production scanner uses. The pack
+  // directory is not a valid --config: since P3.2 the rule-matrix manifest.yaml sits beside the
+  // packs, and a directory load parses it as a rule file and fails with InvalidRuleSchemaError.
+  const packs = [
+    join(REPO, 'ci', 'configs', 'opengrep-rules', 'hardening-core.yaml'),
+    join(REPO, 'ci', 'configs', 'opengrep-rules', 'detection-depth.yaml'),
+  ];
 
 
   it('finds the eval, shell-exec, and innerHTML patterns', async () => {
-    const run = await runOpengrep(join(FIXTURES, 'sast', 'vulnerable.ts'), rules);
+    const run = await runOpengrep(join(FIXTURES, 'sast', 'vulnerable.ts'), packs);
     const parsed = parseOpengrepReport(run.json, { intendedScope: [join(FIXTURES, 'sast', 'vulnerable.ts')] });
     expect('error' in parsed).toBe(false);
     if ('error' in parsed) return;
@@ -262,7 +266,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
   });
 
   it('finds nothing in the fixed fixture', async () => {
-    const run = await runOpengrep(join(FIXTURES, 'sast', 'fixed.ts'), rules);
+    const run = await runOpengrep(join(FIXTURES, 'sast', 'fixed.ts'), packs);
     const parsed = parseOpengrepReport(run.json, { intendedScope: [join(FIXTURES, 'sast', 'fixed.ts')] });
     expect('error' in parsed).toBe(false);
     if ('error' in parsed) return;
@@ -293,7 +297,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     for (const testCase of cases) {
       for (const variant of ['vulnerable', 'fixed'] as const) {
         const file = join(FIXTURES, testCase.dir, `${variant}.ts`);
-        const run = await runOpengrep(file, rules);
+        const run = await runOpengrep(file, packs);
         const parsed = parseOpengrepReport(run.json, { intendedScope: [file] });
         expect('error' in parsed, `${testCase.dir}/${variant}`).toBe(false);
         if ('error' in parsed) continue;
@@ -362,11 +366,15 @@ async function runZizmorToStdout(target: string): Promise<{ json: string; exitCo
   return { json: result.outcome.stdout, exitCode: result.outcome.exitCode };
 }
 
-async function runOpengrep(target: string, rules: string): Promise<{ json: string; exitCode: number | null }> {
+async function runOpengrep(target: string, packs: readonly string[]): Promise<{ json: string; exitCode: number | null }> {
   const { runTool } = await import('../../src/execution/registry.js');
+  // --experimental is not optional: it is the engine the production scan runs (recipes.ts), and
+  // the legacy engine reads the pack YAML with the locale codec — under runTool's stripped child
+  // environment that is ASCII, and detection-depth.yaml carries UTF-8 comment bytes, so the scan
+  // dies before the adapter ever sees a report.
   const result = await runTool(
     'opengrep',
-    ['scan', '--config', rules, '--json', '--quiet', target],
+    ['scan', '--experimental', ...packs.flatMap((pack) => ['--config', pack]), '--json', '--quiet', target],
     { cwd: REPO, timeoutMs: 300_000 },
   );
   if (!result.ran || result.outcome === undefined) {

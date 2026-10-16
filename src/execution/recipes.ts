@@ -608,15 +608,16 @@ async function runOpengrepWithPack(
 }
 
 /**
- * The Supabase migration rules (Batch F2, fix brief F-06): the six reviewed SQL rule families
- * over `supabase/migrations/*.sql`, implemented as an internal statement-shape analyser
- * (`src/security/migrations.ts`) so no SQL parser dependency enters the pack. The DATA-01
- * catalogue entry declared this recipe before it existed; it reports `unsupported` until now.
+ * The Supabase migration rules (Batch F2, fix brief F-06; conservative tokenizer and ordered
+ * final-state evaluation under P3.3 — A-13/A-14): the six reviewed SQL rule families over
+ * `supabase/migrations/*.sql`, implemented as an internal analyser (`src/security/migrations.ts`)
+ * with its tokenizer (`src/security/sql-tokens.ts`) so no SQL parser dependency enters the pack.
  */
 const runMigrationInventory = (context: RecipeContext): Promise<RecipeOutcome> => {
   const result = analyzeMigrations(context.appRoot);
+  const limits = result.limits.length > 0 ? `; ${result.limits.join('; ')}` : '';
   return Promise.resolve(qualityOutcome('migration-inventory', result.findings, result.filesRead.length,
-    'statement-shape rules over supabase/migrations/*.sql; no SQL parser is used, and only the reviewed shapes are claimed'));
+    'conservative SQL tokenizer (strings, comments, quoted identifiers, dollar bodies) with ordered final-state evaluation over supabase/migrations/*.sql; reviewed shapes only — recorded gaps: dynamic SQL and DO blocks inside function bodies, exposure mechanisms beyond the supabase/config.toml [api].schemas read, effective access against a live database (P7/P8 probes)' + limits));
 };
 
 const runOpengrep = async (context: RecipeContext): Promise<RecipeOutcome> => {
