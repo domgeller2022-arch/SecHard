@@ -1,4 +1,6 @@
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -259,6 +261,126 @@ describe('provisioning is validated before anything runs', () => {
     expect(result.outcomes).toHaveLength(1);
     expect(result.outcomes[0]?.failure).toBe('spawn_error');
     expect(result.executed).toBe(false);
+  });
+
+  /**
+   * P4.1: provisioning executes every step for real and reports per-step outcomes — a failed
+   * package command, an unverified manager version, or a download that does not match its
+   * recorded digest cannot yield a completion claim, and steps after a failure are recorded as
+   * not run rather than implied complete.
+   */
+  describe('provisioning executes every step for real (P4.1)', () => {
+    // Node as the fake manager: --version succeeds, and any package command exits nonzero, so a
+    // failed install is exercisable without the network.
+    const nodeManager = (extra: Partial<Parameters<typeof executeProvisionPlan>[2]> = {}): Parameters<typeof executeProvisionPlan>[2] => ({
+      cwd: packageRoot(),
+      managerExecutable: process.execPath,
+      managerVersionArgs: ['--version'],
+      now: NOW,
+      managerBehaviourVerified: true,
+      ...extra,
+    });
+
+    const packagePlan = (): ProvisionPlan => ({
+      steps: [
+        { kind: 'package', name: 'some-package', version: '1.2.3', registry: 'https://registry.npmjs.org/' },
+        { kind: 'package', name: 'next-package', version: '2.0.0', registry: 'https://registry.npmjs.org/' },
+      ],
+    });
+
+    it('a failed package command stops the plan, and the remaining steps are recorded as not run', async () => {
+      const result = await executeProvisionPlan(packagePlan(), base(), nodeManager());
+      expect(result.executed).toBe(false);
+      expect(result.steps).toHaveLength(2);
+      expect(result.steps[0]?.ok).toBe(false);
+      expect(result.steps[0]?.process?.exitCode).not.toBe(0);
+      expect(result.steps[1]?.notRun).toBe(true);
+    });
+
+    it('the approved registry is passed to the manager explicitly', async () => {
+      const result = await executeProvisionPlan(packagePlan(), base(), nodeManager());
+      expect(result.steps[0]?.args).toContain('--registry');
+      expect(result.steps[0]?.args).toContain('https://registry.npmjs.org/');
+    });
+
+    it('a manager whose observed version does not match the reviewed exact version refuses before any step', async () => {
+      const result = await executeProvisionPlan(packagePlan(), base(), nodeManager({ expectedManagerVersion: '99.99.99' }));
+      expect(result.executed).toBe(false);
+      expect(result.managerVersion).toMatchObject({ expected: '99.99.99', matched: false });
+      expect(result.steps).toEqual([]);
+    });
+
+    it('a manager whose observed version matches the reviewed exact version proceeds to the steps', async () => {
+      // Learn the observed version from a refusing probe, then require exactly it: the version
+      // gate passes and the plan reaches its steps.
+      const probe = await executeProvisionPlan(packagePlan(), base(), nodeManager({ expectedManagerVersion: '0.0.0-probe' }));
+      const observed = probe.managerVersion?.observed;
+      expect(observed).toBeDefined();
+      const result = await executeProvisionPlan(packagePlan(), base(), nodeManager({ expectedManagerVersion: observed as string }));
+      expect(result.managerVersion).toMatchObject({ expected: observed as string, matched: true });
+      // The fake manager still fails the install itself; the version gate is what passed.
+      expect(result.steps[0]?.ok).toBe(false);
+    });
+
+    it('a download step executes, verifies its digest, and writes the artifact', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'hardening-provision-'));
+      const bytes = Buffer.from('verified artifact bytes');
+      const sha256 = createHash('sha256').update(bytes).digest('hex');
+      const destination = join(dir, 'tool.bin');
+      const downloadPlan: ProvisionPlan = {
+        steps: [{ kind: 'download', name: 'tool', version: '1.0.0', url: 'https://registry.npmjs.org/tool.bin', expectedSha256: sha256, destination }],
+      };
+      const fetchImpl = (async () => new Response(bytes)) as typeof fetch;
+      const result = await executeProvisionPlan(downloadPlan, base(), nodeManager({ fetchImpl }));
+      expect(result.executed).toBe(true);
+      expect(result.steps[0]?.ok).toBe(true);
+      expect(readFileSync(destination)).toEqual(bytes);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('a download whose bytes do not match the recorded digest stops the plan', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'hardening-provision-'));
+      const destination = join(dir, 'tool.bin');
+      const sha256 = createHash('sha256').update(Buffer.from('expected bytes')).digest('hex');
+      const downloadPlan: ProvisionPlan = {
+        steps: [
+          { kind: 'download', name: 'tool', version: '1.0.0', url: 'https://registry.npmjs.org/tool.bin', expectedSha256: sha256, destination },
+          { kind: 'package', name: 'next-package', version: '2.0.0', registry: 'https://registry.npmjs.org/' },
+        ],
+      };
+      const fetchImpl = (async () => new Response(Buffer.from('unexpected bytes'))) as typeof fetch;
+      const result = await executeProvisionPlan(downloadPlan, base(), nodeManager({ fetchImpl }));
+      expect(result.executed).toBe(false);
+      expect(result.steps[0]?.download).toMatchObject({ ok: false, reason: 'digest_mismatch' });
+      expect(existsSync(destination)).toBe(false);
+      expect(result.steps[1]?.notRun).toBe(true);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('blocks a package step that names no registry while the policy requires a reviewed one', () => {
+      // Built without the key: under exactOptionalPropertyTypes an explicit undefined is a type error.
+      const step: ProvisionPlan['steps'][number] = { kind: 'package', name: 'some-package', version: '1.2.3', manager: 'pnpm' };
+      const result = validateProvisionPlan({ steps: [step] }, base(), { now: NOW, managerBehaviourVerified: true });
+      expect(result.ok).toBe(false);
+      expect(result.blocks.some((block) => block.reason === 'missing_registry')).toBe(true);
+    });
+
+    it('blocks a download step with no URL and a download step with no destination', () => {
+      const digest = createHash('sha256').update('x').digest('hex');
+      const noUrl = validateProvisionPlan(
+        { steps: [{ kind: 'download', name: 'tool', version: '1.0.0', expectedSha256: digest }] },
+        base(),
+        { now: NOW, managerBehaviourVerified: true },
+      );
+      expect(noUrl.blocks.some((block) => block.reason === 'missing_url')).toBe(true);
+
+      const noDestination = validateProvisionPlan(
+        { steps: [{ kind: 'download', name: 'tool', version: '1.0.0', url: 'https://registry.npmjs.org/tool.bin', expectedSha256: digest }] },
+        base(),
+        { now: NOW, managerBehaviourVerified: true },
+      );
+      expect(noDestination.blocks.some((block) => block.reason === 'missing_destination')).toBe(true);
+    });
   });
 });
 

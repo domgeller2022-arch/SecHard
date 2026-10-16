@@ -160,7 +160,15 @@ subphases:
       - docs/evidence/p3-5-product-planning.md
   p4_1:
     title: "Provisioning must really execute and enforce policy"
-    state: pending
+    state: done
+    note: "The four dormant-executeProvisionPlan defects from the audit (remediation plan line 108) are fixed before the P4.2 analysers wire in: (1) per-step real outcomes — a ProvisionStepResult per step carrying the process outcome and exact arguments for package steps and the verified-download outcome for download steps, executed true only when every step ran and succeeded, the first failed step stopping the plan with the remaining steps recorded as notRun (a failed or omitted install cannot claim completion); (2) download steps execute, never skip — through the existing verified-download primitive (approved origin, recorded SHA-256, byte bound, atomic 0600 write) with a digest mismatch stopping the plan like a failed install and writing nothing, and validation refusing download steps with no URL or no absolute destination (missing_url/missing_destination); (3) the observed package-manager version must match the reviewed exact version (reusing extractVersion) — a mismatch refuses the plan before any step and is recorded as managerVersion {expected, observed, matched}; (4) the approved registry is passed to the manager explicitly (--registry) and a package step naming no registry while provisioning.require_reviewed_registry is set is blocked at validation (missing_registry). check never provisions: verified that no production caller of executeProvisionPlan exists and the registry refuses unavailable tools without provisioning. Scope note: the isolated npm-quality-package route (committed lockfile, frozen install, allowBuilds {}) and the Python venv/wheel-pinning route are the concrete provisioning plans the P4.2 analyser wiring will build and hand to this executor — the execution contract they rely on is what this subphase made real. Observed 2026-10-16: tests/execution/policy.test.ts +8 P4.1 tests (failed package command stops the plan with notRun steps; the approved registry in the recorded args; version-mismatch refuses before any step; version-match proceeds; a download executes, verifies its digest, and writes the artifact; a digest-mismatched download stops the plan and writes nothing; missing-registry/missing-url/missing-destination blocks) — execution suite 79/79; fast suite 610/610; lint and build clean; scanners 76/76; preflight 181 open. See docs/evidence/p4-1-provisioning-execution.md"
+    evidence:
+      - src/execution/provision.ts
+      - src/execution/download.ts
+      - src/execution/version.ts
+      - src/execution/policy.ts
+      - tests/execution/policy.test.ts
+      - docs/evidence/p4-1-provisioning-execution.md
   p4_2:
     title: "Four real analyzers, execution-safe configuration — F-07"
     state: pending
