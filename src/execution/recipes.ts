@@ -84,8 +84,39 @@ const worse = (a: Coverage, b: Coverage): Coverage => (COVERAGE_RANK[a] <= COVER
  * exclude. The independent inventory applies the same sets, so a reviewed exclusion is never
  * counted as an unexamined gap, and everything else relevant is.
  */
-const OPENGREP_SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const OPENGREP_SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
 const OPENGREP_EXCLUDED_DIRS: ReadonlySet<string> = new Set(['node_modules', '.next', 'dist', '.git']);
+
+const LANGUAGE_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
+  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
+  typescript: ['.ts', '.tsx'],
+  python: ['.py'],
+};
+
+/**
+ * P3.5 (A-17): the intended scope is pack-relative. A pack's rules declare their languages, and a
+ * file outside them cannot be examined by that pack — the core and quality packs are
+ * JavaScript/TypeScript only, so a Python-only application is not an unexamined gap for them,
+ * while the detection-depth pack (which declares python) intends the Python sources. A pack with
+ * no recognised language never narrows the reviewed scope.
+ */
+function packIntendedFiles(intended: readonly string[], packPath: string): readonly string[] {
+  let languages: ReadonlySet<string>;
+  try {
+    const parsed = parseYaml(readFileSync(packPath, 'utf8')) as { rules?: { languages?: readonly string[] }[] };
+    languages = new Set((parsed.rules ?? []).flatMap((rule) => rule.languages ?? []));
+  } catch {
+    return intended;
+  }
+  const extensions = new Set<string>(
+    Object.keys(LANGUAGE_EXTENSIONS)
+      .filter((language) => languages.has(language))
+      .flatMap((language): readonly string[] => LANGUAGE_EXTENSIONS[language] ?? []),
+  );
+  if (extensions.size === 0) return intended;
+  const extensionList = [...extensions];
+  return intended.filter((file) => extensionList.some((extension) => file.endsWith(extension)));
+}
 
 function unsupported(diagnostic: string): RecipeOutcome {
   return { outcome: 'unsupported', coverage: 'unknown', observed: 0, files: [], findings: [], diagnostic };
@@ -500,6 +531,14 @@ async function runOpengrepWithPack(
     return unsupported(`no relevant source files (${OPENGREP_SOURCE_EXTENSIONS.join(', ')}) under the application root; there is nothing for the ${packRuleId} rules to analyse`);
   }
 
+  // P3.5 (A-17): the pack-relative intended scope. A file outside the pack's declared languages
+  // cannot be examined by this pack, so it is not an unexamined gap here; the detection-depth
+  // pack declares python and intends the Python sources.
+  const intended = packIntendedFiles(inventory.intended, configPath);
+  if (intended.length === 0) {
+    return unsupported(`${packLine}: the inventory holds ${String(inventory.intended.length)} relevant file(s), but none are in this pack's declared language scope — there is nothing for the ${packRuleId} rules to analyse`);
+  }
+
   const args = [
     'scan',
     '--experimental',
@@ -532,7 +571,7 @@ async function runOpengrepWithPack(
   // surfaces as a null exit code. None of these may look like a clean scan.
   if (run.outcome.exitCode !== 0) return errored(`${packLine}: opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
 
-  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot, intendedScope: inventory.intended });
+  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot, intendedScope: intended });
   if ('error' in parsed) return errored(parsed.error);
 
   const examined = parsed.scope.observed;
@@ -543,7 +582,7 @@ async function runOpengrepWithPack(
 
   if (examined === 0) {
     return errored(
-      `${packLine}: opengrep examined none of the ${String(inventory.intended.length)} inventoried relevant files` +
+      `${packLine}: opengrep examined none of the ${String(intended.length)} inventoried relevant files` +
       `${suppressions.semgrepignore === undefined ? '' : `; the target ships .semgrepignore (${String(suppressions.semgrepignore.entries)} entries), an unreviewed suppression the tool honours`}`,
     );
   }
@@ -554,11 +593,11 @@ async function runOpengrepWithPack(
   const incompleteness: string[] = [];
   if (parsed.coverage !== 'complete') {
     const examinedSet = new Set(parsed.scope.files ?? []);
-    const unexaminedNames = inventory.intended.filter((file) => !examinedSet.has(file));
+    const unexaminedNames = intended.filter((file) => !examinedSet.has(file));
     incompleteness.push(
       unexamined > 0
-        ? `${String(unexamined)} of ${String(inventory.intended.length)} inventoried relevant files were not examined (first: ${unexaminedNames.slice(0, 5).join(', ')}${unexaminedNames.length > 5 ? ', …' : ''}; a gitignore rule may be hiding them)`
-        : `examined ${String(examined)} of ${String(inventory.intended.length)} inventoried relevant files`,
+        ? `${String(unexamined)} of ${String(intended.length)} inventoried relevant files were not examined (first: ${unexaminedNames.slice(0, 5).join(', ')}${unexaminedNames.length > 5 ? ', …' : ''}; a gitignore rule may be hiding them)`
+        : `examined ${String(examined)} of ${String(intended.length)} inventoried relevant files`,
     );
   }
   if (failed > 0) incompleteness.push(`${String(failed)} scanner-reported failure(s)`);
@@ -579,7 +618,7 @@ async function runOpengrepWithPack(
       outcome: 'error',
       coverage: 'partial',
       observed: examined,
-      expected: inventory.intended.length,
+      expected: intended.length,
       ...(unexamined === 0 ? {} : { unexamined }),
       ...(failed === 0 ? {} : { failed }),
       ...(suppressionsTotal === 0 ? {} : { suppressions: suppressionsTotal }),
@@ -595,13 +634,13 @@ async function runOpengrepWithPack(
     outcome: 'pass',
     coverage: 'complete',
     observed: examined,
-    expected: inventory.intended.length,
+    expected: intended.length,
     ...(suppressionsTotal === 0 ? {} : { suppressions: suppressionsTotal }),
     files,
     findings: parsed.findings,
     tool: { ...toolIdentity('opengrep'), rule_pack: `ci/configs/opengrep-rules/${packRelativePath}` },
     reportDigest: digestOf(run.outcome.stdout),
-    diagnostic: `${packLine}: examined ${String(examined)}/${String(inventory.intended.length)} inventoried relevant files` +
+    diagnostic: `${packLine}: examined ${String(examined)}/${String(intended.length)} inventoried relevant files` +
       (suppressions.semgrepignore === undefined
         ? ''
         : `; target .semgrepignore (${String(suppressions.semgrepignore.entries)} entries) cannot affect the reviewed scan scope and is recorded`),
@@ -645,8 +684,20 @@ const runOpengrep = async (context: RecipeContext): Promise<RecipeOutcome> => {
   }
   if (core.outcome === 'error') return { ...core, findings: [...core.findings, ...depth.findings] };
   if (depth.outcome === 'error') return { ...depth, findings: [...core.findings, ...depth.findings] };
-  // Both packs share the same inventory, so they have relevant files or neither does.
+  // P3.5 (A-17): the packs' scopes are pack-relative now, so an empty language scope is honest
+  // absence for that pack — a sibling's real results must not be masked by it. Both empty:
+  // unsupported with the reasons.
   if (core.outcome === 'unsupported' || depth.outcome === 'unsupported') {
+    const passed = core.outcome === 'pass' ? core : depth.outcome === 'pass' ? depth : undefined;
+    if (passed !== undefined) {
+      const emptySibling = passed === core ? depth : core;
+      return {
+        ...passed,
+        diagnostic: [passed.diagnostic, `sibling pack had no applicable language scope (${(emptySibling.diagnostic ?? '').slice(0, 200)})`]
+          .filter((part) => part !== undefined && part.length > 0)
+          .join('; '),
+      };
+    }
     return unsupported(core.diagnostic ?? depth.diagnostic ?? 'no relevant source files under the application root');
   }
   const files = [...new Set([...core.files, ...depth.files])];

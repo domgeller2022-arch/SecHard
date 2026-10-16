@@ -5,10 +5,10 @@ review_status: draft
 title: Python web application (composable stack profile)
 extends: [core]
 description: >-
-  A Flask/FastAPI/Django application. Static analysis is deliberately NOT required by this profile in
-  this build: the reviewed Opengrep rule pack is JavaScript/TypeScript only, and requiring a method
-  the rule pack cannot honestly serve would produce a fabricated unsupported result presented as
-  coverage. Python static analysis arrives with the expansion batch (Bandit/Ruff rules).
+  A Flask/FastAPI/Django application. Static analysis is required for the reviewed Python rule
+  families (P3.5, A-17): the detection-depth pack plans SQL-injection, SSRF, path-traversal and
+  cookie-attribute checks over Python sources. Framework-specific secret handling, template
+  injection, and the Bandit/Ruff expansion remain recorded gaps, not silently skipped coverage.
 controls:
   - { control: CTX-01 }
   - { control: GOV-01 }
@@ -58,6 +58,7 @@ stage_requirements:
       - policy_consistency
       - secret_scan
       - dependency_scan
+      - static_analysis
       - workflow_analysis
       - live_http_check
   release:
@@ -66,6 +67,7 @@ stage_requirements:
       - policy_consistency
       - secret_scan
       - dependency_scan
+      - static_analysis
       - workflow_analysis
       - live_http_check
       - tls_check
@@ -82,9 +84,10 @@ stage_requirements:
 support_constraints:
   platforms: [linux-ci]
   notes: >-
-    Dependency scanning covers requirements.txt. Python-specific static analysis, framework secrets
-    handling, and template-injection rules are expansion-batch work and are recorded as gaps, not
-    silently skipped.
+    Dependency scanning covers requirements.txt. Static analysis covers the reviewed Python rule
+    families in the detection-depth pack (SQL injection, SSRF, path traversal, cookie attributes,
+    planned per A-17). Framework-specific secret handling, template-injection rules, and the
+    Bandit/Ruff expansion are expansion-batch work and are recorded as gaps, not silently skipped.
 permitted_exceptions:
   - { control: CTX-01, policy: permitted, max_duration_days: 90 }
   - { control: GOV-01, policy: permitted, max_duration_days: 30 }

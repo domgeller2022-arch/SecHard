@@ -236,7 +236,7 @@ describe('hardening audit on three sample applications', () => {
     }
   }, 600_000);
 
-  it('audits a Python FastAPI app: dependency advisories found, static analysis honestly not required', () => {
+  it('audits a Python FastAPI app: dependency advisories found and the supported static analysis runs (A-17)', () => {
     const app = fixtureApp('fastapi', false);
     const audit = auditApp(app, ['--depth', 'standard']);
 
@@ -256,8 +256,11 @@ describe('hardening audit on three sample applications', () => {
       | undefined;
     expect(filesScan?.outcome).toBe('pass');
     expect(filesScan?.scope?.observed ?? 0).toBeGreaterThan(0);
-    // The Python static-analysis gap is stated in the report, not implied away.
-    expect(audit.report).toContain('static analysis does not support Python in this build');
+    // P3.5 (A-17): static analysis is planned for python-web and really runs — the clean fixture
+    // is examined with the rule pack, and the supported-families gap is stated, not implied away.
+    const staticCheck = audit.results.find((result) => result.check_id.includes('static_analysis'));
+    expect(staticCheck?.outcome).toBe('pass');
+    expect(audit.report).toContain('covers the reviewed Python rule families only');
   }, 600_000);
 
   it('audits an Expo app with a prominent unsupported-stack banner, while generic checks still run', () => {
@@ -270,6 +273,28 @@ describe('hardening audit on three sample applications', () => {
     // The generic checks still produced real results: the advisory scan found the pinned lockfile.
     expect(findingsFor(audit.results, 'osv/lockfile').length).toBeGreaterThan(0);
     expect(audit.reportJson['detection']).toMatchObject({ stack: { kind: 'expo' } });
+  }, 600_000);
+
+  it('a Python-only app reaches the planned static analysis and finds the supported Python injections (A-17)', () => {
+    const app = fixtureApp('python-only', true);
+    const audit = auditApp(app, ['--depth', 'standard']);
+
+    expect(audit.run.status, audit.run.stderr).toBe(0);
+    // The python-web profile plans static analysis (P3.5): the check really ran with the rule
+    // pack, found the reviewed Python families at their locations, and the parameterized twins
+    // stayed silent. The core pack's empty language scope did not mask the depth pack's results.
+    const staticCheck = audit.results.find((entry) => entry.check_id.includes('static_analysis'));
+    expect(staticCheck?.outcome).toBe('pass');
+    const pythonFindings = (staticCheck?.findings ?? []).map((finding) => finding as { rule_id: string; location?: string });
+    expect(pythonFindings.map((finding) => finding.rule_id)).toEqual([
+      'hardening.taint-sql-injection-python',
+      'hardening.taint-ssrf-python',
+    ]);
+    expect(pythonFindings.map((finding) => finding.location)).toEqual(['app.py:16', 'app.py:30']);
+    expect(audit.report).toContain('covers the reviewed Python rule families only');
+    // Quick depth still runs static analysis — it is not in the quick skip list.
+    const quick = auditApp(app, ['--depth', 'quick']);
+    expect(quick.results.find((entry) => entry.check_id.includes('static_analysis'))?.outcome).toBe('pass');
   }, 600_000);
 
   it("audits the repository's own reference application end to end", () => {

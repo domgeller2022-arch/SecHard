@@ -51,8 +51,21 @@ export interface AuditOutcome extends CommandOutcome {
   };
 }
 
-/** Recipes that only run at standard depth and above. Quick mode is a fast static pass. */
-const NOT_AT_QUICK: ReadonlySet<string> = new Set(['gitleaks/history', 'build/client-assets', 'web/http-requirements']);
+/**
+ * P3.5 (plan item 5): the quick/standard/deep recipe selection, defined once. Every excluded
+ * recipe is reported with its skip reason by the check machinery rather than vanishing. Deep
+ * runs the same reviewed set as standard in this build — the report states that honestly;
+ * additional deep behaviour requires reviewed safe-execution preconditions before it can be
+ * added, never a silent alias or automatic target code execution.
+ */
+const DEPTH_RECIPE_SELECTION: Readonly<Record<Depth, { readonly skipRecipes: readonly string[]; readonly skipReason: string }>> = {
+  quick: {
+    skipRecipes: ['gitleaks/history', 'build/client-assets', 'web/http-requirements'],
+    skipReason: 'not run at --depth quick; rerun at standard depth for the full set',
+  },
+  standard: { skipRecipes: [], skipReason: '' },
+  deep: { skipRecipes: [], skipReason: '' },
+};
 
 function slugify(name: string): string {
   const slug = name
@@ -321,6 +334,10 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
   // staging (0700, outside `out`) and removed on every path — including a failed report write.
   const rawStaging = mkdtempSync(join(tmpdir(), 'sechard-raw-'));
   chmodSync(rawStaging, 0o700);
+  const depthSelection = DEPTH_RECIPE_SELECTION[options.depth];
+  const depthSkips = depthSelection.skipRecipes.length === 0
+    ? {}
+    : { skipRecipes: [...depthSelection.skipRecipes], skipReason: depthSelection.skipReason };
   let checked: Awaited<ReturnType<typeof checkCommand>>;
   try {
     checked = await checkCommand(paths, {
@@ -329,11 +346,7 @@ export async function auditCommand(options: AuditOptions): Promise<AuditOutcome>
     outDir: out,
     rawDir: rawStaging,
     now: options.now,
-    ...(
-      options.depth === 'quick'
-        ? { skipRecipes: [...NOT_AT_QUICK], skipReason: 'not run at --depth quick; rerun at standard depth for the full set' }
-        : {}
-    ),
+    ...depthSkips,
   });
   } finally {
     rmSync(rawStaging, { recursive: true, force: true });

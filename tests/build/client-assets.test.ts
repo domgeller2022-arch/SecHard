@@ -130,7 +130,7 @@ describe('the inspection covers shipped source maps (A-21)', () => {
     );
 
     const report = inspectBrowserAssets(dir);
-    const mapFindings = report.findings.filter((finding) => finding.location.endsWith('.map'));
+    const mapFindings = report.findings.filter((finding) => finding.location?.endsWith('.map') === true);
     expect(mapFindings.map((finding) => finding.rule_id)).toContain('supabase-secret-key');
     expect(mapFindings.find((finding) => finding.rule_id === 'supabase-secret-key')?.severity).toBe('critical');
     // The publication warning stays a separate, weaker finding.
