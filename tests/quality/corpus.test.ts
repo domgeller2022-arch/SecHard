@@ -35,7 +35,7 @@ const policy = thresholds.thresholds as NonNullable<typeof thresholds.thresholds
 
 function allOwnableFindings(appRoot: string): Finding[] {
   return [
-    ...analyzeVibeTells(appRoot, { maxFilesListed: policy.vibe_tells.max_files_listed }).findings,
+    ...analyzeVibeTells(appRoot).findings,
     ...analyzeStrictCorrectness(appRoot, policy.strict_correctness).findings,
     ...analyzeTestQuality(appRoot).findings,
     ...analyzeRepoHygiene(appRoot, policy.repo_hygiene.expected_lockfiles).findings,
@@ -85,7 +85,7 @@ describe('each tell rule fires on its seed and stays silent on clean code', () =
   // Per-rule isolation: a rule that fires only because another rule's file is messy is a rule that
   // will misbehave on real applications. Each seed is checked against the seeded file.
   it('fires each seeded tell in the seeded file', () => {
-    const tells = analyzeVibeTells(join(CORPUS, record.app), { maxFilesListed: policy.vibe_tells.max_files_listed }).findings;
+    const tells = analyzeVibeTells(join(CORPUS, record.app)).findings;
     const seededTells = record.seeded.filter((seed) => seed.rule_id.startsWith('tell.'));
     for (const seed of seededTells) {
       expect(
@@ -96,7 +96,7 @@ describe('each tell rule fires on its seed and stays silent on clean code', () =
   });
 
   it('is silent on the clean twin, file by file', () => {
-    const cleanTells = analyzeVibeTells(join(CORPUS, record.clean_twin), { maxFilesListed: policy.vibe_tells.max_files_listed }).findings;
+    const cleanTells = analyzeVibeTells(join(CORPUS, record.clean_twin)).findings;
     expect(cleanTells).toEqual([]);
     const cleanTests = analyzeTestQuality(join(CORPUS, record.clean_twin)).findings;
     expect(cleanTests).toEqual([]);

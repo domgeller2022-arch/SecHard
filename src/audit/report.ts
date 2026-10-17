@@ -149,6 +149,27 @@ function locationOf(finding: Finding, result: CheckResult): string {
   return files[0] ?? '';
 }
 
+/**
+ * The reviewed rule-equivalence classes (P4.4, A-18): the core pack's pattern rules and the
+ * depth pack's taint rules that detect the same vulnerability class at the same sink fold into
+ * one row keeping the provenance of both. The mapping is explicit and reviewed — folding never
+ * infers equivalence from location or category alone, so two unrelated credentials at one line
+ * or six advisories on one lockfile line stay independent.
+ */
+const RULE_EQUIVALENCE: readonly (readonly string[])[] = [
+  ['hardening.dom-innerhtml-assignment', 'hardening.nonliteral-html-sink', 'hardening.taint-xss-innerhtml'],
+  ['hardening.child-process-exec-interpolation', 'hardening.taint-command-injection', 'hardening.taint-command-injection-python'],
+  ['hardening.api-unvalidated-response-consumption', 'hardening.taint-ssrf-fetch'],
+];
+
+const CANONICAL_RULE: ReadonlyMap<string, string> = new Map(
+  RULE_EQUIVALENCE.flatMap((members) => members.map((member) => [member, members[0] as string])),
+);
+
+function canonicalRule(ruleId: string): string {
+  return CANONICAL_RULE.get(ruleId) ?? ruleId;
+}
+
 function annotate(input: AuditReportInput): AnnotatedFinding[] {
   const controlsById = new Map(input.controls.map((control) => [control.id, control]));
 
@@ -158,11 +179,16 @@ function annotate(input: AuditReportInput): AnnotatedFinding[] {
     for (const finding of result.findings ?? []) {
       const location = locationOf(finding, result);
 
-      // The same issue reported twice at one location — the regex and taint rules on one SSRF
-      // sink, or two tools covering one rule — is one row, keeping the provenance of both and the
-      // higher severity (A-7). Findings with no location are never folded: there is nothing that
-      // says they are the same issue.
-      const foldKey = location.length === 0 ? undefined : `${location}|${finding.category ?? ''}`;
+      // The fold identity is proven vulnerability equivalence — never location and category
+      // alone (A-18): two unrelated credentials at one line, or six advisories on one lockfile
+      // line, are independent rows. Proven equivalence: the same canonical rule at the same
+      // location (the core and depth packs' rules for one vulnerability class), the same
+      // credential identity (the digest), or the same advisory id (the rule id the OSV recipe
+      // reports). The fold keeps the provenance of both sources and the higher severity (A-7).
+      const identity = finding.secret_digest !== undefined
+        ? `credential:${finding.secret_digest}`
+        : canonicalRule(finding.rule_id);
+      const foldKey = location.length === 0 ? undefined : `${identity}|${location}`;
       const existingIndex = foldKey === undefined ? undefined : seenAtLocation.get(foldKey);
       if (existingIndex !== undefined) {
         const existing = annotated[existingIndex]!;
@@ -452,6 +478,11 @@ function buildMarkdown(
     fixFirst.forEach((finding, index) => {
       lines.push(`| ${index + 1} | ${finding.severity} | \`${safe(finding.location || '(no location)')}\` | ${safe(finding.title)} | ${finding.effort} | ${finding.confidence} |`);
     });
+    if (security.length > fixFirst.length) {
+      // A-20: the display cap reconciles — the omitted count and reason are stated, and the
+      // machine-readable results carry every finding regardless of what this section renders.
+      lines.push('', `Showing the ${String(fixFirst.length)} highest-priority security findings of **${String(security.length)}** detected. The complete machine-readable results carry every finding; nothing is dropped from the audit's outcome.`);
+    }
   }
 
   lines.push('', '## What we could not check', '');

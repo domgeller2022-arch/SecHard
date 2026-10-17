@@ -29,7 +29,7 @@ describe('SecHard passes its own quality audit', () => {
   expect(policy).toBeDefined();
   const thresholds = policy as NonNullable<typeof policy>;
 
-  const tells = analyzeVibeTells(REPO, { maxFilesListed: thresholds.vibe_tells.max_files_listed }).findings;
+  const tells = analyzeVibeTells(REPO).findings;
   const correctness = analyzeStrictCorrectness(REPO, thresholds.strict_correctness).findings;
   const tests = analyzeTestQuality(REPO).findings;
   const hygiene = analyzeRepoHygiene(REPO, thresholds.repo_hygiene.expected_lockfiles).findings;

@@ -790,7 +790,7 @@ controls:
       - method: quality_scan
         recipe: quality/vibe-tells
         coverage: mixed
-        notes: "SecHard-owned analyser (src/quality/tells.ts). No mature open-source analyser exists for this; each rule carries fixtures and corpus-measured precision."
+        notes: "SecHard-owned analyser (src/quality/tells.ts). No mature open-source analyser exists for this; each rule carries fixtures and corpus-measured precision. P4.4 adds the undocumented-env, hallucinated-import, inconsistent-naming and redundant-validation families, measures narration recall on enumerated comment instances (the calibration gate: at least 0.7 with zero false narration findings on the reviewed rationale comments), and detects every tell before any display limit - the report's per-file caps reconcile their omitted counts."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:

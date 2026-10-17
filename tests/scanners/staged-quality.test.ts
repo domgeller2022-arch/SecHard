@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { analyzeComplexity, analyzeDeadCode, analyzeDuplication, analyzeFormatting, analyzeModuleStructure, resolveStagedTool, type StagedAnalysis, type StagedTool, type StagedUnsupported } from '../../src/quality/staged.js';
+import { analyzeVibeTells, type TellsResult } from '../../src/quality/tells.js';
 import { analyzeRepoHygiene, analyzeRegistryHealth } from '../../src/quality/hygiene.js';
 import { analyzeStrictTypes, type StrictTypesResult } from '../../src/quality/correctness.js';
 import { RECIPES } from '../../src/execution/recipes.js';
@@ -62,7 +63,7 @@ async function jscpd(): Promise<StagedTool> {
 }
 
 /** Narrows an analyser outcome to its success: a failed or unsupported result fails the test. */
-function asAnalysis<T extends StagedAnalysis | StrictTypesResult>(
+function asAnalysis<T extends StagedAnalysis | StrictTypesResult | TellsResult>(
   result: T | { readonly failed: string } | StagedUnsupported,
 ): T {
   if ('failed' in result) throw new Error(String(result.failed));
@@ -369,4 +370,70 @@ describe('the frontend quality precondition (P4.3, QUAL-13)', () => {
     expect(outcome.outcome).toBe('unsupported');
     expect(outcome.diagnostic).toContain('P8 live-check precondition');
   });
+});
+
+/**
+ * P4.4 (F-08, plan item 2): narration recall is measured on enumerated comment instances — not
+ * one hit per file. The fixture carries ten narration comments (each restating the next line
+ * through two or more shared identifiers) and ten genuine rationale comments (why-comments with
+ * the reviewed markers). The gate: recall at least 0.7 on the narration instances and zero false
+ * narration findings on the rationale comments.
+ */
+describe('narration recall is measured on enumerated comment instances (P4.4, F-08)', () => {
+  it('flags at least 0.7 of the enumerated narration comments and zero of the rationale comments', async () => {
+    const app = join(scratch, 'narration-recall');
+    mkdirSync(app, { recursive: true });
+    const lines: string[] = [];
+    const narrationLines: number[] = [];
+    let cursor = 0;
+    for (let index = 0; index < 10; index += 1) {
+      cursor += 1;
+      narrationLines.push(cursor);
+      lines.push(`// set user${String(index)} from the parsed payload`);
+      lines.push(`const user${String(index)} = parsed.payload.user${String(index)};`);
+      cursor += 1;
+    }
+    for (let index = 0; index < 10; index += 1) {
+      cursor += 1;
+      lines.push('// We use a Map here because lookup must stay O(1); the array scan prevented the batch job from finishing in time.');
+      cursor += 1;
+      lines.push(`const cache${String(index)} = new Map<string, number>();`);
+    }
+    writeFileSync(join(app, 'mixed.ts'), lines.join('\n') + '\n');
+
+    const result = asAnalysis(await analyzeVibeTells(app));
+    const narrationFindings = result.findings.filter((finding) => finding.rule_id === 'tell.narration-comment');
+    const flaggedLines = new Set(narrationFindings.map((finding) => finding.location ?? ''));
+    const hits = narrationLines.filter((line) => flaggedLines.has(`mixed.ts:${String(line)}`)).length;
+    expect(hits / narrationLines.length).toBeGreaterThanOrEqual(0.7);
+    // Zero false narration findings on the genuine rationale comments (the second block's lines).
+    const rationaleLines = Array.from({ length: 10 }, (_, index) => `mixed.ts:${String(21 + index * 2)}`);
+    expect(narrationFindings.every((finding) => !rationaleLines.includes(finding.location ?? ''))).toBe(true);
+  }, 300_000);
+});
+
+/**
+ * P4.4 (A-20, plan item 3): the analysers detect everything before any display limit — a late
+ * high finding survives a flood of earlier low ones in the machine results, and the rendered
+ * report reconciles its display caps instead of silently hiding evidence.
+ */
+describe('caps cannot erase evidence (P4.4, A-20)', () => {
+  it('a late debugger statement survives a flood of earlier placeholder comments', async () => {
+    const app = join(scratch, 'a20-flood');
+    mkdirSync(app, { recursive: true });
+    const lines: string[] = [];
+    for (let index = 0; index < 65; index += 1) {
+      lines.push('// TODO: implement the real behaviour for section ' + String(index));
+      lines.push(`const placeholder${String(index)} = 'todo';`);
+    }
+    lines.push('debugger;');
+    writeFileSync(join(app, 'flood.ts'), lines.join('\n') + '\n');
+
+    const result = asAnalysis(await analyzeVibeTells(app));
+    // The machine results carry every finding: the late high-severity debugger statement is
+    // present despite the 130 earlier placeholder tells. The rendered report's display-cap
+    // reconciliation is pinned in tests/audit/report.test.ts, where the report fixtures live.
+    expect(result.findings.some((finding) => finding.rule_id === 'tell.debugger-statement' && finding.severity === 'high')).toBe(true);
+    expect(result.findings.length).toBeGreaterThanOrEqual(131);
+  }, 300_000);
 });

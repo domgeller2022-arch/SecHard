@@ -914,7 +914,7 @@ const runTestQuality = (context: RecipeContext): Promise<RecipeOutcome> => {
 const runVibeTells = (context: RecipeContext): Promise<RecipeOutcome> => {
   const { thresholds, failure } = thresholdsFor(context);
   if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
-  const result = analyzeVibeTells(context.appRoot, { maxFilesListed: thresholds.vibe_tells.max_files_listed });
+  const result = analyzeVibeTells(context.appRoot);
   return Promise.resolve(qualityOutcome('quality-vibe-tells', result.findings, result.scope.filesRead,
     'review-candidate signals measured on the calibration corpus; never proof of authorship'));
 };
