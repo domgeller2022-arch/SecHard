@@ -591,7 +591,7 @@ controls:
       - method: quality_scan
         recipe: quality/strict-correctness
         coverage: mixed
-        notes: "Marker and any-usage counts are SecHard-owned measurements; full strict-type-checked linting and a tsc --strict probe against the app's own type graph are recorded gaps (they need the app's type dependencies)."
+        notes: "Wired in P4.3: the tsc --strict probe runs from the isolated tools/quality package with SecHard's own strict configuration against the application's type graph (its tsconfig read as data, paths preserved); marker and any-usage counts remain. Missing type dependencies or an absent tsconfig/node_modules are coverage gaps, never findings."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -818,7 +818,7 @@ controls:
       - method: quality_scan
         recipe: quality/formatting
         coverage: automated
-        notes: "Requires a formatter in check-only mode (Prettier/Biome for JS/TS, Ruff format for Python are the reviewed candidates). Not wired in this build; the recipe reports unsupported with this reason."
+        notes: "Wired in P4.3: Biome runs check-only from the isolated tools/quality package with SecHard's own configuration (the target's biome.json is never loaded), and Ruff format --check runs from the private virtual environment for Python sources. Neither tool writes. Naming-consistency signals stay in the vibe-tells analyser."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -844,7 +844,7 @@ controls:
       - method: quality_scan
         recipe: quality/repo-hygiene
         coverage: mixed
-        notes: "SecHard-owned repository checks; README command runnability is asserted where the repository's own test suite proves it, and reported as a signal otherwise."
+        notes: "SecHard-owned repository checks (P4.3 additions: committed generated artifacts, and licence-description accuracy — an owner's private/no-licence choice is described accurately and never relabelled as open-source readiness); README command runnability is asserted where the repository's own test suite proves it, and reported as a signal otherwise."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -873,7 +873,7 @@ controls:
       - method: quality_scan
         recipe: quality/dependency-health
         coverage: mixed
-        notes: "SecHard-owned lockfile duplicate scan in this build. Registry-based deprecation, staleness, and major-drift checks need online queries and are recorded gaps."
+        notes: "Wired in P4.3: bounded reviewed registry queries (at most 60 packages per audit) against the approved registry — deprecation, major drift of two or more majors, and staleness beyond 24 months. Offline or failed queries are recorded as unknown, never as healthy, and this never replaces OSV advisory scanning."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -902,7 +902,7 @@ controls:
       - method: quality_scan
         recipe: quality/frontend-quality
         coverage: mixed
-        notes: "Requires a running application and a browser (axe-core via Playwright, Lighthouse CI are the reviewed candidates). Not wired in this build; live-recipe preconditions (an approved target) do not exist for it yet, so the recipe reports unsupported with this reason."
+        notes: "Wired in P4.3 as a preconditioned handler: the recipe names its precondition precisely — an approved running application target and a browser are required to run axe-core and Lighthouse against, and P8 supplies those live-check preconditions. A UI without an approved target has this precondition gap, not a fabricated verdict."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:

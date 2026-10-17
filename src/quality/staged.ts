@@ -28,28 +28,34 @@ export interface StagedTool {
 
 const QUALITY_PACKAGE = join(packageRoot(), 'tools', 'quality');
 
-const NPM_TOOLS: Readonly<Record<'jscpd' | 'knip' | 'dependency-cruiser', string>> = {
+const NPM_TOOLS: Readonly<Record<'jscpd' | 'knip' | 'dependency-cruiser' | 'tsc' | 'biome', string>> = {
   jscpd: 'jscpd',
   knip: 'knip',
   'dependency-cruiser': 'dependency-cruiser',
+  tsc: 'typescript',
+  biome: '@biomejs/biome',
 };
 
+const VENV_TOOLS: Readonly<Record<'lizard' | 'ruff', string>> = { lizard: 'lizard', ruff: 'ruff' };
+
 /** Resolves a staged tool's absolute executable and its installed version. */
-export async function resolveStagedTool(kind: keyof typeof NPM_TOOLS | 'lizard'): Promise<StagedTool | { readonly unavailable: string }> {
-  if (kind === 'lizard') {
-    const executable = join(QUALITY_PACKAGE, 'venv', 'bin', 'lizard');
+export async function resolveStagedTool(kind: keyof typeof NPM_TOOLS | keyof typeof VENV_TOOLS): Promise<StagedTool | { readonly unavailable: string }> {
+  if (kind in VENV_TOOLS) {
+    const venvKind = kind as keyof typeof VENV_TOOLS;
+    const executable = join(QUALITY_PACKAGE, 'venv', 'bin', VENV_TOOLS[venvKind]);
     if (!existsSync(executable)) {
-      return { unavailable: `lizard is not provisioned (${executable} is absent); provision the reviewed quality tools before running this check — provisioning is separate from checking and never runs inside an audit` };
+      return { unavailable: `${kind} is not provisioned (${executable} is absent); provision the reviewed quality tools before running this check — provisioning is separate from checking and never runs inside an audit` };
     }
     const run = await runProcess({ executable, args: ['--version'], cwd: packageRoot(), timeoutMs: 30_000, maxOutputBytes: 64 * 1024 });
     const version = extractVersion(`${run.stdout ?? ''}\n${run.stderr ?? ''}`);
     if (run.exitCode !== 0 || version === undefined) {
-      return { unavailable: 'lizard is provisioned but its version could not be established' };
+      return { unavailable: `${kind} is provisioned but its version could not be established` };
     }
     return { executable, version };
   }
-  const manifest = join(QUALITY_PACKAGE, 'node_modules', NPM_TOOLS[kind], 'package.json');
-  const executable = join(QUALITY_PACKAGE, 'node_modules', '.bin', kind === 'dependency-cruiser' ? 'depcruise' : kind);
+  const npmKind = kind as keyof typeof NPM_TOOLS;
+  const manifest = join(QUALITY_PACKAGE, 'node_modules', NPM_TOOLS[npmKind], 'package.json');
+  const executable = join(QUALITY_PACKAGE, 'node_modules', '.bin', npmKind === 'dependency-cruiser' ? 'depcruise' : npmKind);
   if (!existsSync(executable) || !existsSync(manifest)) {
     return { unavailable: `${kind} is not provisioned (${executable} is absent); provision the reviewed quality tools before running this check — provisioning is separate from checking and never runs inside an audit` };
   }
@@ -318,6 +324,105 @@ export async function analyzeDeadCode(appRoot: string, tool: StagedTool): Promis
     }
   }
   return { findings, observed, notes: [`${String(observed)} file(s) with dead-code findings`] };
+}
+
+interface BiomeReport {
+  readonly diagnostics?: readonly {
+    readonly category?: string;
+    /** Biome v2 reports the file path as a plain string, relative to the working directory. */
+    readonly location?: { readonly path?: string };
+  }[];
+}
+
+const FORMATTING_CONFIG = join(packageRoot(), 'ci', 'configs', 'quality', 'biome.json');
+
+/**
+ * QUAL-10: formatting consistency from Biome (JS/TS) and Ruff format (Python), both check-only
+ * with SecHard's own configurations — the target's own biome/ruff configuration is never loaded
+ * (`--config-path` points at SecHard's reviewed config; the target's biome.json is never
+ * discovered), and neither tool writes (plan item 3). Naming-consistency signals stay in the
+ * vibe-tells analyser; this recipe measures formatting only.
+ */
+export async function analyzeFormatting(appRoot: string, biome: StagedTool, ruff: StagedTool): Promise<StagedOutcome> {
+  const files = scanSourceFiles(appRoot);
+  if (files.length === 0) {
+    return { unsupported: 'no source files to check for formatting in this application' };
+  }
+  const findings: Finding[] = [];
+  const notes: string[] = [];
+
+  const biomeRun = await runProcess({
+    executable: biome.executable,
+    args: ['check', '--config-path=' + FORMATTING_CONFIG, '--reporter', 'json', appRoot],
+    cwd: appRoot,
+    timeoutMs: 600_000,
+    maxOutputBytes: 16 * 1024 * 1024,
+  });
+  if (biomeRun.exitCode !== 0 && biomeRun.exitCode !== 1) {
+    return { failed: `biome exited ${String(biomeRun.exitCode)}: ${(biomeRun.stderr ?? '').slice(-300).trim() || '(no stderr)'}` };
+  }
+  // Biome exits 1 when diagnostics were found (the expected finding case); 2+ is a crash.
+  try {
+    const report = JSON.parse(biomeRun.stdout ?? '{}') as BiomeReport;
+    let formatDiagnostics = 0;
+    for (const diagnostic of report.diagnostics ?? []) {
+      const category = diagnostic.category ?? '';
+      if (!category.startsWith('format')) continue; // the linter is disabled in the reviewed config
+      formatDiagnostics += 1;
+      const path = (diagnostic.location?.path ?? '').replace(/\\/g, '/');
+      const rel = path.startsWith('/') ? relative(appRoot, path) : path;
+      findings.push(finding(
+        `quality-formatting:biome:${createHash('sha256').update(rel).digest('hex').slice(0, 12)}:${String(formatDiagnostics)}`,
+        'biome-format',
+        'low',
+        `A formatting difference is detected in ${rel}.`,
+        'The file does not match SecHard\u2019s reviewed formatting configuration. Run the formatter in a separate approved step; this check only measures and never writes.',
+        rel,
+        ['QUAL-10'],
+      ));
+    }
+    notes.push(`biome ${biome.version}: ${String(formatDiagnostics)} formatting diagnostic(s) over ${String(files.length)} source file(s)`);
+  } catch {
+    return { failed: 'biome produced an unparseable JSON report' };
+  }
+
+  const pyFiles = files.filter((file) => file.path.endsWith('.py'));
+  if (pyFiles.length === 0) {
+    notes.push('no Python sources — the Ruff format route was not applicable');
+    return { findings, observed: files.length, notes };
+  }
+  const ruffRun = await runProcess({
+    executable: ruff.executable,
+    args: ['format', '--check', '--config', join(packageRoot(), 'ci', 'configs', 'quality', 'ruff.toml'), appRoot],
+    cwd: appRoot,
+    timeoutMs: 600_000,
+    maxOutputBytes: 8 * 1024 * 1024,
+  });
+  if (ruffRun.exitCode !== 0 && ruffRun.exitCode !== 1) {
+    return { failed: `ruff exited ${String(ruffRun.exitCode)}: ${(ruffRun.stderr ?? '').slice(-300).trim() || '(no stderr)'}` };
+  }
+  // Ruff exits 1 when files would be reformatted (the expected finding case); 2+ is a crash.
+  // Ruff 0.17 reports each unformatted file as a diagnostic whose location line is
+  // `--> <path>:<line>:<col>` — the older "Would reformat:" summary line is gone.
+  let ruffFindings = 0;
+  for (const line of (ruffRun.stdout ?? '').split(/\r?\n/)) {
+    const match = /^-->\s+(.+):(\d+):\d+$/.exec(line.trim());
+    if (match === null) continue;
+    const path = match[1] ?? '';
+    const rel = path.startsWith('/') ? relative(appRoot, path) : path;
+    ruffFindings += 1;
+    findings.push(finding(
+      `quality-formatting:ruff:${createHash('sha256').update(rel).digest('hex').slice(0, 12)}`,
+      'ruff-format',
+      'low',
+      `A Python file does not match the reviewed format: ${rel}.`,
+      'The file would be reformatted by the reviewed Ruff configuration. Run the formatter in a separate approved step; this check only measures and never writes.',
+      rel,
+      ['QUAL-10'],
+    ));
+  }
+  notes.push(`ruff ${ruff.version}: ${String(ruffFindings)} Python file(s) would be reformatted (${String(pyFiles.length)} Python source(s) in scope)`);
+  return { findings, observed: files.length, notes };
 }
 
 interface DepcruiseReport {

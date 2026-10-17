@@ -13,11 +13,11 @@ import { parseZizmorReport } from '../adapters/zizmor.js';
 import { inspectBrowserAssets, selectBrowserOutput } from '../build/client-assets.js';
 import { detectStackAndFeatures } from '../audit/detect.js';
 import { annotateSecretFindings, gradeIgnoredFileFinding, gradeUntrackedFinding, splitLocation } from '../evidence/secret-severity.js';
-import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
-import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
+import { analyzeDependencyHealth, analyzeRepoHygiene, analyzeRegistryHealth } from '../quality/hygiene.js';
+import { analyzeStrictCorrectness, analyzeStrictTypes, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
 import { loadQualityThresholds } from '../quality/thresholds.js';
-import { analyzeComplexity, analyzeDeadCode, analyzeDuplication, analyzeModuleStructure, resolveStagedTool } from '../quality/staged.js';
+import { analyzeComplexity, analyzeDeadCode, analyzeDuplication, analyzeFormatting, analyzeModuleStructure, resolveStagedTool } from '../quality/staged.js';
 import { analyzeMigrations } from '../security/migrations.js';
 import { resolveTool, runTool, type ToolAvailability } from './registry.js';
 import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from '../domain/types.js';
@@ -880,12 +880,29 @@ function thresholdsFor(context: RecipeContext): { thresholds?: QualityThresholds
 
 type QualityThresholdsShape = ReturnType<typeof loadQualityThresholds>['thresholds'];
 
-const runStrictCorrectness = (context: RecipeContext): Promise<RecipeOutcome> => {
+const runStrictCorrectness = async (context: RecipeContext): Promise<RecipeOutcome> => {
   const { thresholds, failure } = thresholdsFor(context);
-  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  if (thresholds === undefined) return failure as RecipeOutcome;
   const result = analyzeStrictCorrectness(context.appRoot, thresholds.strict_correctness);
-  return Promise.resolve(qualityOutcome('quality-strict-correctness', result.findings, result.filesRead,
-    'suppression-marker and any-escape counts; full strict lint and the application\'s own tsc probe are recorded gaps'));
+  const base = qualityOutcome('quality-strict-correctness', result.findings, result.filesRead,
+    'suppression-marker and any-escape counts; the strict type probe (P4.3) runs tsc with SecHard\'s own strict configuration against the application\'s type graph');
+  const tsc = await resolveStagedTool('tsc');
+  if ('unavailable' in tsc) {
+    return { ...base, diagnostic: `${base.diagnostic}; the strict type probe is unavailable (tsc is not provisioned) — full strict checking remains a recorded gap` };
+  }
+  const probe = await analyzeStrictTypes(context.appRoot, tsc);
+  if ('failed' in probe) {
+    return { ...base, diagnostic: `${base.diagnostic}; the strict type probe failed: ${probe.failed}` };
+  }
+  return {
+    outcome: 'pass',
+    coverage: probe.coverage === 'complete' ? 'complete' : 'partial',
+    observed: base.observed,
+    files: base.files,
+    findings: [...base.findings, ...probe.findings],
+    tool: { name: 'quality-strict-correctness', observed_version: tsc.version },
+    diagnostic: `${base.diagnostic}; strict type probe (tsc ${tsc.version}): ${String(probe.findings.length)} strict diagnostic(s)${probe.diagnostics.length > 0 ? `; ${probe.diagnostics.join('; ')}` : ''}`,
+  };
 };
 
 const runTestQuality = (context: RecipeContext): Promise<RecipeOutcome> => {
@@ -910,12 +927,30 @@ const runRepoHygiene = (context: RecipeContext): Promise<RecipeOutcome> => {
     'presence checks: artifacts existing is not the same as CI being green or documentation being true'));
 };
 
-const runDependencyHealth = (context: RecipeContext): Promise<RecipeOutcome> => {
+const runDependencyHealth = async (context: RecipeContext): Promise<RecipeOutcome> => {
   const { thresholds, failure } = thresholdsFor(context);
-  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  if (thresholds === undefined) return failure as RecipeOutcome;
   const result = analyzeDependencyHealth(context.appRoot, thresholds.repo_hygiene.expected_lockfiles, thresholds.dependency_health.equivalent_roles);
-  return Promise.resolve(qualityOutcome('quality-dependency-health', result.findings, result.packagesExamined,
-    'lockfile duplicate-role scan; registry-based deprecation and major-drift checks are recorded gaps'));
+  const registry = await analyzeRegistryHealth(context.appRoot, thresholds.repo_hygiene.expected_lockfiles);
+  return qualityOutcome('quality-dependency-health', [...result.findings, ...registry.findings], result.packagesExamined,
+    `lockfile duplicate-role scan; registry health from bounded reviewed queries (${String(registry.queries)} queried: deprecation, major drift, staleness) — offline or failed queries are unknown, not healthy${registry.unknown.length > 0 ? `; unknown: ${registry.unknown.slice(0, 5).join('; ')}${registry.unknown.length > 5 ? '; …' : ''}` : ''}`);
+};
+
+const runQualityFormatting = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const biome = await resolveStagedTool('biome');
+  if ('unavailable' in biome) return unsupported(`quality/formatting: ${biome.unavailable}`);
+  const ruff = await resolveStagedTool('ruff');
+  if ('unavailable' in ruff) return unsupported(`quality/formatting: ${ruff.unavailable}`);
+  const result = await analyzeFormatting(context.appRoot, biome, ruff);
+  if ('unsupported' in result) return unsupported(`quality/formatting: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/formatting: ${result.failed}`);
+  return qualityOutcome('quality-formatting', result.findings, result.observed, `format-only check with SecHard's own configurations (biome ${biome.version}, ruff ${ruff.version}) — check-only, never writes; naming-consistency signals live in the vibe-tells analyser; ${result.notes.join('; ')}`);
+};
+
+const runQualityFrontendQuality = async (_context: RecipeContext): Promise<RecipeOutcome> => {
+  // P4.3 wires the handler with its precondition named precisely; the axe-core and Lighthouse
+  // routes execute against an approved running target, which P8 supplies.
+  return unsupported('quality/frontend-quality: requires an approved running application target and a browser to run axe-core and Lighthouse against — the P8 live-check precondition; a UI without an approved target has this precondition gap, not a fabricated verdict');
 };
 
 /**
@@ -988,6 +1023,8 @@ export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'quality/repo-hygiene': runRepoHygiene,
   'data/migration-inventory': runMigrationInventory,
   'quality/dependency-health': runDependencyHealth,
+  'quality/formatting': runQualityFormatting,
+  'quality/frontend-quality': runQualityFrontendQuality,
   'quality/duplication': runQualityDuplication,
   'quality/complexity': runQualityComplexity,
   'quality/dead-code': runQualityDeadCode,
