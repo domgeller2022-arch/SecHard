@@ -1,0 +1,971 @@
+# Completion ledger — the single active task inventory (plan section 2).
+# Authority: 2026-10-14-SecHard-comprehensive-completion-plan.md (owner instruction, 14 Oct 2026).
+# One task per plan subphase; states: pending | in_progress | done(evidence) | blocked(reason).
+plan_authority:
+  document: "2026-10-14-SecHard-comprehensive-completion-plan.md"
+  sha256: "2e652bc2875aa36330eaf7748060a6e3d401317bc2d6b660441f97a881e199f6"
+  instructed_at: "2026-10-14"
+  rule: "No deviation; no competing plans; evidence in docs/evidence/; historical audits unchanged."
+decisions:
+  p0_d_04_b_item_mapping:
+    date: "2026-10-15"
+    source: "the independent auditor's 15 Oct branch review of 0874eec"
+    b_map:
+      b_03: "P1.3 (with P1.1): truncated reads must not claim complete coverage — structured read results (complete/truncated/omitted/error), carried into recipe coverage/report/gate; all readers; per-file+aggregate+count+depth limits"
+      b_04: "P1.3: process and download limits — output overflow uses TERM->grace->KILL; streamed downloads with hashing and cumulative byte/deadline limits; archive validation (traversal/links/size); recipes honour failure/outputTruncated/signal"
+      b_05: "P1.2: one shared reviewed provider-shape module (detection/classification/redaction, incl. Twilio SK shapes); every persisted string field protected incl. filenames/resources; acceptance: byte-search every emitted artifact on success AND failure paths"
+      b_06: "P1.1/P1.2: fix three self-deceiving tests — confinement policyRoot (use packageRoot(); assert the specific report-write failure, this run's staging dir, whole-tree digest); the unreadable-directory test must actually chmod; the history assertion must use a history-only secret and assert gitleaks/history alone"
+    still_deferred: "B-01/B-02 (ledger verifier), B-07 (restore drill), B-08 (status/CI paperwork) — deferred-by-owner, not done"
+    p3_1_reactivated: true
+    ci: "draft PR opened so repo-checks runs on the exact head"
+    changelog_rule: "no edits"
+  p0_d_03_owner_priority_reorder:
+    date: "2026-10-15"
+    owner_instruction_verbatim: "the completion plan stays the governing plan, but its order changes to put the product mission first. Do now, in this order: P1 limited to B-03, B-04, B-05 and B-06. P3 (security detection accuracy: A-15, A-16, A-13/14, A-21, A-17). P4 (structural quality analysers, narration recall, A-18, A-20). P9.2 (report usability, including grouping could-not-check). P11 (updater and scheduled checks). Defer B-01, B-02 and B-07, plus P2, P5, P6, P7, P8, P10 and P12, until I re-authorise them; record them as deferred-by-owner, not done. Accuracy is measured on held-out apps supplied by the independent auditor, never written by the implementer. Don't edit CHANGELOG.md."
+    resolution: "Plan remains governing; execution order is the owner's list above. Deferral rows are marked blocked (deferred-by-owner) — never done. The B-01..B-07 IDs do not exist in the plan; the owner is supplying the B-item list, and ALL work on the P1/B subset is held until it arrives and is mapped to plan subphases. The held-out-app accuracy rule is binding for all P3/P4 detection work. No changelog edits."
+    changelog_rule: "frozen again (no edits) until a further explicit owner instruction"
+  p0_d_01_changelog_authority_location:
+    owner_instruction_verbatim: "ensure you state that in the changelog so every session you are aware that you are not to deviate from this plan"
+    resolution: "Auditor correction (14 Oct, review of 1406851): the changelog stays frozen at the immutable hash; plan authority lives in this ledger and living documents. Superseded on 15 Oct by p0_d_02 (the owner explicitly authorised a changelog entry)."
+    changelog_sha256_audited: "858bb9cf8183a40c732d5c9003aca9c2a786b58211ef6b873ff5605ef85bd0bc"
+  p0_d_02_pause_record_authorized:
+    owner_instruction_verbatim: "update github and changelog. we will pause here for now once you do what ive asked."
+    resolution: "A single changelog entry recording the governing plan and the pause state; the integrity test and verifier constants updated to the new hash in the same change; historical bytes unchanged below the entry."
+    changelog_sha256_after_entry: "18a37123aeba715d607318c0c458aaf6b914599ea91da929a815026fff9b602e"
+baseline:
+  start_commit: "8e54847"
+  branch: "completion/p0-comprehensive"
+  changelog_sha256_frozen: "18a37123aeba715d607318c0c458aaf6b914599ea91da929a815026fff9b602e"
+subphases:
+  p0_1:
+    title: "Repository and source snapshot"
+    state: done
+    evidence:
+      - docs/evidence/p0-1-environment.md
+      - docs/evidence/p0-1-appendix-c-hashes.md
+  p0_2:
+    title: "Complete recipe/requirement inventory"
+    state: done
+    evidence:
+      - docs/completion-ledger.yaml
+      - docs/evidence/p0-2-classification-check.md
+  p1_1:
+    title: "Actual Git-child regressions and read-only guarantees"
+    state: done
+    evidence:
+      - tests/scanners/audit-cli.test.ts
+      - docs/evidence/p1-1-git-child-regression.md
+  p1_2:
+    title: "Recursive persistence and failure-injection harness"
+    state: done
+    note: "B-06 (p0_d_04) re-opened P1.2; all three test repairs complete: policyRoot + unreadable-dir + whole-tree digests (commit 08ab9b5, with the product fixes they exposed: the unreadable-output refusal returns an outcome; a failed report write exits 1 instead of crashing), and the history-only secret assertion in audit-cli (leak.key removed in a second commit; gitleaks/files holds no row for it; gitleaks/history alone reports it; observed 2026-10-15 — docs/evidence/p1-1-git-child-regression.md addendum)"
+    evidence:
+      - tests/commands/confinement.test.ts
+      - tests/scanners/audit-cli.test.ts
+      - docs/evidence/p1-2-failure-path-regressions.md
+      - docs/evidence/p1-1-git-child-regression.md
+  p1_3:
+    title: "Real bounded I/O, downloads and child termination — A-29"
+    state: done
+    evidence:
+      - src/evidence/bounded-io.ts
+      - tests/commands/bounded-io.test.ts
+      - docs/evidence/p1-3-bounded-io.md
+  p1_4:
+    title: "Restore safety proof and pinned pre-R1 baseline"
+    state: in_progress
+    evidence:
+      - docs/evidence/p1-4-restore-drill.md
+      - examples/nextjs-supabase/tests/operations/restore-exercise.sh
+    remaining:
+      - "The measured pre-R1 pinned-build baseline (worktree at b71a073, build, corpus measurement against that binary)"
+  p2_1:
+    title: "One real policy root and enforced policy lock — A-08"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p2_2:
+    title: "Current source/build/configuration identities — A-04, A-12"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p2_3:
+    title: "Validate results at every ingestion boundary — A-05"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p2_4:
+    title: "Manual evidence and exceptions — A-06, A-07"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p2_5:
+    title: "Secret span classification, false positives and blocking floors — A-11, A-12, F-17"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p3_1:
+    title: "Mandatory packs, parser failures and independent scope — A-09, A-10"
+    state: done
+    note: "independent relevant-file inventory built before each scan; coverage verified against it (unexamined files, scanner failures, malformed entries and target suppressions never pass as complete; findings carried on the error so the report keeps them); strictly conjunctive pack aggregation — one shared inventory, a failed/missing/invalid pack is never masked by a sibling, same rules for the quality-error pack; target .semgrepignore cannot shrink the reviewed scope (pinned reviewed ignore file, presence recorded), inline nosemgrep forces explicit incomplete coverage, gitignore preserved via the child PATH (runTool children start with an empty environment); the tool is never pointed at an empty relevant scope (the pinned experimental target selection hangs there — unsupported from the inventory alone, error when the inventory itself is incomplete). Approved-suppression records remain with the deferred P2.4/P6 machinery. Reference-app repairs the honesty rules exposed: notes.spec.ts import-type PartialParsing; tests/ no longer silently skipped. Observed 2026-10-15, full audit-cli 19/19 — see docs/evidence/p3-1-mandatory-packs.md"
+    evidence:
+      - src/execution/inventory.ts
+      - src/adapters/opengrep.ts
+      - src/execution/recipes.ts
+      - ci/configs/opengrep-semgrepignore
+      - tests/scanners/pack-failures.test.ts
+      - docs/evidence/p3-1-mandatory-packs.md
+  p3_2:
+    title: "Vulnerable/safe security-rule matrix — A-15, A-16, F-04/05"
+    state: done
+    note: "A-15 false positives silenced at the rule: SQL sinks exclude the reviewed literal-text binding usage (focus-metavariable is broken on the pinned build for intermediate-variable flows — bisected and replaced with the structural exclusion after the corpus disclosure diff caught S08/S09 going quiet); verified Stripe handlers are silent through the covered function shapes; literal path joins stay silent; the CORS wildcard+credentials message is now factual (browsers refuse that combination) and the reflected-origin exposure is its own rule. A-16 missed shapes fire: split formData sources, assigned Python query variables, Python requests SSRF and send_file/open traversal (new rules), session cookies with omitted httpOnly (new rule), reflected-origin CORS (new rule). Permanent matrix: ci/configs/opengrep-rules/manifest.yaml — one entry per rule in the three packs (35) with languages, grade, confidence, limitations and twin/corpus/adapters anchors, enforced by tests/scanners/rule-manifest.test.ts. Observed 2026-10-16: rule-twins 20/20 (19 vulnerable/safe cases through the compiled CLI, twice re-verified), manifest sync 4/4, corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes vs the pre-P3.2 baseline, audit-cli 19/19, all other suites green, typecheck and lint clean — docs/evidence/p3-2-rule-matrix.md. Accuracy against held-out apps is the auditor's measurement (p0_d_03); A-17 (Python audit planning) is P3.5"
+    evidence:
+      - ci/configs/opengrep-rules/detection-depth.yaml
+      - ci/configs/opengrep-rules/manifest.yaml
+      - src/audit/explanations.ts
+      - tests/scanners/rule-twin-cases.ts
+      - tests/scanners/rule-twins.test.ts
+      - tests/scanners/rule-manifest.test.ts
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p3-2-rule-matrix.md
+  p3_3:
+    title: "Supabase tokenizer and final-state inventory — A-13, A-14, F-06"
+    state: done
+    note: "Conservative SQL tokenizer (src/security/sql-tokens.ts): strings with ''/E'' escapes, quoted identifiers with '' doubling, line and nested block comments, dollar-quoted bodies ($$/$tag$); statements split only on semicolons outside those, so function bodies keep their internal semicolons and commented-out SQL never matches; unquoted identifiers fold to lowercase, quoted keep case and identity — no SQL parser dependency (A-13). migrations.ts evaluates the sequence in order to a final state: create/drop/rename (rename carries protection), RLS enable/disable/force (later statements overwrite — the enabled set is no longer monotonic), policy create/alter/drop (permissive vs restrictive, roles, operation, using/check true), grants/revokes as final privilege sets, views (security_invoker), definer functions (search_path pinned in the definition header only — a body-level pin no longer silences), buckets (named/positional insert, update set public); dropped/revoked/disabled state silences what it removes. Exposure read from reviewed configuration only — supabase/config.toml [api].schemas (bounded text read, default public, recorded in limits); created schemas never auto-exposed, and rls-missing/view checks are scoped to it (was: every create schema auto-exposed and rls-missing ignored exposure). Bounded wording (A-14): RLS-protected anon writes are medium and 'does not bypass RLS', the implicit-UPDATE case names the with-check default, bucket publication is separated from proven sensitive exposure. Gaps recorded in the recipe coverage note and the analyzer limits result (dynamic SQL/DO blocks inside bodies, exposure beyond [api].schemas, P7/P8 live probes, counted skipped files). Observed 2026-10-16: 36/36 new tokenizer+fixture tests (every plan-required fixture; corpus S21–S25 pinned at the analyzer level with locations :7/:10/:12/:17), corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes (metadata-only diff), fast suite 610/610, scanners 75/75 incl. audit-cli, typecheck and lint clean, preflight 184 open. P3.2 leftover fixed here with disclosure: tests/scanners/adapters.test.ts passed the pack directory as --config (manifest.yaml parses as rules → InvalidRuleSchemaError) and omitted the production --experimental flag (the legacy engine reads pack YAML with the locale codec — ASCII under runTool's stripped child env — and died on the UTF-8 em-dashes P3.2 added to detection-depth.yaml); production scans were never affected; the test now mirrors the production invocation — docs/evidence/p3-3-sql-tokenizer-final-state.md"
+    evidence:
+      - src/security/sql-tokens.ts
+      - src/security/migrations.ts
+      - src/execution/recipes.ts
+      - tests/security/sql-tokens.test.ts
+      - tests/security/migrations.test.ts
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p3-3-sql-tokenizer-final-state.md
+  p3_4:
+    title: "Browser assets, source maps and scope identification — A-21, A-32"
+    state: done
+    note: "A-21 fixed at the analyzer (src/build/client-assets.ts): a shipped .map is no longer inventoried-only — it flows through the same size bounds, read, marker scan and JWT role classification as any other shipped file, so a privileged value only in a map (including embedded sourcesContent) fires with the same blocking secret class as a bundle; a malformed map is recorded as explicit incompleteness (structure unverified, text still scanned) and an oversized map is recorded-not-read with explicitly partial coverage; the map-publication warning stays a separate weaker finding (publication ≠ proven sensitive exposure). Match digests (plan item 4, existing sha256Hex primitive): every secret finding carries secret_digest (SHA-256 of the matched text, never the value) and every inventoried file read within bounds carries a per-file content digest folded into inventoryDigest — same-size edits are distinguishable. A-32 browser-scope half: browser output is identified from the detected stack's reviewed build shape (nextjs → .next/static; sveltekit → .svelte-kit/output/client, build; react-spa → dist/build/out) and a generic candidate qualifies only with a browser entry point (.html, bounded walk) — a Node CLI's compiled dist is server output and is never scanned as browser-shipped merely because the directory exists; stacks with no reviewed browser shape get an explicit unsupported naming the stack; the scope statement keeps server output, browser output, maps and deployment configuration separate; the old static framework-blind candidate list is deleted. The payments/Vite-detection half of A-32 is P3.5 per the plan's split of assigned_subphases P3.4/5. Observed 2026-10-16: tests/build 19/19 (secret-only-in-map critical with the value withheld, map match digest, publishable-in-map classified, malformed and oversized maps explicitly partial, same-size digest change, selection matrix including the SecHard self-audit shape), fast suite 610/610, example real-build 5/5, scanners 75/75 including audit-cli, typecheck and lint clean, corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes (metadata-only diff), preflight 182 open. See docs/evidence/p3-4-browser-assets-sourcemaps.md"
+    evidence:
+      - src/build/client-assets.ts
+      - src/execution/recipes.ts
+      - tests/build/client-assets.test.ts
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p3-4-browser-assets-sourcemaps.md
+  p3_5:
+    title: "Product-level planning and detection — A-17, A-32, F-09"
+    state: done
+    note: "A-17: python-web plans static analysis — static_analysis required at pr/release in profiles/python-web.yaml (description and support constraints name the supported families: SQL injection, SSRF, path traversal, cookie attributes from the detection-depth pack; framework secret handling, template injection, Bandit/Ruff stay recorded gaps), OPENGREP_SOURCE_EXTENSIONS gains .py, and the obsolete 'does not support Python' banner in detect.ts now states the supported families. The intended static-analysis scope is pack-relative: a pack's rules declare their languages, so a file outside them cannot be an unexamined gap for that pack (core and quality packs are JavaScript/TypeScript only; detection-depth declares python) — an empty language scope is an explicit unsupported with the reason, and the runOpengrep aggregation refinement keeps an empty-language-scope sibling from masking a passing sibling's real findings (the P3.1 findings-carrying and error rules unchanged). A-32/F-09: detection reads executable evidence — dev-only Vite/Vitest no longer classifies anything as a browser SPA (a production browser-framework dependency, or Vite plus a shipped index.html, is required; SecHard itself now detects as unknown with the unsupported-stack gap instead of react-spa+payments), payment evidence requires executable shapes (line-start SDK import, production payments dependency, quoted event-name string literals — the event-type check requires quoting and the loose 'mentions stripe AND webhook' text check is deleted, which had matched SecHard's own adapter, matcher definition, and explanation prose). Plan item 5: quick/standard/deep recipe selection is one registry table (DEPTH_RECIPE_SELECTION in commands/audit.ts) — quick skips history/browser-output/live-HTTP each reported with its reason, deep runs the same set as standard and the report states that honestly (additional deep behaviour requires reviewed safe-execution preconditions, never a silent alias). The AI-evidence half of F-09 is P8.4; the exact AI coverage warning is preserved. Observed 2026-10-16: A-17 acceptance through the compiled CLI — a Python-only Flask fixture (tests/fixtures/audit/python-only) at standard depth: static-analysis check passes ('examined 1/1 inventoried relevant files; sibling pack had no applicable language scope'), hardening.taint-sql-injection-python@app.py:16 and hardening.taint-ssrf-python@app.py:30 fire, the parameterized and literal-URL twins stay silent, the report's detection line states the supported families, and quick depth runs static analysis too — pinned as an audit-cli test. detect.test.ts: SecHard itself via packageRoot() detects not-payments and not-browser-SPA, dev-only Vite/Vitest is unknown with the gap, matcher definitions/prose/commented imports keep payments and webhooks unknown, a real webhook handler (line-start import + quoted events) is still detected, a vanilla Vite app with an entry point is still a SPA, flutter composes generic checks with the explicit gap, the python gap names the supported families. Detection 43/43; fast suite 610/610; example real-build 5/5; scanners 76/76 including audit-cli 20/20 (the stale 'static analysis honestly not required' audit-cli test updated to the planned-and-running reality); typecheck and lint clean; corpus regenerated security 31/38 + quality 17/36 with ZERO seed outcome changes (metadata-only diff); preflight 181 open. See docs/evidence/p3-5-product-planning.md"
+    evidence:
+      - profiles/python-web.yaml
+      - src/audit/detect.ts
+      - src/execution/recipes.ts
+      - src/commands/audit.ts
+      - tests/fixtures/audit/python-only/app.py
+      - tests/audit/detect.test.ts
+      - tests/scanners/audit-cli.test.ts
+      - docs/evidence/p3-5-product-planning.md
+  p4_1:
+    title: "Provisioning must really execute and enforce policy"
+    state: done
+    note: "The four dormant-executeProvisionPlan defects from the audit (remediation plan line 108) are fixed before the P4.2 analysers wire in: (1) per-step real outcomes — a ProvisionStepResult per step carrying the process outcome and exact arguments for package steps and the verified-download outcome for download steps, executed true only when every step ran and succeeded, the first failed step stopping the plan with the remaining steps recorded as notRun (a failed or omitted install cannot claim completion); (2) download steps execute, never skip — through the existing verified-download primitive (approved origin, recorded SHA-256, byte bound, atomic 0600 write) with a digest mismatch stopping the plan like a failed install and writing nothing, and validation refusing download steps with no URL or no absolute destination (missing_url/missing_destination); (3) the observed package-manager version must match the reviewed exact version (reusing extractVersion) — a mismatch refuses the plan before any step and is recorded as managerVersion {expected, observed, matched}; (4) the approved registry is passed to the manager explicitly (--registry) and a package step naming no registry while provisioning.require_reviewed_registry is set is blocked at validation (missing_registry). check never provisions: verified that no production caller of executeProvisionPlan exists and the registry refuses unavailable tools without provisioning. Scope note: the isolated npm-quality-package route (committed lockfile, frozen install, allowBuilds {}) and the Python venv/wheel-pinning route are the concrete provisioning plans the P4.2 analyser wiring will build and hand to this executor — the execution contract they rely on is what this subphase made real. Observed 2026-10-16: tests/execution/policy.test.ts +8 P4.1 tests (failed package command stops the plan with notRun steps; the approved registry in the recorded args; version-mismatch refuses before any step; version-match proceeds; a download executes, verifies its digest, and writes the artifact; a digest-mismatched download stops the plan and writes nothing; missing-registry/missing-url/missing-destination blocks) — execution suite 79/79; fast suite 610/610; lint and build clean; scanners 76/76; preflight 181 open. See docs/evidence/p4-1-provisioning-execution.md"
+    evidence:
+      - src/execution/provision.ts
+      - src/execution/download.ts
+      - src/execution/version.ts
+      - src/execution/policy.ts
+      - tests/execution/policy.test.ts
+      - docs/evidence/p4-1-provisioning-execution.md
+  p4_2:
+    title: "Four real analyzers, execution-safe configuration — F-07"
+    state: done
+    note: "The four staged quality analysers are real tools run for real from the isolated tools/quality package (its committed lockfile pins jscpd 5.4.1, knip 6.41.0, dependency-cruiser 17.0.1 — pinned at 17.0.1 because 18.x refuses this runner's Node and 16.x crashes on it; allowBuilds {} via onlyBuiltDependencies []; frozen-install route), with Lizard 1.24.1 from a private virtual environment. SecHard-owned configurations live in ci/configs/quality/ (jscpd clone thresholds calibrated on the corpus; Knip with every config-loading plugin disabled and SecHard's own entry declarations — no target JS/TS config import via jiti; dependency-cruiser static JSON rules for cycles and UI-to-database/server-only imports matched against raw import specifiers in both the alias and relative-upward forms — the target's webpack/JS configuration is never loaded). Four recipe handlers (quality/duplication, quality/complexity, quality/dead-code, quality/module-structure) run the tools via the process layer and parse their real outputs; a missing tool is an explicit unsupported (P4.1: provisioning is separate from checking), an application with no applicable sources or no package manifest is an explicit unsupported rather than an error (the Python-only and FastAPI fixture audits carry the four staged checks as could-not-check), and a tool crash is an error with the diagnostic, never an empty success (plan item 6). Observed 2026-10-16: the four corpus positives fire through the compiled CLI — duplication 1 clone (formatPrice/legacyFormatter, 11 files, 3.3%), complexity 19 functions with computeScore at CCN 10 flagged (the Q19 calibration: at-or-above the reviewed threshold 10), dead code 12 findings over 5 files (unused left-pad dependency, dead utils/format.ts file), module structure the UI data-access violation at app/dashboard/page.tsx — quality 17/36 to 22/36 in the corpus, exactly the five staged seeds (Q03/Q04/Q05/Q19/Q27) flipping fired-false-to-true, nothing else. tests/scanners/staged-quality.test.ts 5/5: the positives, the clean twins (a simplified computeScore twin silent, used dependencies silent, allowed server-layer imports silent), and the execution-safety contract — a hostile next.config.js proven executable in an isolated validation step is never loaded during the scans, and the audited tree is byte-identical before and after (tree digest). The five staged seeds' rule strings moved from their pre-landing recipe-name placeholders to the real analyser rule ids (knip-unused-dependency, jscpd-clone, knip-unused-file, lizard-cyclomatic-complexity, depcruise-no-ui-database-access) — the corpus-contract change that lands with the analysers; the security seeds untouched. The four stale 'Not wired in this build' control notes updated to the wired reality with the recorded gaps (Python-source duplication, Vulture for Python, Lizard's JSX/TSX walk gap worked around by naming source files explicitly, dependency-cruiser's tsconfig alias resolution not applying on the pinned version — raw-specifier patterns are the reviewed shape). Execution suite 79/79; staged-quality 5/5; fast suite 610/610; typecheck and lint clean; preflight 179 open. See docs/evidence/p4-2-staged-analyzers.md"
+    evidence:
+      - src/quality/staged.ts
+      - src/execution/recipes.ts
+      - ci/configs/quality/jscpd.json
+      - ci/configs/quality/knip.json
+      - ci/configs/quality/dependency-cruiser.json
+      - tools/quality/package.json
+      - tools/quality/pnpm-lock.yaml
+      - tests/scanners/staged-quality.test.ts
+      - tests/corpus/measure-corpus.mjs
+      - tests/corpus/EXPECTED-outcomes.json
+      - controls/controls.yaml
+      - docs/evidence/p4-2-staged-analyzers.md
+  p4_3:
+    title: "Finish remaining quality capabilities — QUAL-02/08/10/11/12/13"
+    state: done
+    note: "QUAL-02: the strict type probe (analyzeStrictTypes in src/quality/correctness.ts) runs tsc (typescript 7.0.2 from the isolated tools/quality package) with SecHard's own strict configuration (ci/configs/quality/tsconfig.strict.json) against the application's type graph — the app's tsconfig is read as data (paths preserved and rewritten relative to the temporary merged configuration because tsc 7 has removed baseUrl), the merged configuration is written to a private temp directory, module-resolution diagnostics (missing type dependencies, an absent tsconfig/node_modules, non-JSON tsconfig) are coverage gaps never findings, and the handler merges the marker/any counts with the probe findings and records the coverage state. QUAL-08: unchanged by design — coverage ratios and mutation scores need an isolated executed suite (P5.1); the gap stays named in the control note. QUAL-10: the quality/formatting recipe is wired — Biome 2.5.15 check-only with SecHard's own configuration via --config-path (the target's biome.json is never discovered) and Ruff 0.17.1 format --check from the private venv with SecHard's own ruff.toml for Python sources; neither tool writes, naming signals stay in vibe-tells. QUAL-11: two hygiene additions — committed generated artifacts (dist/.next/build/out on disk and not covered by the target's .gitignore) and licence-description accuracy (a README claiming an open-source licence without a committed LICENSE file; an owner's private/no-licence choice is described accurately). QUAL-12: analyzeRegistryHealth — bounded reviewed queries (at most 60 packages per audit) against the approved npm registry flagging deprecation, major drift of two or more majors, and staleness beyond 24 months; offline or failed queries are unknown, never healthy; non-npm lockfiles name their ecosystem gap; never replaces OSV. QUAL-13: the quality/frontend-quality handler is wired with its precondition named precisely (an approved running target and browser, which P8 supplies) — a precondition gap, not an unimplemented handler. Provisioning: typescript 7.0.2 and @biomejs/biome 2.5.15 joined the isolated package, ruff 0.17.1 joined the venv, and the venv's requirements.txt now pins every package by wheel hash (the P4.1 item-4 completion); the lint walk skips the provisioned venv. Observed 2026-10-17: tests/scanners/staged-quality.test.ts 18/18 — the strict probe (a genuine strict error flagged at broken.ts:1 with the tree byte-identical; coverage gaps for a missing type graph and a missing tsconfig), formatting (Biome and Ruff positives, a formatted-file negative, check-only proven by the tree digest), the hygiene additions (committed generated artifacts and the licence mismatch flagged; a gitignored dist not flagged), registry health (major drift and deprecation flagged from stubbed registry documents; offline queries unknown; a non-npm lockfile never queried; the query bound recorded), and the frontend precondition unsupported with the P8 reason. Two real toolchain facts discovered and handled: tsc 7 has removed baseUrl (the app's paths are rewritten relative to the temporary merged configuration) and under the stripped child environment tsc 7 writes its diagnostics to stderr (both streams parsed); the strict-probe diagnostic paths are normalized through realpath and matched against the scanned files because macOS temp-dir symlinks report /private/var while the walk used /var. Fast suite 610/610; lint clean (the provisioned venv skipped); build clean; the corpus regenerated security 31/38 + quality 22/36 with ZERO seed changes (the 3-line diff is metadata only — no seed pins the new capabilities, and the corpus application has no node_modules so the strict probe records a coverage gap); the five control notes (QUAL-02/10/11/12/13) updated to the wired reality. See docs/evidence/p4-3-quality-capabilities.md"
+    evidence:
+      - src/quality/correctness.ts
+      - src/quality/staged.ts
+      - src/quality/hygiene.ts
+      - src/execution/recipes.ts
+      - ci/configs/quality/tsconfig.strict.json
+      - ci/configs/quality/biome.json
+      - ci/configs/quality/ruff.toml
+      - tools/quality/requirements.txt
+      - tools/lint.mjs
+      - tests/scanners/staged-quality.test.ts
+      - controls/controls.yaml
+      - docs/evidence/p4-3-quality-capabilities.md
+  p4_4:
+    title: "Narration/tells, caps and independent dedup — F-08, A-18, A-20"
+    state: done
+    note: "A-18: the report's fold identity is proven vulnerability equivalence — never location and category alone (the old key folded two unrelated credentials at one line and six advisories on one lockfile line into one row). The fold key is the credential identity (the digest), the advisory id (the rule id the OSV recipe reports), or the canonical rule from the explicit reviewed equivalence map (RULE_EQUIVALENCE in src/audit/report.ts: the core pack's pattern rules and the depth pack's taint rules for one vulnerability class — innerhtml x3, command injection x2, SSRF x2), always with the location; the fold keeps both provenances and the higher severity (A-7). A-20: the tells analyser detects everything before any display limit — the scan-time per-rule cap (60) and the total display budget dropped findings from the machine results (a late high-severity debugger statement vanished behind early placeholder comments); the analyser now emits every detected tell, the machine results are complete, the report renders the highest-severity rows first (its sort is severity/exposure/id from A-7), and the fix-first display cap (ten rows) reconciles: the rendered section states the omitted count with the reason and names the machine results as the complete record. F-08: four remaining tell families (undocumented environment variables against the reviewed .env.example, hallucinated imports against the declared set — the route applies only when the declared set is known and the analyser never guesses on a subdirectory root, inconsistent helper naming, redundant consecutive validation) each labelled a signal; the analyser's own emit and pattern-definition lines are exempt (the first pass flagged the rule's own regex text). Plan item 2: narration recall is measured on enumerated comment instances, not one hit per file — the calibration gate pins a fixture with ten enumerated narration comments and ten genuine rationale comments at recall at least 0.7 and zero false narration findings on the rationale comments. Observed 2026-10-17: tests/audit/report.test.ts 22/22 (the A-18 battery + the fix-first reconciliation: quality-low and payment-critical at one line yield two rows with a critical security verdict; two unrelated credentials stay independent; the same credential identity reported by two tools folds with both provenances; six advisories stay six rows; ten rendered of twelve detected with the omission stated and nothing dropped); tests/scanners/staged-quality.test.ts 21/21 (the recall harness at recall 1.0 with zero false findings on the rationale comments; the A-20 flood: a late high-severity debugger statement survives 130 earlier placeholder tells in the machine results). The self-audit restored to its recorded accepted finding (the first hallucinated-import pass flagged the analyser's own regex text — the exemption covers the emit and pattern-definition lines and the specifier shape check rejects the non-package capture). Fast suite 610/610; lint clean; build clean; the corpus regenerated security 31/38 + quality 22/36 with ZERO seed changes (the 3-line diff is metadata only); preflight 177 open. The QUAL-09 control note updated to the wired reality (the new families, the recall measurement, the detect-before-cap contract); near-duplicate helpers and mixed-paradigm structure remain undetected (the QUAL-09 limitation is unchanged on that point). See docs/evidence/p4-4-narration-caps-dedup.md"
+    evidence:
+      - src/audit/report.ts
+      - src/quality/tells.ts
+      - tests/audit/report.test.ts
+      - tests/scanners/staged-quality.test.ts
+      - controls/controls.yaml
+      - tests/corpus/EXPECTED-outcomes.json
+      - docs/evidence/p4-4-narration-caps-dedup.md
+  p5_1:
+    title: "Enforceable execution-mode contract"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p5_2:
+    title: "Pure/internal policy and supply-chain handlers"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p5_3:
+    title: "Governance and agent verification handlers"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p5_4:
+    title: "Functional, build, auth, data and business handler interfaces"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p5_5:
+    title: "Gate completeness and release finalizers"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p6_1:
+    title: "Fail-closed change report — A-24"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p6_2:
+    title: "Trusted human acknowledgement — A-25, F-14"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p6_3:
+    title: "Identical trusted records and actual provisioned scanners — A-23, F-14/16"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p6_4:
+    title: "Full platform trust matrix and settings verification"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_1:
+    title: "Disposable stack and loopback-only exposure"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_2:
+    title: "Browser and functional suite — A-26"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_3:
+    title: "Session, recovery and OAuth verification"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_4:
+    title: "Authorization matrix and effective provider access"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_5:
+    title: "Correct weakened-policy and failure harness — A-28"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_6:
+    title: "Live restore/rollback verification — A-27, OPS-02, REL-02"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p7_7:
+    title: "Reference security posture and operational evidence"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_1:
+    title: "Live-target environment and pinned DNS — A-22, F-17"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_2:
+    title: "Read-only live exposure probes, TLS and passive ZAP — X3"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_3:
+    title: "Supabase linter and live unprivileged probe — X1/F-06"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_4:
+    title: "Runtime-AI profile — X2, AI-01–AI-06"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_5:
+    title: "Remaining stack/artifact expansion — X4"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_6:
+    title: "Git URL and URL-only entry-point truth"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p8_7:
+    title: "Business integrity and abuse limits behind the handler interface"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03, 15 Oct) — not done"
+  p9_1:
+    title: "Honest observed standards coverage — A-19, F-11/13"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): only P9.2 is in the active set"
+  p9_2:
+    title: "Report identity, usability, paths and exits — A-18/20/30, F-15/17"
+    state: pending
+  p9_3:
+    title: "Curate guidance and comparison projects — S3/S4, F-17"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): only P9.2 is in the active set"
+  p9_4:
+    title: "Real self-audit and independent calibration — F-10/12"
+    state: blocked
+    note: "deferred-by-owner (decision p0_d_03): only P9.2 is in the active set"
+  p10_1:
+    title: "Actual maintained dependency graph — A-31"
+    state: pending
+  p10_2:
+    title: "Real archive contract and private adoption"
+    state: pending
+  p10_3:
+    title: "Independent consumer upgrade and compatibility"
+    state: pending
+  p11_1:
+    title: "One updater with tested delay and urgent path"
+    state: pending
+  p11_2:
+    title: "Scheduled checks, review outputs and response"
+    state: pending
+  p12_1:
+    title: "One clean end-to-end acceptance campaign"
+    state: pending
+  p12_2:
+    title: "Consolidated owner review and digest-bound approvals"
+    state: pending
+  p12_3:
+    title: "Final documents and usable handoff"
+    state: pending
+acceptance_scenarios:
+  ac_01:
+    description: "Actual scanner detection"
+    state: pending
+  ac_02:
+    description: "Error-output preservation"
+    state: pending
+  ac_03:
+    description: "Empty/partial scope"
+    state: pending
+  ac_04:
+    description: "Tool/report unavailable"
+    state: pending
+  ac_05:
+    description: "Scope integrity"
+    state: pending
+  ac_06:
+    description: "Target integrity"
+    state: pending
+  ac_07:
+    description: "Git-helper safety"
+    state: pending
+  ac_08:
+    description: "Credential confidentiality"
+    state: pending
+  ac_09:
+    description: "Current identity"
+    state: pending
+  ac_10:
+    description: "Same-commit replay"
+    state: pending
+  ac_11:
+    description: "Policy authority"
+    state: pending
+  ac_12:
+    description: "Strict records"
+    state: pending
+  ac_13:
+    description: "Advisory freshness"
+    state: pending
+  ac_14:
+    description: "Manual scope/freshness"
+    state: pending
+  ac_15:
+    description: "Mixed methods"
+    state: pending
+  ac_16:
+    description: "Exceptions/triage"
+    state: pending
+  ac_17:
+    description: "Unknown secret/AUTHZ"
+    state: pending
+  ac_18:
+    description: "Replacement match"
+    state: pending
+  ac_19:
+    description: "Owner CRUD"
+    state: pending
+  ac_20:
+    description: "Cross-user/direct access"
+    state: pending
+  ac_21:
+    description: "Deny-all/public positives"
+    state: pending
+  ac_22:
+    description: "Role/tenant/security fields"
+    state: pending
+  ac_23:
+    description: "Real session/recovery"
+    state: pending
+  ac_24:
+    description: "Weakened policy detection"
+    state: pending
+  ac_25:
+    description: "Restore safety/integrity"
+    state: pending
+  ac_26:
+    description: "Source/map keys"
+    state: pending
+  ac_27:
+    description: "Safe rule twins"
+    state: pending
+  ac_28:
+    description: "Complete migration state"
+    state: pending
+  ac_29:
+    description: "No quality evidence loss"
+    state: pending
+  ac_30:
+    description: "Safe new analyzers"
+    state: pending
+  ac_31:
+    description: "No target-execution fallback"
+    state: pending
+  ac_32:
+    description: "Live origin/DNS"
+    state: pending
+  ac_33:
+    description: "Exposure accuracy"
+    state: pending
+  ac_34:
+    description: "Limiter integrity"
+    state: pending
+  ac_35:
+    description: "Payment integrity"
+    state: pending
+  ac_36:
+    description: "Runtime-AI host controls"
+    state: pending
+  ac_37:
+    description: "Feature changes"
+    state: pending
+  ac_38:
+    description: "Trusted PR/ack"
+    state: pending
+  ac_39:
+    description: "Platform dependency failure"
+    state: pending
+  ac_40:
+    description: "Control approvals"
+    state: pending
+  ac_41:
+    description: "Standards honesty"
+    state: pending
+  ac_42:
+    description: "Path/format equivalence"
+    state: pending
+  ac_43:
+    description: "Independent adoption"
+    state: pending
+  ac_44:
+    description: "Current maintained graph"
+    state: pending
+  ac_45:
+    description: "Independent calibration"
+    state: pending
+  ac_46:
+    description: "Maintenance integrity"
+    state: pending
+  ac_47:
+    description: "Generated/document integrity"
+    state: pending
+
+closure_map:
+  a_01:
+    id: "A-01"
+    table: "B1"
+    closure: "Direct/scanner-child Git helpers blocked; real history/patch retained"
+    assigned_subphases: "P1.1"
+    state: pending
+  a_02:
+    id: "A-02"
+    table: "B1"
+    closure: "Input/output/root/ancestor/descendant confinement, omissions, target unchanged"
+    assigned_subphases: "P1.1/3, P3.4/5"
+    state: pending
+  a_03:
+    id: "A-03"
+    table: "B1"
+    closure: "Recursive no-secret persistence on success/failure"
+    assigned_subphases: "P1.2"
+    state: pending
+  a_04:
+    id: "A-04"
+    table: "B1"
+    closure: "Current source/config/build resolved independently"
+    assigned_subphases: "P2.2"
+    state: pending
+  a_05:
+    id: "A-05"
+    table: "B1"
+    closure: "Strict result ingestion; status labels cannot clear evidence"
+    assigned_subphases: "P2.3/5"
+    state: pending
+  a_06:
+    id: "A-06"
+    table: "B1"
+    closure: "Manual environment/config/latest observation bound"
+    assigned_subphases: "P2.4"
+    state: pending
+  a_07:
+    id: "A-07"
+    table: "B1"
+    closure: "Conjunctive exception scope and genuine reviewer identity"
+    assigned_subphases: "P2.4"
+    state: pending
+  a_08:
+    id: "A-08"
+    table: "B1"
+    closure: "One explicit policy root/full content identity/enforced lock"
+    assigned_subphases: "P2.1"
+    state: pending
+  a_09:
+    id: "A-09"
+    table: "B1"
+    closure: "Every mandatory pack required; failure structural"
+    assigned_subphases: "P3.1"
+    state: pending
+  a_10:
+    id: "A-10"
+    table: "B1"
+    closure: "Independent inventory, ignores/parsers/skips explicit"
+    assigned_subphases: "P3.1"
+    state: pending
+  a_11:
+    id: "A-11"
+    table: "B1"
+    closure: "Specific secret span, conservative ambiguous grade"
+    assigned_subphases: "P2.5"
+    state: pending
+  a_12:
+    id: "A-12"
+    table: "B1"
+    closure: "Match/content triage and actual asset-byte digest"
+    assigned_subphases: "P2.2/5"
+    state: pending
+  a_13:
+    id: "A-13"
+    table: "B1"
+    closure: "SQL tokenizer/ordered final state"
+    assigned_subphases: "P3.3"
+    state: pending
+  a_14:
+    id: "A-14"
+    table: "B1"
+    closure: "Effective grants/RLS/public-read explanations"
+    assigned_subphases: "P3.3, P7.4"
+    state: pending
+  a_15:
+    id: "A-15"
+    table: "B1"
+    closure: "Safe SQL/Stripe/path twins, accurate CORS/confidence"
+    assigned_subphases: "P3.2"
+    state: pending
+  a_16:
+    id: "A-16"
+    table: "B1"
+    closure: "Required ordinary source/sink/cookie forms"
+    assigned_subphases: "P3.2"
+    state: pending
+  a_17:
+    id: "A-17"
+    table: "B1"
+    closure: "Python profile reaches real security recipe"
+    assigned_subphases: "P3.5, P8.5"
+    state: pending
+  a_18:
+    id: "A-18"
+    table: "B1"
+    closure: "Independent vulnerabilities/families preserved"
+    assigned_subphases: "P4.4, P9.2"
+    state: pending
+  a_19:
+    id: "A-19"
+    table: "B1"
+    closure: "Observed standards coverage, not planned counts"
+    assigned_subphases: "P9.1"
+    state: pending
+  a_20:
+    id: "A-20"
+    table: "B1"
+    closure: "Detect all, render caps with reconciled totals"
+    assigned_subphases: "P4.4"
+    state: pending
+  a_21:
+    id: "A-21"
+    table: "B1"
+    closure: "Source-map secret inspection or explicit blocking gap"
+    assigned_subphases: "P3.4"
+    state: pending
+  a_22:
+    id: "A-22"
+    table: "B1"
+    closure: "Environment independent of transport"
+    assigned_subphases: "P8.1"
+    state: pending
+  a_23:
+    id: "A-23"
+    table: "B1"
+    closure: "Clean consumer provisions verified scanners"
+    assigned_subphases: "P6.3/4, P10.3"
+    state: pending
+  a_24:
+    id: "A-24"
+    table: "B1"
+    closure: "Indeterminate Git comparison cannot pass"
+    assigned_subphases: "P6.1"
+    state: pending
+  a_25:
+    id: "A-25"
+    table: "B1"
+    closure: "Trusted exact-head acknowledgement; evaluation still runs"
+    assigned_subphases: "P6.2/3"
+    state: pending
+  a_26:
+    id: "A-26"
+    table: "B1"
+    closure: "Real seeded browser suite aligned with UI"
+    assigned_subphases: "P7.2"
+    state: pending
+  a_27:
+    id: "A-27"
+    table: "B1"
+    closure: "Backup first; failure recovery retained; real safe restore"
+    assigned_subphases: "P1.4, P7.6"
+    state: pending
+  a_28:
+    id: "A-28"
+    table: "B1"
+    closure: "Structured mutation results and cleanup guarantee"
+    assigned_subphases: "P7.5"
+    state: pending
+  a_29:
+    id: "A-29"
+    table: "B1"
+    closure: "Bounds enforced during reads/download/process capture"
+    assigned_subphases: "P1.3"
+    state: pending
+  a_30:
+    id: "A-30"
+    table: "B1"
+    closure: "SARIF actual artifact URI and numeric region"
+    assigned_subphases: "P9.2"
+    state: pending
+  a_31:
+    id: "A-31"
+    table: "B1"
+    closure: "Updated maintained graph and required advisory scan"
+    assigned_subphases: "P10.1"
+    state: pending
+  a_32:
+    id: "A-32"
+    table: "B1"
+    closure: "Self-detection and actual browser artifact scope"
+    assigned_subphases: "P3.4/5, P9.4"
+    state: pending
+
+closure_map_followup:
+  f_01:
+    id: "F-01"
+    table: "B2"
+    closure_and_tasks: "Preserve absolute-path production console detection; P1.2/P9.2 regressions"
+    state: pending
+  f_02:
+    id: "F-02"
+    table: "B2"
+    closure_and_tasks: "Preserve exposure tiers/waiver bans; span/FP/dedup repair P2.5/P4.4; top-priority evidence P9.4"
+    state: pending
+  f_03:
+    id: "F-03"
+    table: "B2"
+    closure_and_tasks: "Preserve mixed manual companions; scope/latest/state/grade behavior P2.4 and D-06 review"
+    state: pending
+  f_04:
+    id: "F-04"
+    table: "B2"
+    closure_and_tasks: "Taint source/sink matrix and product-level Python execution P3.2/5"
+    state: pending
+  f_05:
+    id: "F-05"
+    table: "B2"
+    closure_and_tasks: "Pattern rules/safe twins/correct explanations and auditor persona P3.2/P8.5"
+    state: pending
+  f_06:
+    id: "F-06"
+    table: "B2"
+    closure_and_tasks: "Static tokenizer P3.3; license verdict and read-only live depth P8.3"
+    state: pending
+  f_07:
+    id: "F-07"
+    table: "B2"
+    closure_and_tasks: "Provisioning/analyzers/internal structural quality P4; isolated app execution P5"
+    state: pending
+  f_08:
+    id: "F-08"
+    table: "B2"
+    closure_and_tasks: "Narration instances, recall and rationale negatives P4.4/P9.4"
+    state: pending
+  f_09:
+    id: "F-09"
+    table: "B2"
+    closure_and_tasks: "Actual executable payment/AI feature evidence and self-detection P3.5/P8.4"
+    state: pending
+  f_10:
+    id: "F-10"
+    table: "B2"
+    closure_and_tasks: "Actual self-audit and explicit severity review P9.4"
+    state: pending
+  f_11:
+    id: "F-11"
+    table: "B2"
+    closure_and_tasks: "Tracked matrices and generator drift CI P9.1"
+    state: pending
+  f_12:
+    id: "F-12"
+    table: "B2"
+    closure_and_tasks: "Pinned baseline/development/held-out/external ground truth P1.4/P9.4"
+    state: pending
+  f_13:
+    id: "F-13"
+    table: "B2"
+    closure_and_tasks: "Wired recipes and observed requirement coverage P9.1"
+    state: pending
+  f_14:
+    id: "F-14"
+    table: "B2"
+    closure_and_tasks: "Base records, reporting, reviewed merge path P6"
+    state: pending
+  f_15:
+    id: "F-15"
+    table: "B2"
+    closure_and_tasks: "Preserve relative/sanitized paths; SARIF correctness P9.2"
+    state: pending
+  f_16:
+    id: "F-16"
+    table: "B2"
+    closure_and_tasks: "Explicit selected private/public/vendor/local adoption P6.3/P10.2"
+    state: pending
+  f_17:
+    id: "F-17"
+    table: "B2"
+    closure_and_tasks: "fail-on/path/typecheck/CSP/triage/AUTHZ/DNS/guidance/authorization record tasks P0/P2.5/P7.7/P8.1/P9.2/3/P10.3"
+    state: pending
+  manifest_validate:
+    id: "manifest/validate"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Actual current manifest/schema/semantic inspection"
+    state: pending
+  control_validate:
+    id: "control/validate"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Catalogue/profile/mapping/approval references validated"
+    state: pending
+  governance_protections:
+    id: "governance/protections"
+    table: "B3"
+    closure_and_tasks: "P5.3/P6.4 | Real approved platform snapshot plus manual boundary"
+    state: pending
+  agent_permissions:
+    id: "agent/permissions"
+    table: "B3"
+    closure_and_tasks: "P5.3 | Actual supported restriction config and harmless denied actions"
+    state: pending
+  agent_untrusted_context:
+    id: "agent/untrusted-context"
+    table: "B3"
+    closure_and_tasks: "P5.3 | Untrusted-text behavioral fixtures plus operator boundary"
+    state: pending
+  agent_test_change_review:
+    id: "agent/test-change-review"
+    table: "B3"
+    closure_and_tasks: "P5.3/P6.2 | Actual diff identity and trusted acknowledgement"
+    state: pending
+  agent_security_test_suite:
+    id: "agent/security-test-suite"
+    table: "B3"
+    closure_and_tasks: "P5.3 | Declared critical suite actually executed safely"
+    state: pending
+  dependency_lockfile_policy:
+    id: "dependency/lockfile-policy"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Current supported lockfile/registry/policy graph"
+    state: pending
+  dependency_pins:
+    id: "dependency/pins"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Exact dependency/runtime/manager pins and permitted exceptions"
+    state: pending
+  dependency_install_scripts:
+    id: "dependency/install-scripts"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Effective deny/approved hooks inspected"
+    state: pending
+  dependency_install_hook_test:
+    id: "dependency/install-hook-test"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Harmless denied/permitted hook in isolated environment"
+    state: pending
+  build_leak_fixture:
+    id: "build/leak-fixture"
+    table: "B3"
+    closure_and_tasks: "P5.4 | Actual secure/leaking build and classified output"
+    state: pending
+  ci_pins:
+    id: "ci/pins"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Whole action/workflow/download/image/config chain"
+    state: pending
+  ci_toolchain_pins:
+    id: "ci/toolchain-pins"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Verified current policy/tool metadata and digests"
+    state: pending
+  gate_completeness:
+    id: "gate/completeness"
+    table: "B3"
+    closure_and_tasks: "P5.5 | Final expected/result cardinality/identity, no circular success"
+    state: pending
+  quality_test_suite:
+    id: "quality/test-suite"
+    table: "B3"
+    closure_and_tasks: "P5.4 | Explicit isolated real suite; meaningful case counts"
+    state: pending
+  quality_type_and_lint:
+    id: "quality/type-and-lint"
+    table: "B3"
+    closure_and_tasks: "P5.4 | Actual approved scripts/config/type graph in isolation"
+    state: pending
+  quality_duplication:
+    id: "quality/duplication"
+    table: "B3"
+    closure_and_tasks: "P4.2 | Actual jscpd clones and clean twin"
+    state: pending
+  quality_complexity:
+    id: "quality/complexity"
+    table: "B3"
+    closure_and_tasks: "P4.2 | Actual Lizard function metrics and twin"
+    state: pending
+  quality_dead_code:
+    id: "quality/dead-code"
+    table: "B3"
+    closure_and_tasks: "P4.2/P8.5 | Actual Knip/Vulture supported graphs; no config execution"
+    state: pending
+  quality_module_structure:
+    id: "quality/module-structure"
+    table: "B3"
+    closure_and_tasks: "P4.2 | Actual reviewed dependency graph/layer rules"
+    state: pending
+  quality_formatting:
+    id: "quality/formatting"
+    table: "B3"
+    closure_and_tasks: "P4.3 | Own check-only formatter, unchanged target"
+    state: pending
+  quality_frontend_quality:
+    id: "quality/frontend-quality"
+    table: "B3"
+    closure_and_tasks: "P4.3/P8.2 | Approved live target/browser with axe/performance scope"
+    state: pending
+  auth_session_behaviour:
+    id: "auth/session-behaviour"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.3 | Actual session expiry/cache/sign-out matrix"
+    state: pending
+  auth_recovery_isolation:
+    id: "auth/recovery-isolation"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.3 | Real mail-capture recovery flow, correct account"
+    state: pending
+  web_oauth_flow:
+    id: "web/oauth-flow"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.3 | Supported static evidence plus manual/flow requirements"
+    state: pending
+  authorization_ownership:
+    id: "authorization/ownership"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Real owner/non-owner/anonymous app/provider operations"
+    state: pending
+  authorization_role_and_tenant:
+    id: "authorization/role-and-tenant"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Declared enabled actor/tenant matrix or justified exclusion"
+    state: pending
+  authorization_security_fields:
+    id: "authorization/security-fields"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Denied protected writes with stored state unchanged"
+    state: pending
+  data_grants_and_policies:
+    id: "data/grants-and-policies"
+    table: "B3"
+    closure_and_tasks: "P5.4/P7.4 | Actual effective grants/RLS/functions/views inventory/tests"
+    state: pending
+  web_negative_inputs:
+    id: "web/negative-inputs"
+    table: "B3"
+    closure_and_tasks: "P5.4/P8.2 | Approved controlled negative-input matrix with safe limits"
+    state: pending
+  web_tls:
+    id: "web/tls"
+    table: "B3"
+    closure_and_tasks: "P8.2 | Actual pinned TLS tool/config and good/bad controlled endpoints"
+    state: pending
+  abuse_resource_limits:
+    id: "abuse/resource-limits"
+    table: "B3"
+    closure_and_tasks: "P5.4/P8.2/4 | Bounded controlled quota/window/concurrency/header cases"
+    state: pending
+  biz_transaction_integrity:
+    id: "biz/transaction-integrity"
+    table: "B3"
+    closure_and_tasks: "P5.4/P8.7 | Controlled event/replay/entitlement fixture, no real money"
+    state: pending
+  deploy_environment:
+    id: "deploy/environment"
+    table: "B3"
+    closure_and_tasks: "P8.1/2 | Approved environment/target/config and actual exposure checks"
+    state: pending
+  ops_redaction:
+    id: "ops/redaction"
+    table: "B3"
+    closure_and_tasks: "P5.3/P7.7 | Actual declared log/output redaction and synthetic event"
+    state: pending
+  release_evidence_assembly:
+    id: "release/evidence-assembly"
+    table: "B3"
+    closure_and_tasks: "P5.5 | Validated source/build/target/result/manually verified bundle"
+    state: pending
+  release_rollback_drill:
+    id: "release/rollback-drill"
+    table: "B3"
+    closure_and_tasks: "P5.5/P7.6 | Guarded disposable real rollback and data integrity"
+    state: pending
+  exception_validate:
+    id: "exception/validate"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Current conjunctive validity/scope/freshness inspection"
+    state: pending
+  exception_expiry_drill:
+    id: "exception/expiry-drill"
+    table: "B3"
+    closure_and_tasks: "P5.2 | Actual record expiry plus preserved lifecycle regressions"
+    state: pending

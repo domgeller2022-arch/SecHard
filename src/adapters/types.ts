@@ -15,11 +15,15 @@ import type { Coverage, Finding, Severity } from '../domain/types.js';
 export interface AdapterOutcome {
   readonly tool: string;
   readonly findings: readonly Finding[];
-  /** What the tool actually examined, as reported by the tool itself. */
+  /** What the tool actually examined, as reported by the tool itself, verified against the
+   *  independent inventory when one is provided (P3.1): inventoried files the tool never reported
+   *  examining are `unexamined`, and tool-reported failures are `failed`. */
   readonly scope: {
     readonly expected: number;
     readonly observed: number;
     readonly files?: readonly string[];
+    readonly unexamined?: number;
+    readonly failed?: number;
     readonly notes?: string;
   };
   readonly coverage: Coverage;

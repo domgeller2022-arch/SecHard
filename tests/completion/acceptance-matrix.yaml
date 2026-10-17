@@ -1,0 +1,19 @@
+# P0.1: the acceptance matrix — every mandatory case maps to an actual suite/CLI/workflow record.
+# Bounded v1: the cases verifiable today. Later phases append their cases; verify-completion.mjs
+# fails on missing/stale/dangling references, never fabricates success from ledger text.
+cases:
+  - id: P0-CHANGELOG-INTEGRITY
+    description: The changelog bytes match the ledger-recorded hash
+    suite: tests/commands/changelog-integrity.test.ts
+  - id: P1-CORPUS-BASELINE
+    description: UNRESOLVED — the runner exists, but the pinned pre-R1 baseline build has not been measured; this reference is work-in-progress, not proof
+    runner: node tests/corpus/measure-corpus.mjs
+  - id: R1-CONFINEMENT
+    description: Output confinement refuses symlinks/unreadable output into the audited target
+    suite: tests/commands/confinement.test.ts
+  - id: R1-GIT-HARDENING
+    description: Repository Git configuration cannot execute helpers during inspection
+    suite: tests/agent/git-hardening.test.ts
+  - id: R1-ASSET-CONTAINMENT
+    description: Build-output ancestor symlinks cannot pull outside bytes
+    suite: tests/build/client-assets.test.ts

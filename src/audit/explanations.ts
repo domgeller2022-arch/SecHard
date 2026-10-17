@@ -37,6 +37,12 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
     effort: 'S', confidence: 'confirmed',
     promptIntro: 'A GitHub token-shaped string is committed in the source. Revoke it, then remove it from the code and read it from an environment variable instead.',
   },
+  'database-url-with-password': {
+    what: 'A database connection string with the password embedded in it is present in the source or configuration. Anyone who reads the file — a leaked repository, a copied codebase, a build log — can connect to that database directly, with whatever data and privileges that account has.',
+    fix: 'Move the connection string into an environment variable or a secrets manager, rotate the password (it must be treated as exposed), and confirm the database account is not more privileged than the application needs.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A database connection string with an embedded password is committed in the source. Remove the embedded credentials, read the connection string from the environment instead, keep the application connecting successfully, and note that the password must be rotated.',
+  },
   'generic-api-key': {
     what: 'A string that looks like a generic API key or secret is committed in the source. Committed credentials are the most common cause of account takeover: code gets copied, pasted, and shared far beyond where it was written.',
     fix: 'Revoke the credential with its provider, remove it from the source, and load it from an environment variable or a secrets manager. Check git history too: removing it today does not remove it from old commits.',
@@ -74,6 +80,188 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
     fix: 'Assign text with `textContent`, or build nodes explicitly. If rich formatting is required, sanitise the value with a reviewed sanitiser and an explicit allowlist.',
     effort: 'S', confidence: 'likely',
     promptIntro: 'An `innerHTML` assignment may inject markup. Replace it with `textContent` or explicit DOM construction, preserving the intended rendering.',
+  },
+
+  'hardening.taint-sql-injection': {
+    what: 'A database query is built from request-controlled data (a query parameter, request body, or JSON payload flows into pool.query, cursor.execute, or similar). The value can change the SQL statement: this is SQL injection, the classic path to reading or destroying a whole database.',
+    fix: 'Use parameterised queries with placeholders ($1, ?, :name) so the driver sends data separately from the statement. Never build SQL with string concatenation or template interpolation.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A database query interpolates request-controlled data. Rewrite it with parameterised queries (placeholders bound by the driver), keep the query results identical, and add a test proving special characters are treated as data.',
+  },
+  'hardening.taint-sql-injection-python': {
+    what: 'A Python cursor executes SQL built from request-controlled data with an f-string or % formatting. The value can change the statement: SQL injection.',
+    fix: 'Use cursor.execute with parameter binding (the second argument) instead of formatting the value into the SQL text.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Python cursor interpolates request data into SQL. Switch to parameter binding (execute(sql, params)), keep the query results identical, and add a test for quote handling.',
+  },
+  'hardening.taint-xss-innerhtml': {
+    what: 'Request-controlled data reaches innerHTML, document.write, or dangerouslySetInnerHTML. Whatever the value contains runs as markup and script in the browser: this is cross-site scripting, and it steals sessions and data.',
+    fix: 'Render text nodes (textContent, JSX text) instead of markup. If markup is genuinely required, sanitise with a reviewed sanitiser (DOMPurify) and an explicit allowlist.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'Request-controlled data flows into an HTML sink. Render it as text (textContent or JSX text nodes), or sanitise with a reviewed library, keeping the visible output equivalent for safe input.',
+  },
+  'hardening.nonliteral-html-sink': {
+    what: 'A value that is not a plain string literal reaches an HTML sink (dangerouslySetInnerHTML, innerHTML, document.write). Whatever computes it - a database field, an API reply, decoded markdown - ends up as markup in the page. Even without a visible attacker path today, this is the line an injection will use.',
+    fix: 'Render text nodes, or sanitise with a reviewed sanitiser and an explicit allowlist before the value touches the DOM.',
+    effort: 'S', confidence: 'likely',
+    promptIntro: 'A non-literal value reaches an HTML sink. Render it as text or sanitise it with a reviewed library, keeping the visible output equivalent for trusted content.',
+  },
+  'hardening.taint-ssrf-fetch': {
+    what: 'A network request is made with a request-controlled URL. The request then goes wherever the caller wants - internal metadata services, admin endpoints behind the firewall, cloud credentials. This is server-side request forgery.',
+    fix: 'Validate the destination against an allowlist of protocols and hosts before making the request, and prefer fixed URLs with user data limited to path parameters.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A fetch uses a request-controlled URL. Add a protocol and host allowlist check before the request (reject everything not explicitly permitted), keep the legitimate destinations working, and add a test for a blocked host.',
+  },
+  'hardening.taint-ssrf-python': {
+    what: 'A Python HTTP request (requests.get and friends) is made with a request-controlled URL. The request then goes wherever the caller wants - internal metadata services, admin endpoints behind the firewall, cloud credentials. This is server-side request forgery.',
+    fix: 'Validate the destination against an allowlist of protocols and hosts before making the request, and prefer fixed URLs with user data limited to path parameters.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Python requests call uses a request-controlled URL. Add a protocol and host allowlist check before the request (reject everything not explicitly permitted), keep the legitimate destinations working, and add a test for a blocked host.',
+  },
+  'hardening.taint-path-traversal': {
+    what: 'A file path is built from request-controlled data. A value like ../../etc/passwd escapes the intended directory: the request reads or writes arbitrary files on the server.',
+    fix: 'Resolve the requested name against a fixed base directory and verify the resolved real path is still inside it (path.resolve plus a startsWith check) before touching the filesystem.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A filesystem call uses a request-controlled path. Resolve the name against a fixed base and reject anything that escapes it, keep legitimate reads working, and add a test for a ../ escape.',
+  },
+  'hardening.taint-path-traversal-python': {
+    what: 'A Python file access (send_file, open) is built from request-controlled data. A value like ../../etc/passwd escapes the intended directory: the request reads or writes arbitrary files on the server.',
+    fix: 'Resolve the requested name against a fixed base directory and verify the resolved real path is still inside it before touching the filesystem.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Python file call uses a request-controlled path. Resolve the name against a fixed base and reject anything that escapes it, keep legitimate reads working, and add a test for a ../ escape.',
+  },
+  'hardening.path-traversal-concat': {
+    what: 'A filesystem read is built by concatenating or joining a value into a fixed path prefix. A value like ../../etc/passwd escapes the directory: the request reads or writes arbitrary files.',
+    fix: 'Resolve the requested name against the base directory and verify the resolved path is still inside it before reading or writing.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A filesystem call concatenates a value into a path. Resolve against a fixed base and reject escapes, keep legitimate reads working, and add a test for a ../ escape.',
+  },
+  'hardening.taint-open-redirect': {
+    what: 'A redirect target comes from request-controlled data. An open redirect sends users to an attacker-chosen URL while the browser shows your domain, laundering phishing links.',
+    fix: 'Validate the target against an allowlist of relative paths or trusted origins before redirecting; default to a known-safe page when the value fails validation.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A redirect target comes from request data. Validate it against an allowlist (relative paths or trusted origins) with a safe default, and add a test for an absolute external URL being rejected.',
+  },
+  'hardening.taint-command-injection': {
+    what: 'A shell command is built with request-controlled data. Interpolated shell input can chain arbitrary commands: this is full server compromise, not just a bug.',
+    fix: 'Stop invoking a shell: use execFile or spawn with an argument array so values stay data. If a shell is unavoidable, validate against a strict allowlist.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A child-process call interpolates request data into a shell command. Switch to execFile/spawn with an argument array so the value stays a single argument, keep behaviour identical, and add a test for a semicolon payload.',
+  },
+  'hardening.taint-command-injection-python': {
+    what: 'A subprocess runs a shell command built from request-controlled data (shell=True or an interpolated command string). The value can chain arbitrary commands on the server.',
+    fix: 'Pass an argument list with shell=False so the value stays one argument, or validate against a strict allowlist when a shell is unavoidable.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A subprocess interpolates request data into a shell command. Switch to an argument list with shell=False, keep behaviour identical, and add a test for a shell metacharacter payload.',
+  },
+  'hardening.weak-password-hash': {
+    what: 'A password is hashed with MD5 or SHA-1. These are far too fast to brute-force on modern hardware: a leaked database is effectively plaintext for most users.',
+    fix: 'Hash passwords with a memory-hard function (argon2id preferred, bcrypt or scrypt accepted) using a per-user salt, and force a reset on next login so the weak hashes leave the database.',
+    effort: 'M', confidence: 'confirmed',
+    promptIntro: 'A password is hashed with MD5 or SHA-1. Switch to argon2id or bcrypt with a per-user salt, add a migration path that re-hashes on next successful login, and keep the login tests passing.',
+  },
+  'hardening.jwt-none-alg': {
+    what: 'A JWT is signed or verified with algorithm "none", which strips the signature entirely. Anyone can forge a token with any claims and the verify step will accept it.',
+    fix: 'Sign with a real algorithm (HS256 with a strong secret or RS256 with a key pair), and pin the algorithms list on verify to exactly the one algorithm you use.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A JWT uses the "none" algorithm on sign or verify. Pin a real algorithm (HS256 with a strong secret) on both sign and verify, remove none from any algorithms list, and add a test that a forged token is rejected.',
+  },
+  'hardening.jwt-hardcoded-secret': {
+    what: 'A JWT is signed or verified with a string literal as the secret. The literal ships in the source and the repository, so anyone who reads the code can forge valid tokens for every user.',
+    fix: 'Load the secret from an environment variable (or a secrets manager), rotate it now that it has been in the repository, and fail closed when it is missing.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A JWT secret is a string literal in the source. Move it to an environment variable with a fail-closed check, keep the token format identical, and note that the old secret must be rotated.',
+  },
+  'hardening.insecure-cookie': {
+    what: 'A session cookie is set without httpOnly or without secure. Without httpOnly any injected script reads it; without secure it also travels over plain HTTP. Both are standard session-hijacking paths.',
+    fix: 'Set httpOnly: true, secure: true, and a SameSite policy on every session cookie.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A session cookie is set without httpOnly/secure. Set httpOnly: true, secure: true, and a SameSite policy, and confirm the login flow still works in the browser.',
+  },
+  'hardening.cors-wildcard-credentials': {
+    what: 'A wildcard origin is configured together with Allow-Credentials. Browsers refuse this exact combination, so responses are not readable cross-origin through it alone; it is a broken configuration that usually sits next to the reflected-origin exposure that does grant access.',
+    fix: 'Replace the wildcard with an explicit allowlist of trusted origins and reflect the request\'s origin only when it is on the list; keep credentials opt-in per origin.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'CORS pairs a wildcard origin with credentials, which browsers reject as a combination. Replace the wildcard with an explicit origin allowlist, keep the legitimate frontends working, and add a test that an unknown origin is rejected.',
+  },
+  'hardening.cors-origin-reflection': {
+    what: 'The response copies the request Origin header into Access-Control-Allow-Origin. Every origin is then allowed with credentials: any site the visitor opens can read authenticated responses from this API. This is the exposure the wildcard-plus-credentials combination cannot deliver by itself.',
+    fix: 'Reflect the origin only when it is on a reviewed allowlist of trusted origins; reject everything else and keep credentials opt-in per origin.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'CORS reflects the request Origin header without an allowlist. Reflect only origins on a reviewed list, reject the rest, keep the legitimate frontends working, and add a test that an unknown origin is not reflected.',
+  },
+  'hardening.cookie-missing-attributes': {
+    what: 'A session cookie is set without stating httpOnly. A cookie without httpOnly is readable by any script that runs in the page, so one injection turns into session theft. The rule judges cookies by session-like names; cookies whose options live in a variable are not seen.',
+    fix: 'Set httpOnly: true and secure: true (plus a SameSite policy) explicitly on every session cookie.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A session cookie is set without httpOnly/secure. Set httpOnly: true, secure: true, and a SameSite policy, and confirm the login flow still works in the browser.',
+  },
+  'hardening.weak-random-token': {
+    what: 'Math.random() feeds a security value (a token, reset code, OTP, or session identifier). Its output is predictable: an attacker can reproduce the sequence and guess issued values.',
+    fix: 'Use crypto.randomBytes (or crypto.randomUUID for identifiers) for anything security-relevant.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'Math.random feeds a security value. Replace it with crypto.randomBytes (or randomUUID for identifiers), keep the value format compatible where callers expect it, and add a test for uniqueness under repetition.',
+  },
+  'hardening.logging-secret-value': {
+    what: 'A console or logger call receives a variable named like a credential. The value lands in log files and aggregators where it outlives the request and is readable by everyone with log access.',
+    fix: 'Log a marker (for example "password received") instead of the value; scrub credentials from log lines before they are written.',
+    effort: 'S', confidence: 'likely',
+    promptIntro: 'A log line includes a credential-named variable. Replace the value with a marker, keep the log line informative, and do not log any secret material.',
+  },
+  'hardening.client-ai-sdk': {
+    what: 'An AI SDK client is constructed with dangerouslyAllowBrowser (browser-side initialisation). The browser bundle ships to every visitor, so the embedded key is public and every visitor can spend the account\'s quota.',
+    fix: 'Move AI calls behind a server route: the browser calls your API, the server holds the key and forwards the request. Remove the key from any client bundle.',
+    effort: 'M', confidence: 'confirmed',
+    promptIntro: 'An AI SDK client runs in the browser with a key. Move the call to a server route that holds the key, have the client call that route, and remove the key from client code.',
+  },
+  'hardening.dangerous-next-config': {
+    what: 'A Next.js build safety rail is switched off. productionBrowserSourceMaps publishes original source to every visitor; typescript.ignoreBuildErrors and eslint.ignoreDuringBuilds deploy code the type checker and linter never saw.',
+    fix: 'Fix the underlying type and lint errors and remove the flags. If source maps are needed for support, serve them behind authentication instead.',
+    effort: 'M', confidence: 'confirmed',
+    promptIntro: 'Next.js build safety rails are disabled in the config. Fix the type and lint errors so the flags can be removed, and remove productionBrowserSourceMaps unless maps are served behind authentication.',
+  },
+  'hardening.stripe-webhook-unverified': {
+    what: 'A Stripe webhook event is handled without verifying its signature. Anyone who can reach the endpoint can POST a fake event - for example checkout.session.completed - and the handler grants the entitlement: free upgrades, fake refunds, poisoned state. This is a direct money path.',
+    fix: 'Read the raw body, verify with stripe.webhooks.constructEvent(body, sigHeader, endpointSecret) before parsing or acting on the event, and reject anything that fails verification.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Stripe webhook handler reads events without signature verification. Verify with stripe.webhooks.constructEvent(rawBody, stripe-signature header, endpoint secret) before handling, reject failed verification with a 400, and add a test that a forged event is rejected.',
+  },
+
+  'supabase.rls-missing': {
+    what: 'A table is created in an API-exposed schema without enabling row level security. With RLS off, the database enforces no row checks: the publishable key reaches every row in the table.',
+    fix: 'Enable RLS in a migration (alter table ... enable row level security) and add explicit policies for each access the application needs.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A table is created without row level security. Enable RLS in a migration, add policies scoped to the owning user or explicit role checks, and keep the application queries working.',
+  },
+  'supabase.permissive-policy': {
+    what: 'A row-level-security policy uses using (true) or with check (true), which allows every row for every role that reaches the table. The policy is security theatre: RLS is on but enforces nothing.',
+    fix: 'Restrict the policy to the owning user (auth.uid() = user_id) or an explicit role check, and name the operations it covers.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A Supabase policy uses using (true) or with check (true). Rewrite it to check the owning user or an explicit role, and add a test that another user cannot read or modify the rows.',
+  },
+  'supabase.grant-anon-write': {
+    what: 'Write privileges (or ALL) on a table are granted to anon or public, so the anonymous publishable key can modify the table directly, bypassing application logic entirely.',
+    fix: 'Revoke the grant and rely on RLS policies for access control; grant only SELECT to anon where reads are genuinely public, and only through views or policies.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A grant gives anon/public write privileges on a table. Revoke it, enforce access through row-level-security policies, and add a test that the anonymous key cannot write.',
+  },
+  'supabase.security-definer-search-path': {
+    what: 'A security definer function runs with its owner\'s privileges and no fixed search_path. An attacker who can create objects in a schema earlier in the search path can hijack unqualified names inside the function.',
+    fix: 'Add set search_path = public (or an explicit schema list) to the function definition, and prefer revoking execute from public where the function is not meant to be called directly.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A security-definer function lacks a fixed search_path. Add set search_path = public (or an explicit list) to its definition and keep the function behaviour identical.',
+  },
+  'supabase.public-bucket': {
+    what: 'A storage bucket is created or updated with public = true. Every object in it is readable by anyone with the URL - leaked links, screenshots, and user uploads all become public.',
+    fix: 'Keep the bucket private and use signed URLs for display; reserve public buckets for genuinely public assets.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A storage bucket is public. Make it private, serve objects with signed URLs where display is needed, and keep the app working for legitimate reads.',
+  },
+  'supabase.view-security-invoker': {
+    what: 'A view in an API-exposed schema does not set security_invoker = true, so it executes with the view owner\'s rights: rows the calling user could never select directly become readable through the view.',
+    fix: 'Recreate the view with with (security_invoker = true) so it enforces the calling user\'s policies.',
+    effort: 'S', confidence: 'confirmed',
+    promptIntro: 'A view lacks security_invoker = true. Recreate it with that setting and add a test that a restricted user sees only their rows through the view.',
   },
 
   // --- zizmor ---
@@ -326,12 +514,6 @@ const RULES: Readonly<Record<string, RuleExplanation>> = {
   },
 
   // --- Batch S rules: API Top 10, RFC 9700, Electron ---
-  'hardening.ssrf-request-derived-url': {
-    what: 'A network request is made with a URL derived from request data. If that value can name any host, an attacker chooses where the server connects - the server-side request forgery path, and the classic way to reach internal services and cloud metadata from outside.',
-    fix: 'Validate the destination against a reviewed allowlist of protocols and hosts before fetching; never fetch a caller-supplied URL directly.',
-    effort: 'M', confidence: 'likely',
-    promptIntro: 'A fetch uses a request-derived URL, a server-side request forgery path. Validate the destination against a host allowlist before fetching.',
-  },
   'hardening.api-unvalidated-response-consumption': {
     what: 'An external API response is returned to the caller as parsed data with no visible status or shape validation. A failed or hostile third-party response then flows straight into application state - the unsafe-consumption path.',
     fix: 'Check the response status and validate the payload shape (a type guard or schema) before returning or storing it.',

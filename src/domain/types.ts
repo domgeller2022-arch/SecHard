@@ -86,6 +86,20 @@ export type ReleaseEvidence = {
     readonly self_review?: boolean;
     readonly expires_at: string;
   }[];
+  /**
+   * Reviewed false-positive records (F-02/A-4). Reported as their own section: a cleared finding
+   * stays visible with the record that cleared it, and a record with no current finding is shown
+   * as stale rather than silently dropped.
+   */
+  readonly recorded_false_positives?: readonly {
+    readonly id: string;
+    readonly rule_id: string;
+    readonly file: string;
+    readonly reviewer: string;
+    readonly reason: string;
+    readonly reviewed_at: string;
+    readonly matched_finding?: string;
+  }[];
   readonly outstanding: readonly {
     readonly id: string;
     readonly severity: Severity;
@@ -192,6 +206,12 @@ export interface Finding {
   readonly detail?: string;
   readonly redacted?: boolean;
   readonly control_ids?: readonly string[];
+  /** Marks a finding as an exposure of credential material, whatever tool produced it. */
+  readonly category?: 'secret';
+  /** SHA-256 of the matched text, never the matched text itself. Identifies the same secret across scans and triage revalidation. */
+  readonly secret_digest?: string;
+  /** The commit a history scan found the secret in; repository findings leave it unset. */
+  readonly commit?: string;
   readonly triage?: 'unresolved' | 'false_positive' | 'accepted' | 'fixed';
   readonly triage_reason?: string;
   readonly exception_ref?: string;
@@ -250,6 +270,12 @@ export interface CheckResult {
     readonly routes?: readonly string[];
     readonly fingerprint?: string;
     readonly notes?: string;
+    /** P3.1: inventoried relevant files the scanner did not report examining. */
+    readonly unexamined?: number;
+    /** P3.1: failures the scanner itself reported (per-file errors, malformed entries). */
+    readonly failed?: number;
+    /** P3.1: target-controlled suppressions (a .semgrepignore plus inline nosemgrep annotations). */
+    readonly suppressions?: number;
   };
   readonly findings?: readonly Finding[];
   readonly report?: { readonly path?: string; readonly raw_digest?: string; readonly bytes?: number };
@@ -306,6 +332,23 @@ export interface ExceptionRecord {
 
 export type Profile = ProfileDefinition;
 
+/**
+ * A reviewed false-positive record (fix brief F-02/A-4). The only way a false-positive label
+ * clears a finding: labels in result files are not accepted, and the fingerprint revalidates, so
+ * a changed file brings the finding back.
+ */
+export interface TriageRecord {
+  readonly schema_version: 'triage/v1';
+  readonly id: string;
+  readonly finding_fingerprint: string;
+  readonly rule_id: string;
+  readonly file: string;
+  readonly triage: 'false_positive';
+  readonly reason: string;
+  readonly reviewer: string;
+  readonly reviewed_at: string;
+}
+
 export interface AssessmentRecord {
   readonly control: string;
   readonly definition_version: number;
@@ -359,6 +402,16 @@ export interface GatePolicy {
   readonly exceptions?: {
     readonly critical_findings_never_waivable?: boolean;
     readonly high_findings_require_non_self_approver_at_release?: boolean;
+  };
+  /**
+   * Secret-exposure policy. `secret_scanners` names the tools whose findings are secret exposures
+   * even if a classification step failed to set `category`; `findings_never_waivable` bans
+   * waiving secret findings of any severity — a leaked credential needs rotation, not
+   * acceptance. Absent fields default to the restrictive setting.
+   */
+  readonly secrets?: {
+    readonly secret_scanners?: readonly string[];
+    readonly findings_never_waivable?: boolean;
   };
 }
 

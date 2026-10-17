@@ -96,7 +96,10 @@
         "truncated": { "type": "boolean" },
         "routes": { "type": "array", "items": { "type": "string", "maxLength": 1024 }, "maxItems": 2000 },
         "fingerprint": { "type": "string", "maxLength": 256 },
-        "notes": { "type": "string", "maxLength": 4000 }
+        "notes": { "type": "string", "maxLength": 4000 },
+        "unexamined": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "suppressions": { "type": "integer", "minimum": 0 }
       }
     },
     "findings": {
@@ -153,6 +156,12 @@
         "detail": { "type": "string", "maxLength": 4000 },
         "redacted": { "type": "boolean" },
         "control_ids": { "type": "array", "items": { "type": "string", "maxLength": 32 }, "maxItems": 64 },
+        "category": {
+          "enum": ["secret"],
+          "description": "Marks an exposure of credential material; the waiver ban keys on this marker and on the secret-scanner tool list."
+        },
+        "secret_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "commit": { "type": "string", "maxLength": 64 },
         "triage": { "enum": ["unresolved", "false_positive", "accepted", "fixed"] },
         "triage_reason": { "type": "string", "maxLength": 2000 },
         "exception_ref": { "type": "string", "maxLength": 32 }

@@ -1,0 +1,1 @@
+{"minTokens": 20, "minLines": 5, "mode": "mild", "format": ["typescript", "tsx", "javascript", "jsx"], "ignore": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/coverage/**", "**/venv/**"], "reportName": "dup-report"}

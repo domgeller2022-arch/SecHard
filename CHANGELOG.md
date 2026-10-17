@@ -13,6 +13,318 @@ still `TODO`.
 
 ## [Unreleased]
 
+### Programme state — comprehensive completion plan is the governing authority (owner instruction, updated 15 October 2026)
+
+By the owner's explicit instructions (14 and 15 October 2026):
+`2026-10-14-SecHard-comprehensive-completion-plan.md` is the sole governing document for all
+remaining work — 13 phases / 55 subphases, closure map, acceptance scenarios, decision register,
+handoff checklist. No session may deviate from it or create a competing one.
+
+This entry is authorised by the owner's 15 October instruction ("update ... changelog"). It
+records the pause point of the programme; the historical entries below (frozen at
+`858bb9cf…` during the full-audit remediation) are unchanged. Progress at the pause, tracked with
+evidence in `docs/completion-ledger.yaml`:
+
+- **P0 complete** (verified): repository/asset snapshot + Appendix C input hashes; the full
+  inventory — 55 subphases, 47 acceptance scenarios, 106 closure rows (all 32 audit findings,
+  all 17 fix-brief items, 40 currently unimplemented recipes, each with its owning subphase);
+  the classification cross-checked against the live RECIPES map.
+- **P1.1, P1.2, P1.3 complete** (verified): the gitleaks child-Git marker regression (helpers
+  never execute, history secrets stay detectable); the nested-unreadable-output and failed-report-
+  write regressions (target unchanged; no raw staging survives failure); the bounded-read
+  primitive adopted by every source-reading scanner (unit suite 574/574).
+- **P1.4 in progress**: the live restore drill **passed** on the disposable stack (backup
+  verified → verification restore → real data loss → 1s recovery); the measured pre-R1
+  pinned-build baseline remains.
+- **The honesty gate**: `pnpm run verify:completion` exits nonzero with every unresolved task
+  enumerated (186 at the pause); `--preflight` is the limited structural check.
+
+
+### Started — Batch F2: detection depth (fix brief F-04..F-09, authorised 13 October 2026)
+
+Authority: the owner's auditor re-checked F1 on 2026-10-13 and passed it ("F1 is complete"); the
+owner then authorised Batch F2 in `01-owner-decisions.md` (`authorised_batch: F2`), with one added
+rule for the secret exposure tiers, implemented first. The full batch state is the checkpoint at
+`docs/checkpoints/batch-f2.md`; this entry records what changed in the product.
+
+**Exposure tiers extended (owner decision, 13 October 2026).** Inside a git repository, the
+current-files scan now grades by how far the file is from being committed: tracked files keep the
+classifier's grade (critical for privileged credentials); untracked and **gitignored** files stay
+**medium** (a local-file risk — `git add` will not pick them up); untracked files that are **not
+gitignored** are graded **high** with an "untracked and not gitignored: a plain git add will
+commit this file" explanation. The fold restores the committed severity, title, and detail when a
+committed duplicate proves the secret reached the repository, for both graded tiers. Non-git
+targets are never graded down. Pinned in one CLI test that holds all three cases in one app
+(tracked critical, gitignored medium, untracked high), plus two unit tests for the grading
+functions and the fold restore.
+
+**The detection-depth rule pack (F-04, F-05).** `ci/configs/opengrep-rules/detection-depth.yaml`
+adds 20 reviewed rules run by the `opengrep/rules` recipe alongside the core pack: request-data
+taint rules into SQL injection (JS and Python), XSS, SSRF (replacing the regex-only rule the
+brief called out), path traversal, open redirect, and command injection (JS and Python); the
+non-literal-HTML rule graded at least medium; the pattern rules for weak password hashing, JWT
+none/hardcoded secret, insecure cookies, CORS wildcard-with-credentials, Math.random security
+values, logging credential-named variables, browser-side AI SDK construction, and dangerous
+Next.js build flags. Every rule was verified against the pinned binary, including the negative
+cases (a literal-valued sink stays silent). Two engine facts learned and recorded in the pack
+header: opengrep reports each step of a taint flow (one flow can produce several rows), and JSX
+patterns need element context to parse.
+
+**Supabase migration rules (F-06 static half).** `data/migration-inventory` — a recipe DATA-01
+declared before it existed — is implemented as `src/security/migrations.ts`: tables created in an
+exposed schema without RLS (state tracked across the migration sequence), `using (true)` /
+`with check (true)` policies, `grant all`/write verbs to anon or public, `security definer`
+without a fixed `search_path`, public storage buckets, and views without `security_invoker`.
+Statement-shape matching by design: no SQL parser dependency, per the plan.
+
+**F-07's internal rules** landed in the existing quality machinery: swallowed Supabase errors and
+mock/demo data in production paths (vibe-tells), README commands that do not exist in package.json
+scripts (repo-hygiene), and duplicate-role libraries read from package.json when no lockfile
+exists (dependency-health). The self-audit test caught the new rules flagging SecHard's own
+matcher code — comment lines and the rule's own definition line are exempted, and the measured
+result is back to exactly the one recorded, accepted finding.
+
+**F-09 detection fixes.** Payments is enabled by dependency (stripe, @stripe/stripe-js, paddle,
+lemonsqueezy) or by payment-event handling in source, feeding both the payments and webhooks
+features; a detection-exclusion list stops SecHard detecting itself as its fixtures (tests,
+fixtures, examples, and corpora are not the app's stack); and an app that calls AI models with no
+runtime-ai profile composed gets the brief's verbatim gap banner: "This app calls AI models;
+prompt-injection, spend-limit, and model-output safety checks are not covered."
+
+**The zizmor excessive-permissions mystery (F-05's last item) is solved**: the audit is
+persona-gated in zizmor 1.30.1 and the default persona suppresses it. The recipe now runs
+`--persona=auditor`, so `permissions: write-all` surfaces; the trade-off (additional
+auditor-persona findings) is documented in the checkpoint, and inline ignores are still honoured.
+
+**Measured on the Appendix A corpus** (`tests/corpus/independent-nextjs/`, created this batch as
+the calibration fixture): **security seeds 26/26 fire** through `hardening audit` (before: 7/33 at
+f3c9727); quality rows 12/22 with the misses attributed in the checkpoint (per-file reporting caps
+and the four analysers below); profiles on the corpus now include **payments**, and the runtime-AI
+banner appears. Suites after the change: **561 unit**, scanners/integration/example run in this
+push, typecheck (both configs) and lint clean.
+
+**Recorded as this batch's remaining work** (each with the plan's own design in the checkpoint):
+F-07's four staged analysers (jscpd, Lizard, Knip, dependency-cruiser — the A-2 lockfile-pin
+provisioning and A-1 execution-safety marker tests); F-06's splinter licence verdict and the
+read-only live anon-key probe; and F-08's narration-recall improvements with the corpus manifest
+as a permanent measurement test.
+
+### Fixed — non-git folders and uncommitted files got no secret scan, and quick mode missed keys in current files (F-02 follow-up, 13 October 2026)
+
+The owner's independent auditor re-checked Batch F1 and confirmed F-01/F-15, F-02, and F-03
+working on their own machines (the CI run, the classified top-two secrets, the console.log fix,
+the relative paths, and the ten replaced test assertions, each equal or stronger), then rejected
+two behaviours as gaps rather than acceptable limits: a folder that is not a git repository got
+**no secret scan at all** (zero critical findings for an app whose `.git` had been removed — the
+shape of apps downloaded from Lovable or Bolt), and quick mode missed keys sitting in current
+files committed before the newest commit, while uncommitted and untracked files were scanned by
+nothing at any depth. The auditor's requirement: a security audit has to scan the files as they
+currently exist, every time. The two F1 follow-ups below were made a condition for starting F2,
+and the database-URL rule answers the auditor's smaller item (the `.env` database password).
+
+**The current-files secret scan (`gitleaks/files`).** A new recipe runs `gitleaks dir` over the
+application root at every audit depth and in gate mode, with or without a git repository, using a
+dedicated config (`ci/configs/gitleaks-dir.toml`). Its findings go through the same classifier,
+the same de-duplication, and the same waiver ban as the git scans. Its machine exclusions
+(`node_modules`, `.next`, `dist`, `build`, `vendor`, `.git`) live in that config and only there:
+applying them to the git-mode config would let a secret committed inside such a directory pass
+unreported, which is a loosening the pack does not make. The pinned binary's behaviour was
+verified before wiring: dir mode scans gitignored and untracked files (an ignored `.env` is
+covered), does not descend into `.git`, and does not follow symlinks. Dir mode reports absolute
+paths when pointed at an absolute root, so the adapter now relativizes file paths against the
+scan root before minting finding ids — the F-01/F-15 rule that adapters mint ids from the
+root-relative form, applied where it had not yet been needed. The recipe records its scanned
+inventory from a bounded walk of the same exclusions, so the scope statement stays honest.
+
+**De-duplication is now three-way.** The same secret found by the current-files scan, the
+repository scan, and the history scan is one row, kept on the current-files scan — the evidence
+about the present state — with the other scans' occurrences noted ("also present in committed
+history", "also present in the newest commit's change set: the secret is committed, not only on
+disk"). A secret the worktree no longer has keeps the repository row as its primary when the
+newest commit carries it, and stays a history row when neither current scan can see it; where the
+current-files scan has no finding, the old fold's behaviour is unchanged.
+
+**Database URLs with embedded passwords are now found and graded critical.** The default rules
+miss the test app's `.env` database password. A reviewed rule (`database-url-with-password`) in
+both gitleaks configs matches `postgres://user:pass@…` and its mysql/redis/mongodb siblings; the
+F-02 classifier already graded such a match critical, so detection was the gap. A scanner test
+pins the two config copies so the rule cannot drift.
+
+**SEC-01 (definition version 3)** declares the current-files scan as a third mixed verification
+method, so every plan now carries its tool check and its manual companion. The definition edit
+leaves SEC-01's approval unresolved — it already was since Batch W — and the catalogue test
+records the reason; release evaluation blocks on it until Batch D re-approves the sheet.
+
+**The working-tree statement is reversed, deliberately.** The 12 October owner-query contract —
+"credentials in uncommitted or untracked files are not reported" — is what the auditor rejected;
+the report now states that the current-files scan covers uncommitted and untracked files, the
+quick-depth note says that scan still runs at every depth, and the old test was rewritten to pin
+the new behaviour rather than the exclusion.
+
+**Exposure is graded by where the secret lives (owner decision, 13 October 2026).** Inside a git
+repository, a secret found by the current-files scan in a file git does not track — a gitignored
+or untracked local file such as `.env.local` — is not exposed through the repository: it is
+graded **medium** with a "local file, keep it out of git and client code" explanation, and its
+title no longer claims the credential is exposed. Critical stays for secrets in tracked files,
+committed history, or browser output; when a committed duplicate folds in, the row takes the
+committed severity back and the local-file note is dropped — it would contradict the history it
+merged with (unit-pinned). A target with no git at all is never downgraded, which keeps the
+auditor's acceptance intact: the same app with `.git` removed still leads with its two critical
+findings. Both cases are pinned in one test: the tracked `.env` row critical, the gitignored
+`.env.local` row medium.
+
+**Two defects the round's own verification caught, one fixed here.** The reference-application
+audit — the one in-repo target the new scan reads as a real tree — showed dir mode embedding the
+absolute file path in the gitleaks *fingerprint*, which is hashed into the finding id and carried
+as the finding's `resource`: an F-01/F-15 layout leak through a field that fix had not needed to
+touch. The adapter now scrubs the scan root from fingerprints (unit-pinned). The same run showed
+the scan reporting the reference app's local, gitignored `.env.local` — generated by
+`env:sync`, publishable key only by design — as the informational low row it is: the scan reading
+the tree as it exists, working as intended. Discovered and recorded rather than fixed here: when
+the audited target is a subdirectory of a git repository, the osv recipe falls back to the
+enclosing repository's lockfile and records its **absolute** path in the result scope —
+pre-existing behaviour on `main` (out-of-root locations are kept as-is by the relativization
+rule), surfaced by the same run; it belongs with the audit-scope questions of the next batch.
+
+**Acceptance, all executed** (the auditor's list, through the compiled CLI on the test app): with
+`.git` removed, the service-role key and the Stripe live key are the top two critical findings,
+one row each, from the current-files scan, while the git scans state why they cannot run; with
+two unrelated commits on top and `--depth quick`, the same two keys are still the top two
+critical findings (the head scan is blind to the older commits; the current-files scan is not);
+an uncommitted, untracked file containing a key is reported at quick, standard, and deep depth —
+graded medium as a local file per the owner's exposure rule, while committed and tracked secrets
+stay critical — with the history scan's duplicates folded into one row; and a `.env` database URL
+with an embedded password is reported critical by the new rule. Suites after the change: **559
+unit + 8 integration + 42 scanner + 5 example tests**, typecheck and lint clean. **`repo-checks`
+run `38349891581` (commit `70d7eea`) watched to completion on 2026-10-13: build and test,
+scanner self-scan, and workflow analysis all successful on GitHub's Linux runners; the
+security-test and sensitive-path change report failed, which is the review requirement (F-14)
+working as designed — a security-test change requires human review, and that review is the
+owner's auditor's pending re-check; hardening-gate fails only by aggregating it.** F1 is
+recorded complete on the substantive checks; **F2 does not start until the auditor re-checks**
+(owner instruction, 13 October 2026).
+
+### Fixed — "mixed" controls passed on partial tool output with no manual evidence (follow-up fix brief F-03, 12 October 2026)
+
+Follow-up-remediation Batch F1, item F-03; the last item of the batch. Probe M1 reproduced it:
+with every tool result `coverage: partial` and no manual evidence, SEC-01, CI-01, GOV-01, WEB-01,
+and AGT-01 came out `satisfied` — the implementation plan's definition says mixed means tool
+evidence **plus** reviewed manual evidence, and nothing enforced the second half. ("Mixed" was
+reduced to `required_coverage: partial`, which partial tool output satisfies.)
+
+Now the planner gives every mixed method a manual companion check: the control's declared manual
+recipe when it has one, else `<recipe>/review` (for SEC-01's scans, "review the findings and
+record triage" — finding triage is the manual half of secret scanning). A control that declares
+its own manual-attestation method already names the human half and does not get a duplicate
+companion. The evaluator needed no new aggregation: an unmet companion makes the control `unmet`
+with `manual.missing`, which is exactly what M1 asserts — the control is never satisfied by the
+tool half alone.
+
+**Stage behaviour** per owner decision O-10's recommended default (`plan` addendum A-5): the
+companion is **required and blocking at release**; at other stages it is planned and evaluated and
+reports as awaiting manual review — the control is `unmet` (never silently satisfied) but the
+decision does not block on it unless the selected profile requires `manual_attestation` at that
+stage. Without this, every adopting PR would have blocked until 24 attestations existed and every
+audit report would have gained 24 new "failures"; the audit's reproduction needed the control
+never-satisfied state, and that is kept.
+
+**Acceptance, all executed:** the M1 probe asserts the five controls `unmet` with
+`manual.missing` and satisfied once current evidence exists; the consumer contract test asserts
+companions are planned at pr with `required: false` and required at release; every check-count
+assertion across the suites was updated to count companions honestly (executed checks only where
+the assertion is about executed results; manual companions counted as their own obligations).
+Suites after the change: **556 unit + 8 integration + 35 scanner + 5 example tests**, typecheck
+and lint clean. `repo-checks` has not yet been watched for this change (no push without the
+owner's go-ahead, per the work rules).
+
+### Fixed — leaked secrets were unranked, duplicated, and waivable (follow-up fix brief F-02, 12 October 2026)
+
+Follow-up-remediation Batch F1, item F-02. The defect was reproduced by the follow-up audit
+against `f3c9727`; every claim below was re-verified in the current tree before the change. The
+F-01/F-15 location fix this item builds on is recorded in the entry below.
+
+**F-02 — secret findings are classified, folded, and no longer waivable.** Gitleaks reported every
+credential as `unknown` with a generic title, so a Supabase service-role key was waivable by
+exception and four duplicate rows ranked below workflow hygiene. Now:
+
+- **A total classifier** (new `src/evidence/secret-severity.ts`) reads the matched line from the
+  source revision — never from the redacted report, which would put the value on disk — decodes
+  JWT role claims with the client-asset logic already in the codebase, and gives every secret
+  finding a severity (`critical` for privileged/live material, `high` for other credentials,
+  `low` for publishable/anon keys) and a plain-English title. Only the SHA-256 of the matched line
+  is stored (`secret_digest`); the value itself is never recorded. The classifier is total: no
+  secret finding leaves it `unknown`. A classifier-totality unit test and the scanner acceptance
+  test pin both properties.
+- **Repository/history folding**: the same secret found by both scans is one finding — kept once,
+  preferring the repository scan, annotated `also present in committed history` — instead of two
+  duplicate rows. (The repository scan is the newest commit's change set, matching its PR-time
+  purpose; the history scan covers everything older, and a secret removed from the worktree is
+  still found and classified critical by reading its own commit — the F-02 acceptance test proves
+  exactly that scenario too.)
+- **A waiver ban**: `policy/gate-policy.yaml` gains a `secrets` section
+  (`secret_scanners: [gitleaks, client-asset-inspection]`, `findings_never_waivable: true`), and
+  the evaluator refuses to apply any exception to a secret finding — keyed on
+  `category: 'secret'` **or** the policy's scanner list, so a classifier regression cannot reopen
+  the hole. Probes P7a (category path) and P7b (tool-list path) assert `waiver.forbidden`; SEC-01
+  is not a `never_exceptable` control and the probe findings are `unknown` severity, so the ban is
+  the only possible source of that reason.
+- **A reviewed false-positive path** (`A-4`): `.hardening/triage.yaml`, validated by a new
+  `triage/v1` schema, matched on rule + file + fingerprint (`secret_digest` when present, else the
+  finding's stable id). Only this record clears a finding: a `false_positive` label written into a
+  result file is now a blocking `finding.false_positive_unrecorded`, and because the fingerprint
+  is content-derived, a changed file reopens the finding automatically. Loader, evaluator, and
+  probes (matching record clears; stale fingerprint and wrong file do not) are all tested. Placed
+  under `.hardening/`, the record is subject to the base-branch-records rule, so a PR cannot
+  triage the findings it introduces.
+- **Ranking by exposure for every finding** (A-7): `fix these first` orders by severity, then by
+  exposure class — browser-shipped/live (`deployed-surface`) > committed history >
+  request-reachable source (API routes/handlers) > ordinary source and workflow hygiene — and the
+  report folds two rules reporting one location into one row, keeping both provenances and the
+  higher severity.
+
+**Verification.** All suites locally with tools: **554 unit + 8 integration + 35 scanner + 5
+example tests**, typecheck and lint clean. The F1 wrap-up adds the owner-query coverage test and
+the triage report section; measured after it: **557 unit + 8 integration + 36 scanner + 5 example
+tests**.
+
+**Pending, stated rather than implied:** the brief's Appendix-A acceptance for F-02 (the
+service-role and Stripe live keys as the top two "fix these first" rows in the test app's report)
+is **pending the F2 development corpus** (F-12). Its equivalent properties are pinned by the
+scanner tests above; the corpus measure lands with F2 and no claim is made before it does.
+
+### Fixed — audit locations were absolute, so the console.log scoping never fired and reports leaked the machine's layout (follow-up fix brief F-01/F-15, 12 October 2026)
+
+Follow-up-remediation Batch F1, first item. The follow-up audit found that audit mode passed
+absolute target paths through to every finding, so `runQualityErrors`' first-path-segment check
+read `''` and **held back every `console.log` finding in audit mode** — including one that logged
+a password — and only SARIF relativized locations, leaving `report.md`, `report.html`, and
+`report.json` carrying absolute machine paths.
+
+The fix puts relativization where it can only happen once per producer:
+
+- **Adapters mint ids from the root-relative form.** The opengrep and zizmor adapters take an
+  `appRoot` option and relativize paths before building the finding `id`, `location`, and the
+  recorded scanned-file scope — a finding id that embeds `/var/folders/...` is both a layout leak
+  in every report and unstable across machines.
+- **Diagnostics are scrubbed at result creation.** Recipe diagnostics quote paths ("no browser
+  build output found under <appRoot>"); `makeResult` now strips the audit root from them, the way
+  it already redacted secrets — the one boundary every result passes through.
+- **The audit report names the target, never locates it.** `report.json`'s `target` field and the
+  SARIF `AUDITROOT` base carry the directory's name, not a `file://` URI of the auditing host's
+  absolute path. The deleted `pathToFileUri` was exactly that leak.
+- `makeResult` also relativizes finding locations and `scope.files` for every recipe that has not
+  already done so (gitleaks, OSV, the internal quality rules), idempotent with the adapters.
+
+**Acceptance, all executed:** a new scanner-suite test audits a fixture at a unique absolute temp
+path and asserts the `app/` `console.log` finding is reported (`app/x.ts:1`), the `scripts/` one is
+still held back with the count stated, and none of `report.md`, `report.html`, `report.json`,
+`report.sarif`, or `results.json` contains the audit root's absolute path. A unit test pins the
+boundary itself: under-root paths relativize, `http(s)://` locations are untouched, absolute
+out-of-root paths are kept as-is, absent stays absent, and the pass is idempotent for the SARIF
+writer. Suites after the fix: **536 unit + 8 integration + 33 scanner + 5 example tests, all
+passing locally with tools; `repo-checks` has not yet been watched for this change (no push
+without the owner's go-ahead, per the work rules).**
+
 ### Fixed — the GitHub CI run, red since Batch W without anyone noticing (10 October 2026)
 
 The owner asked that everything be pushed; watching the resulting `repo-checks` run showed the

@@ -1,4 +1,5 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync, readdirSync, statSync } from 'node:fs';
+import { readBoundedSync } from '../evidence/bounded-io.js';
 import { join, relative } from 'node:path';
 
 /**
@@ -74,7 +75,7 @@ export interface WalkedFile {
 
 /** Bounded, read-only walk. Skips dependency and build directories entirely. Exported: the quality
  * scanners use the same bounded walk and the same skip rules. */
-export function walk(root: string): WalkedFile[] {
+export function walk(root: string, onSkippedLink?: (path: string, target: string) => void): WalkedFile[] {
   const files: WalkedFile[] = [];
   const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
   while (queue.length > 0 && files.length < MAX_WALK_FILES) {
@@ -89,10 +90,23 @@ export function walk(root: string): WalkedFile[] {
       if (files.length >= MAX_WALK_FILES) break;
       if (SKIP_DIRS.has(entry)) continue;
       const full = join(dir, entry);
+      // A-02 input confinement: lstat — symlinks are never followed (a link out of the tree must
+      // not pull outside content into the scan) and non-regular files are never read. The
+      // concurrent link-swap race is documented as out of scope in the walk's doc comment.
       let stats;
       try {
-        stats = statSync(full);
+        stats = lstatSync(full);
       } catch {
+        continue;
+      }
+      if (stats.isSymbolicLink()) {
+        let linkTarget: string | undefined;
+        try {
+          linkTarget = readlinkSync(full);
+        } catch {
+          linkTarget = undefined;
+        }
+        onSkippedLink?.(full, linkTarget ?? '?');
         continue;
       }
       if (stats.isDirectory()) {
@@ -116,6 +130,10 @@ function readPackageJson(root: string): { parsed?: PackageJson; evidence?: Detec
   const file = join(root, 'package.json');
   if (!existsSync(file)) return {};
   try {
+    // R1-03: a symlinked package.json can point outside the scan root; it is skipped, not followed.
+    if (lstatSync(file).isSymbolicLink()) {
+      return { evidence: { file: 'package.json', detail: 'a symlinked package.json was not followed (R1-03)' } };
+    }
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as PackageJson;
     return { parsed, evidence: { file: 'package.json', detail: 'read dependency and script declarations' } };
   } catch {
@@ -128,12 +146,8 @@ function hasDep(packageJson: PackageJson | undefined, name: string): boolean {
 }
 
 function readText(file: string, limitBytes = 512 * 1024): string | undefined {
-  try {
-    const handle = readFileSync(file);
-    return handle.subarray(0, limitBytes).toString('utf8');
-  } catch {
-    return undefined;
-  }
+  // P1.3: the bound is enforced at open time; unreadable files are counted, not silently lost.
+  return readBoundedSync(file, limitBytes);
 }
 
 const IMPORT_MARKERS: readonly { readonly feature: string; readonly pattern: RegExp; readonly detail: string }[] = [
@@ -141,7 +155,9 @@ const IMPORT_MARKERS: readonly { readonly feature: string; readonly pattern: Reg
   { feature: 'runtime_ai', pattern: /from\s+['"]@anthropic-ai\/sdk/, detail: 'imports the Anthropic SDK' },
   { feature: 'runtime_ai', pattern: /from\s+['"](langchain|@langchain\/[\w-]+)/, detail: 'imports LangChain' },
   { feature: 'runtime_ai', pattern: /from\s+['"]ai['"]/, detail: 'imports the Vercel AI SDK' },
-  { feature: 'payments', pattern: /from\s+['"]stripe['"]|require\(['"]stripe['"]\)/, detail: 'imports the Stripe SDK' },
+  // A-32/F-09: the SDK import counts only as an executable import statement at line start — a
+  // matcher definition or explanatory string that mentions the import is not an integration.
+  { feature: 'payments', pattern: /(?:^|\n)\s*(?:import\s+[^;\n]*from\s+['"]stripe['"]|const\s+\w+\s*=\s*require\(['"]stripe['"]\))/, detail: 'imports the Stripe SDK' },
   { feature: 'persistent_storage', pattern: /from\s+['"]@supabase\/(supabase-js|ssr)['"]/, detail: 'imports the Supabase client' },
   { feature: 'persistent_storage', pattern: /from\s+['"](prisma|mongoose|sequelize|knex|sqlite3|pg|mysql2)['"]/, detail: 'imports a database client' },
   { feature: 'uploads', pattern: /from\s+['"](multer|busboy|formidable|@fastify\/multipart)['"]|require\(['"](multer|busboy)['"]\)/, detail: 'imports a file-upload library' },
@@ -174,9 +190,19 @@ function detectStackFromEvidence(root: string, files: readonly WalkedFile[], pac
   if (existsAt('svelte.config.js') || existsAt('svelte.config.ts')) {
     return { kind: 'sveltekit', evidence: [{ file: 'svelte.config.js', detail: 'SvelteKit project config' }] };
   }
-  if (hasDep(packageJson, 'vite') || existsAt('vite.config.ts') || existsAt('vite.config.js')) {
-    evidence.push(pkg('declares a dependency on vite'));
-    return { kind: 'react-spa', evidence };
+  // A-32: dev-only Vite/Vitest is tooling, not a browser SPA — a bundler devDependency alone
+  // must not classify the project as a browser stack. An actual SPA declares a production
+  // browser-framework dependency, or ships an HTML entry point for a vanilla Vite app.
+  const browserFramework = packageJson === undefined
+    ? undefined
+    : ['react', 'vue', 'svelte', 'preact', 'solid-js'].find((name) => packageJson.dependencies?.[name] !== undefined);
+  if (browserFramework !== undefined) {
+    return { kind: 'react-spa', evidence: [pkg(`declares a production dependency on ${browserFramework}`)] };
+  }
+  if (existsSync(join(root, 'index.html')) || existsSync(join(root, 'src', 'index.html'))) {
+    if (hasDep(packageJson, 'vite') || existsAt('vite.config.ts') || existsAt('vite.config.js')) {
+      return { kind: 'react-spa', evidence: [{ file: 'index.html', detail: 'a Vite app with a browser entry point' }] };
+    }
   }
   if (hasDep(packageJson, 'express') || hasDep(packageJson, 'fastify') || hasDep(packageJson, '@hono/node-server') || hasDep(packageJson, 'koa')) {
     const name = ['express', 'fastify', '@hono/node-server', 'koa'].find((candidate) => hasDep(packageJson, candidate)) as string;
@@ -217,7 +243,9 @@ export function detectStackAndFeatures(root: string): Detection {
     throw new Error(`audit target is not a directory: ${root}`);
   }
 
-  const files = walk(root);
+  // A-02: symlinks are never followed; each skip is recorded so the scope statement stays honest.
+  const skippedLinks: string[] = [];
+  const files = walk(root, (path, target) => skippedLinks.push(`${rel(root, path)} -> ${target}`));
   const { parsed: packageJson } = readPackageJson(root);
   const stack = detectStackFromEvidence(root, files, packageJson);
 
@@ -258,33 +286,64 @@ export function detectStackAndFeatures(root: string): Detection {
     enable('accounts', { file: 'package.json', detail: 'an authentication library is declared' });
   }
 
+  // F-09: a payment integration is declared by dependency, not only by SDK import. Apps that
+  // only use @stripe/stripe-js elements, Paddle, or Lemon Squeezy never import the server SDK,
+  // and the money-path obligations must still apply.
+  if (packageJson !== undefined && (hasDep(packageJson, 'stripe') || hasDep(packageJson, '@stripe/stripe-js') || hasDep(packageJson, 'paddle') || hasDep(packageJson, 'lemonsqueezy'))) {
+    const declared = ['stripe', '@stripe/stripe-js', 'paddle', 'lemonsqueezy'].filter((candidate) => hasDep(packageJson, candidate));
+    enable('payments', { file: 'package.json', detail: `declares a payments dependency (${declared.join(', ')})` });
+  }
+
   const workflowsDir = join(root, '.github', 'workflows');
   const hasWorkflows = existsSync(workflowsDir) && readdirSync(workflowsDir).some((name) => name.endsWith('.yml') || name.endsWith('.yaml'));
   // Source import scan, bounded. Only source files, only the first bytes of each.
+  // F-09: the detection-exclusion list — tests, fixtures, examples, and corpora are not the
+  // application's own stack. Without this, a repository that vendors fixture applications
+  // (SecHard itself) is detected as the union of its fixtures.
+  const DETECTION_EXCLUDED_PREFIXES = ['tests/', 'test/', 'examples/', 'fixtures/', '__tests__/', 'corpus/'];
   const sourceFiles = files.filter((file) => {
     const extension = /\.[a-z0-9]+$/u.exec(file.path)?.[0] ?? '';
-    return SOURCE_EXTENSIONS.has(extension);
+    if (!SOURCE_EXTENSIONS.has(extension)) return false;
+    const relativePath = rel(root, file.path);
+    return !DETECTION_EXCLUDED_PREFIXES.some((prefix) => relativePath.startsWith(prefix));
   });
   const gaps: string[] = [];
   const scanLimit = 800;
   const scannedImports = sourceFiles.slice(0, scanLimit);
+  let unreadable = 0;
   for (const file of scannedImports) {
     const text = readText(file.path, 256 * 1024);
-    if (text === undefined) continue;
+    if (text === undefined) { unreadable += 1; continue; }
     for (const marker of IMPORT_MARKERS) {
       if (marker.pattern.test(text)) {
         enable(marker.feature, { file: rel(root, file.path), detail: marker.detail });
       }
     }
+    // F-09: payment webhooks are detectable from the event types a route handles, not only from
+    // the SDK import — a checkout.session.completed handler is a payments integration even when
+    // the SDK is only used server-side behind an adapter. A-32: the event names count only as
+    // quoted string literals in source — SecHard's own matcher definitions and explanatory
+    // strings are not an integration.
+    if (/['"](?:checkout\.session\.completed|payment_intent\.[a-z_]+|invoice\.paid)['"]/.test(text)) {
+      enable('payments', { file: rel(root, file.path), detail: 'handles payment lifecycle event types' });
+      enable('webhooks', { file: rel(root, file.path), detail: 'handles payment lifecycle event types' });
+    }
     if (/\bwebhook\b/i.test(text) && file.path.toLowerCase().includes('webhook')) {
       enable('webhooks', { file: rel(root, file.path), detail: 'a webhook handler source file' });
     }
-    if (/stripe.*webhook|webhook.*stripe/i.test(text)) {
-      enable('webhooks', { file: rel(root, file.path), detail: 'a Stripe webhook handler' });
-    }
+    // A-32: the loose "mentions stripe AND webhook" text check is gone — it matched SecHard's own
+    // adapter, matcher definition, and explanation prose. A real handler is detected by the
+    // quoted event literals above, the line-start SDK import, or a webhook path.
   }
   if (sourceFiles.length > scanLimit) {
     gaps.push(`the import scan covered ${scanLimit} of ${sourceFiles.length} source files (bounded walk); feature detection beyond that is unknown`);
+  }
+  // R1-03: a skipped link is an omission on every project size, not only large ones.
+  if (unreadable > 0) {
+    gaps.push(`source files that could not be read: ${String(unreadable)}`);
+  }
+    if (skippedLinks.length > 0) {
+    gaps.push(`symlinks not followed: ${skippedLinks.slice(0, 5).join(', ')}${skippedLinks.length > 5 ? ` and ${String(skippedLinks.length - 5)} more` : ''}`);
   }
 
   // Undetected features stay unknown — never `disabled`, which the catalogue treats as a claim.
@@ -334,7 +393,9 @@ export function detectStackAndFeatures(root: string): Detection {
     gaps.push(`detected stack '${stack.kind}' is not supported by any stack profile; only the generic checks ran`);
   }
   if (stack.kind === 'python-web') {
-    gaps.push('static analysis does not support Python in this build: the reviewed rule pack is JavaScript/TypeScript only (Batch X adds Python rules)');
+    // A-17: the reviewed Python rule families are planned (detection-depth pack); the expansion
+    // families stay recorded gaps instead of a blanket "Python unsupported" claim.
+    gaps.push('static analysis covers the reviewed Python rule families only (SQL injection, SSRF, path traversal, cookie attributes); framework-specific secret handling, template injection, and the Bandit/Ruff expansion remain recorded gaps');
   }
   if (features['persistent_storage']?.state === 'enabled' && features['persistent_storage'].evidence.some((item) => item.detail.includes('Firebase'))) {
     gaps.push('Firebase detected: no Firebase-specific verification recipes exist in this build; storage and rules controls are evaluated generically only');

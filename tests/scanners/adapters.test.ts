@@ -119,6 +119,28 @@ describe('gitleaks detects synthetic secrets and accepts the fixed fixture', () 
     expect(parsed.findings[0]?.detail).toMatch(/redacted/);
   });
 
+  it('relativizes absolute file paths and fingerprints against the scan root (dir mode)', () => {
+    // Dir mode pointed at an absolute root reports absolute paths in `File` and embeds them in the
+    // `Fingerprint`. The adapter mints ids from the root-relative form (F-01/F-15): an id that
+    // embeds the auditing host's layout is a leak in every report and unstable across machines.
+    const report = JSON.stringify([
+      {
+        RuleID: 'generic-api-key',
+        Description: 'Generic API key',
+        File: `${REPO}/examples/app/.env.local`,
+        StartLine: 4,
+        Fingerprint: `${REPO}/examples/app/.env.local:generic-api-key:4`,
+        Secret: 'REDACTED',
+      },
+    ]);
+    const parsed = parseGitleaksReport(report, { appRoot: REPO });
+    expect('error' in parsed).toBe(false);
+    if ('error' in parsed) return;
+    expect(parsed.findings[0]?.location).toBe('examples/app/.env.local:4');
+    expect(parsed.findings[0]?.resource).toBe('examples/app/.env.local:generic-api-key:4');
+    expect(JSON.stringify(parsed)).not.toContain(REPO);
+  });
+
   it('treats an unreadable report as an error, not an empty clean scan', () => {
     expect(parseGitleaksReport('')).toMatchObject({ error: expect.stringContaining('empty') });
     expect(parseGitleaksReport('{"not":"an array"}')).toMatchObject({ error: expect.stringContaining('not a JSON array') });
@@ -217,10 +239,17 @@ describe('osv-scanner finds advisories for a pinned vulnerable dependency', () =
 });
 
 describe('opengrep detects the vulnerable patterns and accepts the fixed fixture', () => {
-  const rules = join(REPO, 'ci', 'configs', 'opengrep-rules', 'hardening-core.yaml');
+  // Both reviewed packs, by file — the same invocation the production scanner uses. The pack
+  // directory is not a valid --config: since P3.2 the rule-matrix manifest.yaml sits beside the
+  // packs, and a directory load parses it as a rule file and fails with InvalidRuleSchemaError.
+  const packs = [
+    join(REPO, 'ci', 'configs', 'opengrep-rules', 'hardening-core.yaml'),
+    join(REPO, 'ci', 'configs', 'opengrep-rules', 'detection-depth.yaml'),
+  ];
+
 
   it('finds the eval, shell-exec, and innerHTML patterns', async () => {
-    const run = await runOpengrep(join(FIXTURES, 'sast', 'vulnerable.ts'), rules);
+    const run = await runOpengrep(join(FIXTURES, 'sast', 'vulnerable.ts'), packs);
     const parsed = parseOpengrepReport(run.json, { intendedScope: [join(FIXTURES, 'sast', 'vulnerable.ts')] });
     expect('error' in parsed).toBe(false);
     if ('error' in parsed) return;
@@ -237,7 +266,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
   });
 
   it('finds nothing in the fixed fixture', async () => {
-    const run = await runOpengrep(join(FIXTURES, 'sast', 'fixed.ts'), rules);
+    const run = await runOpengrep(join(FIXTURES, 'sast', 'fixed.ts'), packs);
     const parsed = parseOpengrepReport(run.json, { intendedScope: [join(FIXTURES, 'sast', 'fixed.ts')] });
     expect('error' in parsed).toBe(false);
     if ('error' in parsed) return;
@@ -255,7 +284,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     const cases: readonly { dir: string; vulnerable: readonly string[]; fixed: readonly string[] }[] = [
       {
         dir: 'api',
-        vulnerable: ['hardening.ssrf-request-derived-url', 'hardening.api-unvalidated-response-consumption'],
+        vulnerable: ['hardening.taint-ssrf-fetch', 'hardening.api-unvalidated-response-consumption'],
         fixed: [],
       },
       { dir: 'oauth', vulnerable: ['hardening.oauth-implicit-grant'], fixed: [] },
@@ -268,7 +297,7 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     for (const testCase of cases) {
       for (const variant of ['vulnerable', 'fixed'] as const) {
         const file = join(FIXTURES, testCase.dir, `${variant}.ts`);
-        const run = await runOpengrep(file, rules);
+        const run = await runOpengrep(file, packs);
         const parsed = parseOpengrepReport(run.json, { intendedScope: [file] });
         expect('error' in parsed, `${testCase.dir}/${variant}`).toBe(false);
         if ('error' in parsed) continue;
@@ -286,6 +315,46 @@ describe('opengrep detects the vulnerable patterns and accepts the fixed fixture
     if ('error' in parsed) return;
     expect(parsed.parserErrors.join(' ')).toMatch(/timeout on a\.ts/);
   });
+
+  it('verifies the scan against the independent inventory: unexamined files, scanner failures, and malformed entries keep coverage from complete (P3.1)', () => {
+    // The intended scope is the inventory built before the scan. One inventoried file the scanner
+    // never reported examining, one scanner-reported failure, and one malformed finding entry are
+    // each, alone, enough to keep the scan from claiming complete coverage.
+    const partial = parseOpengrepReport(
+      JSON.stringify({
+        results: [
+          { check_id: 'hardening.no-eval', path: 'a.ts', start: { line: 1 }, extra: { severity: 'ERROR', message: 'eval', fingerprint: 'f' } },
+        ],
+        errors: [{ message: 'parse error on b.ts' }],
+        paths: { scanned: ['a.ts'] },
+      }),
+      { intendedScope: ['a.ts', 'b.ts'] },
+    );
+    if ('error' in partial) throw new Error('the report must parse');
+    expect(partial.coverage).toBe('partial');
+    expect(partial.scope.unexamined).toBe(1);
+    expect(partial.scope.failed).toBe(1);
+    expect(partial.scope.notes).toContain('unexamined: 1');
+    expect(partial.scope.notes).toContain('independent inventory');
+
+    // The same scan over the full inventory — no errors, nothing unexamined — is complete.
+    const complete = parseOpengrepReport(
+      JSON.stringify({ results: [], paths: { scanned: ['a.ts', 'b.ts'] } }),
+      { intendedScope: ['a.ts', 'b.ts'] },
+    );
+    if ('error' in complete) throw new Error('the report must parse');
+    expect(complete.coverage).toBe('complete');
+    expect(complete.scope.unexamined).toBe(0);
+
+    // A malformed finding entry (skipped by the parser) also interrupts, even at full examination.
+    const malformed = parseOpengrepReport(
+      JSON.stringify({ results: ['not-an-object'], paths: { scanned: ['a.ts', 'b.ts'] } }),
+      { intendedScope: ['a.ts', 'b.ts'] },
+    );
+    if ('error' in malformed) throw new Error('the report must parse');
+    expect(malformed.coverage).toBe('partial');
+    expect(malformed.scope.notes).toContain('malformed report entries skipped: 1');
+  });
 });
 
 async function runZizmorToStdout(target: string): Promise<{ json: string; exitCode: number | null }> {
@@ -297,11 +366,15 @@ async function runZizmorToStdout(target: string): Promise<{ json: string; exitCo
   return { json: result.outcome.stdout, exitCode: result.outcome.exitCode };
 }
 
-async function runOpengrep(target: string, rules: string): Promise<{ json: string; exitCode: number | null }> {
+async function runOpengrep(target: string, packs: readonly string[]): Promise<{ json: string; exitCode: number | null }> {
   const { runTool } = await import('../../src/execution/registry.js');
+  // --experimental is not optional: it is the engine the production scan runs (recipes.ts), and
+  // the legacy engine reads the pack YAML with the locale codec — under runTool's stripped child
+  // environment that is ASCII, and detection-depth.yaml carries UTF-8 comment bytes, so the scan
+  // dies before the adapter ever sees a report.
   const result = await runTool(
     'opengrep',
-    ['scan', '--config', rules, '--json', '--quiet', target],
+    ['scan', '--experimental', ...packs.flatMap((pack) => ['--config', pack]), '--json', '--quiet', target],
     { cwd: REPO, timeoutMs: 300_000 },
   );
   if (!result.ran || result.outcome === undefined) {

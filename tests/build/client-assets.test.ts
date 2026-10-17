@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DEFAULT_MARKERS, inspectBrowserAssets } from '../../src/build/client-assets.js';
+import { DEFAULT_MARKERS, browserOutputCandidates, inspectBrowserAssets, inventoryDigest, selectBrowserOutput } from '../../src/build/client-assets.js';
 import { packageRoot } from '../../src/validation/schema.js';
 
 const FIXTURES = join(packageRoot(), 'tests', 'fixtures', 'build');
@@ -109,5 +109,140 @@ describe('the extended marker set catches the commonest real leaks', () => {
     const report = inspectBrowserAssets(dir);
     expect(report.findings).toEqual([]);
     expect(report.classifications.map((entry) => entry.marker)).toContain('jwt-role-publishable');
+  });
+});
+
+/**
+ * P3.4 (A-21): a shipped source map is secret-inspected with the same blocking class as a bundle
+ * — its raw text includes any embedded sourcesContent — and a malformed or oversized map is an
+ * explicit incompleteness, never a silent pass.
+ */
+describe('the inspection covers shipped source maps (A-21)', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'hardening-client-assets-maps-'));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+  it('a privileged secret only inside a shipped map fires with the same blocking class as a bundle', () => {
+    const dir = join(scratch, 'map-secret');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'app.js.map'),
+      JSON.stringify({ version: 3, sources: ['../src/config.ts'], sourcesContent: ['const serviceKey = "sb_secret_MAPONLYLEAKVALUE1";'] }),
+    );
+
+    const report = inspectBrowserAssets(dir);
+    const mapFindings = report.findings.filter((finding) => finding.location?.endsWith('.map') === true);
+    expect(mapFindings.map((finding) => finding.rule_id)).toContain('supabase-secret-key');
+    expect(mapFindings.find((finding) => finding.rule_id === 'supabase-secret-key')?.severity).toBe('critical');
+    // The publication warning stays a separate, weaker finding.
+    expect(report.findings.some((finding) => finding.rule_id === 'browser-source-map')).toBe(true);
+    expect(report.coverage).toBe('complete');
+    expect(JSON.stringify(report)).not.toContain('sb_secret_MAPONLYLEAKVALUE1');
+  });
+
+  it('map findings carry a match digest and never the matched value', () => {
+    const dir = join(scratch, 'map-digest');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'app.js.map'),
+      JSON.stringify({ version: 3, sourcesContent: ['const key = "sb_secret_DIGESTEDLEAKVALUE";'] }),
+    );
+
+    const report = inspectBrowserAssets(dir);
+    const secretFinding = report.findings.find((finding) => finding.rule_id === 'supabase-secret-key');
+    expect(secretFinding?.secret_digest).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(report)).not.toContain('sb_secret_DIGESTEDLEAKVALUE');
+  });
+
+  it('a publishable key inside a map is classified, not flagged', () => {
+    const dir = join(scratch, 'map-publishable');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'app.js.map'),
+      JSON.stringify({ version: 3, sourcesContent: ['const key = "sb_publishable_MAPVALUE12345";'] }),
+    );
+
+    const report = inspectBrowserAssets(dir);
+    expect(report.findings.every((finding) => finding.rule_id === 'browser-source-map')).toBe(true);
+    expect(report.classifications.map((entry) => entry.marker)).toContain('supabase-publishable-key');
+  });
+
+  it('a malformed map is an explicit incompleteness, and its raw text is still scanned', () => {
+    const dir = join(scratch, 'map-broken');
+    mkdirSync(dir, { recursive: true });
+    // Deliberately invalid JSON whose raw text still carries a privileged value.
+    writeFileSync(join(dir, 'broken.js.map'), '{"version":3,"sourcesContent":["const k = "sb_secret_BROKENMAPLEAK1";"]}');
+
+    const report = inspectBrowserAssets(dir);
+    expect(report.parseErrors.join(' ')).toContain('not valid JSON');
+    expect(report.findings.map((finding) => finding.rule_id)).toContain('supabase-secret-key');
+    expect(report.coverage).toBe('partial');
+  });
+
+  it('an oversized map is recorded, not read, and the coverage is explicitly partial', () => {
+    const dir = join(scratch, 'map-oversized');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'big.js.map'), `{"version":3,${'"padding":'.padEnd(120, 'x')}}`);
+
+    const report = inspectBrowserAssets(dir, { maxTextFileBytes: 32 });
+    expect(report.sourceMaps).toContain('big.js.map');
+    expect(report.parseErrors.join(' ')).toContain('was not read as text');
+    expect(report.findings.some((finding) => finding.rule_id === 'browser-source-map')).toBe(true);
+    expect(report.coverage).toBe('partial');
+  });
+});
+
+describe('the inventory digest distinguishes same-size edits', () => {
+  it('rewriting a file with the same byte length changes the digest', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'hardening-client-assets-digest-'));
+    writeFileSync(join(dir, 'bundle.js'), 'const a = "aaaa";');
+    const before = inventoryDigest(inspectBrowserAssets(dir));
+    writeFileSync(join(dir, 'bundle.js'), 'const a = "bbbb";');
+    const after = inventoryDigest(inspectBrowserAssets(dir));
+    expect(before).not.toBe(after);
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+/**
+ * P3.4 (A-32): browser output follows the detected stack's reviewed build shape. A Node CLI's
+ * compiled `dist` is server output and is never scanned as browser-shipped merely because the
+ * directory exists.
+ */
+describe('browser-output selection follows the detected stack (A-32)', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'hardening-browser-output-'));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+
+  it('a Node CLI stack has no browser-output candidates at all', () => {
+    expect(browserOutputCandidates('node-api')).toEqual([]);
+    const dir = join(scratch, 'cli');
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    writeFileSync(join(dir, 'dist', 'cli.js'), 'console.log(1);');
+    const selection = selectBrowserOutput(dir, 'node-api');
+    expect('unsupported' in selection && selection.unsupported.includes('node-api')).toBe(true);
+  });
+
+  it('a dist without a browser entry point is not browser-shipped even for a vite-flagged stack', () => {
+    const dir = join(scratch, 'cli-vite');
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    writeFileSync(join(dir, 'dist', 'cli.js'), 'console.log(1);');
+    const selection = selectBrowserOutput(dir, 'react-spa');
+    expect('unsupported' in selection && selection.unsupported.includes('no browser entry point')).toBe(true);
+  });
+
+  it('a dist with an index.html is selected for a browser stack', () => {
+    const dir = join(scratch, 'spa');
+    mkdirSync(join(dir, 'dist'), { recursive: true });
+    writeFileSync(join(dir, 'dist', 'index.html'), '<html></html>');
+    writeFileSync(join(dir, 'dist', 'app.js'), 'export {};');
+    const selection = selectBrowserOutput(dir, 'react-spa');
+    expect('root' in selection && selection.root.endsWith('dist')).toBe(true);
+  });
+
+  it('the nextjs static dir is trusted by framework without an entry point', () => {
+    const dir = join(scratch, 'next');
+    mkdirSync(join(dir, '.next', 'static'), { recursive: true });
+    writeFileSync(join(dir, '.next', 'static', 'chunk.js'), 'export {};');
+    const selection = selectBrowserOutput(dir, 'nextjs');
+    expect('root' in selection && selection.root.includes('.next/static')).toBe(true);
   });
 });

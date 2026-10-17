@@ -12,8 +12,19 @@
 # explicitly by the checks that are supposed to find them.
 #
 # Each exclusion names a directory. Nothing here is a pattern that could swallow real source.
+#
+# `database-url-with-password` is the F-02 follow-up rule (owner's auditor, 13 October 2026): the
+# default rules miss connection strings with embedded passwords (the test app's `.env` database
+# password), while the classifier already grades such a match critical. The dir-mode config
+# (`gitleaks-dir.toml`) carries the same rule; a scanner test pins both files so they cannot drift.
 [extend]
 useDefault = true
+
+[[rules]]
+id = "database-url-with-password"
+description = "Database connection string with an embedded password"
+regex = '''(?i)(?:postgres(?:ql)?|mysql|redis|mongodb(?:\+srv)?):\/\/[^:\s\/@]+:[^@\s\/]+@[^\/\s"']{1,200}'''
+keywords = ["postgres", "postgresql", "mysql", "redis", "mongodb"]
 
 [[allowlists]]
 description = "Deliberately vulnerable fixture material, reviewed and non-functional"

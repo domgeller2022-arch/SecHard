@@ -1,4 +1,5 @@
 import type { Finding } from '../domain/types.js';
+import { relativizeLocation } from '../evidence/redaction.js';
 import { isRecord, parseJsonReport, redactValue, stableFindingId, type AdapterOutcome } from './types.js';
 
 /**
@@ -35,6 +36,14 @@ export interface GitleaksOptions {
   readonly stderr?: string;
   /** Files the caller intended to scan, recorded as the expected scope. */
   readonly intendedScope?: readonly string[];
+  /**
+   * The scan root, when the tool was pointed at an absolute path. Dir mode then reports absolute
+   * file paths; relativizing here keeps finding ids and locations root-relative — an id that
+   * embeds the auditing host's layout is a leak in every report and unstable across machines
+   * (the F-01/F-15 rule: adapters mint ids from the root-relative form). Already-relative paths
+   * pass through unchanged, so git mode is unaffected.
+   */
+  readonly appRoot?: string;
 }
 
 export function parseGitleaksReport(raw: string, options: GitleaksOptions = {}): AdapterOutcome | { error: string } {
@@ -60,10 +69,19 @@ export function parseGitleaksReport(raw: string, options: GitleaksOptions = {}):
       continue;
     }
 
-    const file = typeof item.File === 'string' ? item.File : undefined;
+    const rawFile = typeof item.File === 'string' ? item.File : undefined;
+    const file = rawFile === undefined || options.appRoot === undefined ? rawFile : relativizeLocation(rawFile, options.appRoot);
+    // Dir mode fingerprints embed the absolute file path too; the same scrub applies, or the
+    // fingerprint — carried as `resource` and hashed into the finding id — would leak the
+    // auditing host's layout and be unstable across machines.
+    const rawFingerprint = typeof item.Fingerprint === 'string' ? item.Fingerprint : undefined;
+    const fingerprint =
+      rawFingerprint === undefined || options.appRoot === undefined
+        ? rawFingerprint
+        : rawFingerprint.split(`${options.appRoot}/`).join('');
     const line = typeof item.StartLine === 'number' ? item.StartLine : undefined;
-    const fingerprint = typeof item.Fingerprint === 'string' ? item.Fingerprint : undefined;
     const entropy = typeof item.Entropy === 'number' ? item.Entropy : undefined;
+    const commit = typeof item.Commit === 'string' ? item.Commit : undefined;
 
     findings.push({
       id: stableFindingId(['gitleaks', ruleId, file, line, fingerprint]),
@@ -73,6 +91,7 @@ export function parseGitleaksReport(raw: string, options: GitleaksOptions = {}):
       severity: 'unknown',
       ...(file === undefined ? {} : { location: line === undefined ? file : `${file}:${line}` }),
       ...(fingerprint === undefined ? {} : { resource: fingerprint }),
+      ...(commit === undefined ? {} : { commit }),
       detail: `secret material detected${entropy === undefined ? '' : ` (entropy ${entropy.toFixed(2)})`}; value redacted`,
       redacted: true,
       triage: 'unresolved',

@@ -37,9 +37,11 @@ describe('the gate blocks on incomplete required work', () => {
     const plan = planFor('pr');
     const decision = evaluateWith({ plan, results: [] });
     expect(decision.satisfied).toBe(false);
-    expect(codes(decision.reasons).filter((code) => code === 'check.missing')).toHaveLength(
-      plan.expected_checks.length,
-    );
+    // Tool checks report check.missing; the planner's manual companions (F-03) report
+    // manual.missing — nothing is silently absent either way.
+    const executed = plan.expected_checks.filter((check) => check.execution?.mode !== 'manual');
+    expect(codes(decision.reasons).filter((code) => code === 'check.missing')).toHaveLength(executed.length);
+    expect(codes(decision.reasons).filter((code) => code === 'manual.missing').length).toBeGreaterThan(0);
   });
 
   it('reports a missing required check as unmet for its control', () => {
@@ -61,9 +63,10 @@ describe('the gate blocks well-formed evidence for the wrong thing', () => {
     }));
     const decision = evaluateWith({ plan, results });
     expect(decision.satisfied).toBe(false);
-    expect(codes(decision.reasons).filter((code) => code === 'identity.source_mismatch')).toHaveLength(
-      plan.expected_checks.length,
-    );
+    // Only executed checks can carry a mismatched identity; manual companions (F-03) have no
+    // result to mismatch.
+    const executed = plan.expected_checks.filter((check) => check.execution?.mode !== 'manual');
+    expect(codes(decision.reasons).filter((code) => code === 'identity.source_mismatch')).toHaveLength(executed.length);
   });
 
   it('blocks a full pass produced under a different policy commit', () => {

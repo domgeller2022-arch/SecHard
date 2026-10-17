@@ -1,18 +1,24 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { parseGitleaksReport } from '../adapters/gitleaks.js';
+import { gitConfigEnv, gitHardeningArgs } from './git-hardening.js';
+import { buildSourceInventory, inventorySuppressions, type FileInventory, type SuppressionInventory } from './inventory.js';
 import { loadTargetInventory, runHttpChecks } from '../adapters/http.js';
 import { parseOpengrepReport } from '../adapters/opengrep.js';
 import { parseOsvReport } from '../adapters/osv.js';
 import { parseZizmorReport } from '../adapters/zizmor.js';
-import { inspectBrowserAssets } from '../build/client-assets.js';
-import { analyzeDependencyHealth, analyzeRepoHygiene } from '../quality/hygiene.js';
-import { analyzeStrictCorrectness, analyzeTestQuality } from '../quality/correctness.js';
+import { inspectBrowserAssets, selectBrowserOutput } from '../build/client-assets.js';
+import { detectStackAndFeatures } from '../audit/detect.js';
+import { annotateSecretFindings, gradeIgnoredFileFinding, gradeUntrackedFinding, splitLocation } from '../evidence/secret-severity.js';
+import { analyzeDependencyHealth, analyzeRepoHygiene, analyzeRegistryHealth } from '../quality/hygiene.js';
+import { analyzeStrictCorrectness, analyzeStrictTypes, analyzeTestQuality } from '../quality/correctness.js';
 import { analyzeVibeTells } from '../quality/tells.js';
 import { loadQualityThresholds } from '../quality/thresholds.js';
+import { analyzeComplexity, analyzeDeadCode, analyzeDuplication, analyzeFormatting, analyzeModuleStructure, resolveStagedTool } from '../quality/staged.js';
+import { analyzeMigrations } from '../security/migrations.js';
 import { resolveTool, runTool, type ToolAvailability } from './registry.js';
 import type { CheckResult, Coverage, Environment, ExpectedCheck, Finding } from '../domain/types.js';
 
@@ -56,11 +62,62 @@ export interface RecipeOutcome {
   readonly tool?: CheckResult['tool'];
   readonly reportPath?: string;
   readonly reportDigest?: string;
+  /** P3.1: the independent intended scope (inventoried relevant files), when one was built. */
+  readonly expected?: number;
+  /** P3.1: inventoried files the scanner did not report examining. */
+  readonly unexamined?: number;
+  /** P3.1: failures the scanner itself reported. */
+  readonly failed?: number;
+  /** P3.1: target-controlled suppressions (.semgrepignore entries plus inline nosemgrep annotations). */
+  readonly suppressions?: number;
 }
 
 export type RecipeHandler = (context: RecipeContext) => Promise<RecipeOutcome>;
 
 const MAX_FILES_RECORDED = 5000;
+
+const COVERAGE_RANK: Record<Coverage, number> = { complete: 0, partial: 1, unknown: 2 };
+const worse = (a: Coverage, b: Coverage): Coverage => (COVERAGE_RANK[a] <= COVERAGE_RANK[b] ? a : b);
+
+/**
+ * P3.1: the reviewed opengrep target set — the extensions of the packs' declared languages
+ * (typescript, javascript) and exactly the directories the recipe's reviewed exclusion flags
+ * exclude. The independent inventory applies the same sets, so a reviewed exclusion is never
+ * counted as an unexamined gap, and everything else relevant is.
+ */
+const OPENGREP_SOURCE_EXTENSIONS: readonly string[] = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py'];
+const OPENGREP_EXCLUDED_DIRS: ReadonlySet<string> = new Set(['node_modules', '.next', 'dist', '.git']);
+
+const LANGUAGE_EXTENSIONS: Readonly<Record<string, readonly string[]>> = {
+  javascript: ['.js', '.jsx', '.mjs', '.cjs'],
+  typescript: ['.ts', '.tsx'],
+  python: ['.py'],
+};
+
+/**
+ * P3.5 (A-17): the intended scope is pack-relative. A pack's rules declare their languages, and a
+ * file outside them cannot be examined by that pack — the core and quality packs are
+ * JavaScript/TypeScript only, so a Python-only application is not an unexamined gap for them,
+ * while the detection-depth pack (which declares python) intends the Python sources. A pack with
+ * no recognised language never narrows the reviewed scope.
+ */
+function packIntendedFiles(intended: readonly string[], packPath: string): readonly string[] {
+  let languages: ReadonlySet<string>;
+  try {
+    const parsed = parseYaml(readFileSync(packPath, 'utf8')) as { rules?: { languages?: readonly string[] }[] };
+    languages = new Set((parsed.rules ?? []).flatMap((rule) => rule.languages ?? []));
+  } catch {
+    return intended;
+  }
+  const extensions = new Set<string>(
+    Object.keys(LANGUAGE_EXTENSIONS)
+      .filter((language) => languages.has(language))
+      .flatMap((language): readonly string[] => LANGUAGE_EXTENSIONS[language] ?? []),
+  );
+  if (extensions.size === 0) return intended;
+  const extensionList = [...extensions];
+  return intended.filter((file) => extensionList.some((extension) => file.endsWith(extension)));
+}
 
 function unsupported(diagnostic: string): RecipeOutcome {
   return { outcome: 'unsupported', coverage: 'unknown', observed: 0, files: [], findings: [], diagnostic };
@@ -91,7 +148,8 @@ function gitOutput(cwd: string, args: readonly string[]): string | undefined {
   const git = resolveTool('git');
   if (!git.available) return undefined;
   try {
-    const stdout = execFileSync(git.executable, [...args], {
+    // A-01: harden against the audited tree's own Git configuration executing code.
+    const stdout = execFileSync(git.executable, [...gitHardeningArgs(), ...args], {
       cwd,
       encoding: 'utf8',
       timeout: 30_000,
@@ -106,6 +164,13 @@ function gitOutput(cwd: string, args: readonly string[]): string | undefined {
 }
 
 const worktreeRoot = (appRoot: string): string | undefined => gitOutput(appRoot, ['rev-parse', '--show-toplevel']);
+
+/** The line a `file:line` location points at, trimmed, from the given file content. */
+function lineAt(content: string | undefined, location: string | undefined): string | undefined {
+  const parts = splitLocation(location);
+  if (content === undefined || parts?.line === undefined) return undefined;
+  return content.split('\n')[parts.line - 1]?.trimEnd();
+}
 
 async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<RecipeOutcome> {
   const worktree = worktreeRoot(context.appRoot);
@@ -126,14 +191,20 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
     '--exit-code', '0',
     '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks.toml'),
   ];
-  if (headOnly) args.push('--log-opts', '-1');
+  // R1-01: `--no-textconv` disables attribute-selected text-conversion helpers in gitleaks' own
+  // `git log -p -U0` construction, without changing what is scanned. Scope is preserved: -1 keeps
+  // the repository scan at the newest commit, history stays full.
+  args.push('--log-opts', headOnly ? '-1 --no-textconv' : '--no-textconv');
 
   // Gitleaks shells out to `git` for a git-mode scan. The child PATH names only the reviewed git's
   // directory plus the system basics, so the internal lookup cannot be redirected by the caller's
-  // environment; the parent environment is still not inherited wholesale.
+  // environment; the parent environment is still not inherited wholesale. R1-01: the hardened Git
+  // configuration rides along in the same environment (fsmonitor/hooks off for the child).
   const git = resolveTool('git');
-  const env = git.available ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':') } : undefined;
-  const run = await runTool('gitleaks', args, { cwd: worktree, timeoutMs: 600_000, ...(env === undefined ? {} : { env }) });
+  const env = git.available
+    ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':'), ...gitConfigEnv() }
+    : { ...gitConfigEnv() };
+  const run = await runTool('gitleaks', args, { cwd: worktree, timeoutMs: 600_000, env });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   if (run.outcome.exitCode !== 0) {
     return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
@@ -149,6 +220,24 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
   const parsed = parseGitleaksReport(raw, { stderr: run.outcome.stderr, intendedScope: files.slice(0, MAX_FILES_RECORDED) });
   if ('error' in parsed) return errored(`${parsed.error}; the raw report digest is ${digestOf(raw).slice(0, 12)}…`);
 
+  // Classification (F-02). The matched text is read from the source revision, never from the
+  // redacted report: the repository scan reads the worktree, the history scan reads the finding's
+  // own commit and falls back to the worktree when the secret survived to HEAD. Values are never
+  // stored — only their digest is recorded — so no secret material is written anywhere by this.
+  const annotated = annotateSecretFindings(parsed.findings, (finding) => {
+    const parts = splitLocation(finding.location);
+    if (parts === undefined) return undefined;
+    if (!headOnly && finding.commit !== undefined) {
+      const committed = lineAt(gitOutput(worktree, ['show', `${finding.commit}:${parts.file}`]), finding.location);
+      if (committed !== undefined && committed.length > 0) return committed;
+    }
+    try {
+      return lineAt(readFileSync(join(worktree, parts.file), 'utf8'), finding.location);
+    } catch {
+      return undefined;
+    }
+  });
+
   return {
     outcome: 'pass',
     coverage: parsed.coverage,
@@ -156,7 +245,7 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
     // not files, so coverage stays partial: this is why the control is classified `mixed`.
     observed: files.length,
     files: files.slice(0, MAX_FILES_RECORDED),
-    findings: parsed.findings,
+    findings: annotated,
     tool: toolIdentity('gitleaks'),
     reportPath,
     reportDigest: digestOf(raw),
@@ -165,6 +254,152 @@ async function runGitleaks(context: RecipeContext, headOnly: boolean): Promise<R
 }
 
 const LOCKFILE_NAMES = ['pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'npm-shrinkwrap.json', 'requirements.txt', 'go.mod', 'Cargo.lock', 'composer.lock'] as const;
+
+/**
+ * The directories the current-files scan never descends into. This is the audit's own exclusion
+ * list (F-02 follow-up, owner's auditor 13 October 2026): dependency and build-output directories
+ * hold third-party or generated content nobody can remediate. It must stay in step with the
+ * machine-dir allowlist in `ci/configs/gitleaks-dir.toml`, which is what actually bounds the scan;
+ * this walk only records the honest scope inventory.
+ */
+const DIR_SCAN_EXCLUDED_DIRS: ReadonlySet<string> = new Set(['node_modules', '.git', '.next', 'dist', 'build', 'vendor']);
+const MAX_DIR_WALK_DEPTH = 8;
+
+/** Bounded, read-only walk of the current tree, mirroring the dir config's exclusions. */
+function currentFilesWalk(root: string): string[] {
+  const files: string[] = [];
+  const queue: { dir: string; depth: number }[] = [{ dir: root, depth: 0 }];
+  while (queue.length > 0 && files.length < MAX_FILES_RECORDED) {
+    const { dir, depth } = queue.shift() as { dir: string; depth: number };
+    let entries: readonly string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const entry of [...entries].sort()) {
+      if (files.length >= MAX_FILES_RECORDED) break;
+      if (DIR_SCAN_EXCLUDED_DIRS.has(entry)) continue;
+      const full = join(dir, entry);
+      let isDirectory = false;
+      try {
+        isDirectory = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (isDirectory) {
+        if (depth < MAX_DIR_WALK_DEPTH) queue.push({ dir: full, depth: depth + 1 });
+        continue;
+      }
+      files.push(relative(root, full));
+    }
+  }
+  return files;
+}
+
+/**
+ * The current-files secret scan (F-02 follow-up, owner's auditor 13 October 2026): `gitleaks dir`
+ * over the application root, whatever the target is. The git-mode scans read committed content
+ * and history — a folder that is not a git repository got no secret scan at all, quick mode could
+ * not see files committed before the newest commit, and uncommitted or untracked files were never
+ * scanned. This recipe runs at every depth, with or without git, and its findings go through the
+ * same classifier, de-duplication, and waiver ban as the git scans.
+ */
+async function runGitleaksDir(context: RecipeContext): Promise<RecipeOutcome> {
+  const files = currentFilesWalk(context.appRoot);
+  mkdirSync(context.rawDir, { recursive: true });
+  const reportPath = join(context.rawDir, 'gitleaks-files.json');
+  const args = [
+    'dir',
+    context.appRoot,
+    '--report-format', 'json',
+    '--report-path', reportPath,
+    '--no-banner',
+    '--redact',
+    '--exit-code', '0',
+    '--config', join(context.policyRoot, 'ci', 'configs', 'gitleaks-dir.toml'),
+  ];
+
+  // A-01/PR-02: gitleaks runs its own `git` inside the audited tree; inject the hardened config
+  // through the environment so the child's Git cannot execute repository-configured helpers.
+  const run = await runTool('gitleaks', args, { cwd: context.appRoot, timeoutMs: 600_000, env: { ...gitConfigEnv() } });
+  if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
+  if (run.outcome.exitCode !== 0) {
+    return errored(`gitleaks exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(reportPath, 'utf8');
+  } catch {
+    return errored(`gitleaks did not write a report to ${reportPath}`);
+  }
+
+  const parsed = parseGitleaksReport(raw, {
+    stderr: run.outcome.stderr,
+    intendedScope: files.slice(0, MAX_FILES_RECORDED),
+    // Dir mode was pointed at an absolute root, so gitleaks reports absolute paths; the adapter
+    // relativizes them before ids and locations are minted (F-01/F-15).
+    appRoot: context.appRoot,
+  });
+  if ('error' in parsed) return errored(`${parsed.error}; the raw report digest is ${digestOf(raw).slice(0, 12)}…`);
+
+  // Classification (F-02), same boundary as the git scans: the matched text is read from the
+  // current file, never from the redacted report, and only the digest is recorded.
+  const annotated = annotateSecretFindings(parsed.findings, (finding) => {
+    const parts = splitLocation(finding.location);
+    if (parts === undefined) return undefined;
+    try {
+      return lineAt(readFileSync(join(context.appRoot, parts.file), 'utf8'), finding.location);
+    } catch {
+      return undefined;
+    }
+  });
+
+  // Exposure grading (owner decisions, 13 October 2026): inside a git repository, the file's
+  // relation to git decides the grade. Tracked files keep the classifier's grade (the content is
+  // in the repository). Untracked files are graded down, but by how far the next `git add` is:
+  // gitignored files are a local-file risk (medium — git add will not pick them up), while
+  // untracked files that are not gitignored will be committed by the next `git add -A` and are
+  // graded high. A target with no git at all is never graded down: nothing there is tracked or
+  // committed, so the tree is the whole truth and the classifier's grade stands. When git cannot
+  // answer, nothing is graded down — the safe direction is to keep the severity.
+  const isGitWorktree = worktreeRoot(context.appRoot) !== undefined;
+  const trackedListing = isGitWorktree ? gitOutput(context.appRoot, ['ls-files']) : undefined;
+  const tracked = trackedListing === undefined
+    ? undefined
+    : new Set(trackedListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
+  let graded = annotated;
+  if (tracked !== undefined) {
+    const untrackedFiles = [...new Set(annotated.flatMap((finding) => {
+      const parts = splitLocation(finding.location);
+      if (parts === undefined || tracked.has(parts.file)) return [];
+      return [parts.file];
+    }))];
+    // One batched check-ignore: the paths it echoes are the ignored ones. An empty answer (exit 1
+    // or an error) means none of the given paths is ignored, and those files grade high — the
+    // conservative direction when git cannot say.
+    const ignoredListing = untrackedFiles.length === 0 ? '' : gitOutput(context.appRoot, ['check-ignore', '--', ...untrackedFiles]) ?? '';
+    const ignored = new Set(ignoredListing.split('\n').map((line) => line.trim()).filter((line) => line.length > 0));
+    graded = annotated.map((finding) => {
+      const parts = splitLocation(finding.location);
+      if (parts === undefined || tracked.has(parts.file)) return finding;
+      return ignored.has(parts.file) ? gradeIgnoredFileFinding(finding) : gradeUntrackedFinding(finding);
+    });
+  }
+
+  return {
+    outcome: 'pass',
+    coverage: parsed.coverage,
+    observed: files.length,
+    files: files.slice(0, MAX_FILES_RECORDED),
+    findings: graded,
+    tool: toolIdentity('gitleaks'),
+    reportPath,
+    reportDigest: digestOf(raw),
+    ...(parsed.parserErrors.length === 0 ? {} : { diagnostic: parsed.parserErrors.join('; ') }),
+  };
+}
 
 function findLockfile(root: string): string | undefined {
   for (const name of LOCKFILE_NAMES) {
@@ -245,12 +480,74 @@ async function runOsv(context: RecipeContext): Promise<RecipeOutcome> {
   };
 }
 
-async function runOpengrepWithPack(context: RecipeContext, packRelativePath: string, packRuleId: string): Promise<RecipeOutcome> {
+interface SharedPackScan {
+  readonly inventory: FileInventory;
+  readonly suppressions: SuppressionInventory;
+}
+
+/**
+ * The opengrep child's environment: a reviewed PATH carrying git — the tool resolves .gitignore
+ * through git, and runTool children start with an empty environment — plus the hardened git
+ * configuration so any internal git child cannot execute repository-configured helpers (R1-01).
+ */
+function buildOpengrepEnv(): Readonly<Record<string, string>> {
+  const git = resolveTool('git');
+  return git.available
+    ? { PATH: [dirname(git.executable), '/usr/bin', '/bin'].join(':'), ...gitConfigEnv() }
+    : { ...gitConfigEnv() };
+}
+
+/**
+ * Runs one reviewed pack under the P3.1 honesty rules (A-09/A-10). The intended scope is the
+ * independent inventory built before the scan — never the scanner's self-report. A parser
+ * failure, an unexamined inventoried file, a target-controlled suppression, or an incomplete
+ * inventory makes the result an explicit error carrying the findings (so real detections still
+ * render in the report) with the reason named; only a fully examined, uninterrupted,
+ * suppression-free scan passes.
+ */
+async function runOpengrepWithPack(
+  context: RecipeContext,
+  packRelativePath: string,
+  packRuleId: string,
+  shared?: SharedPackScan,
+): Promise<RecipeOutcome> {
   const configPath = join(context.policyRoot, 'ci', 'configs', 'opengrep-rules', packRelativePath);
   if (!existsSync(configPath)) return errored(`the reviewed rule pack is missing at ${configPath}`);
 
+  const inventory = shared?.inventory ?? buildSourceInventory(context.appRoot, OPENGREP_SOURCE_EXTENSIONS, OPENGREP_EXCLUDED_DIRS);
+  const suppressions = shared?.suppressions ?? inventorySuppressions(context.appRoot, inventory);
+  const packLine = `pack ci/configs/opengrep-rules/${packRelativePath} (sha256:${digestOf(readFileSync(configPath, 'utf8')).slice(0, 12)})`;
+
+  // Nothing to analyse: the inventory is the scope determination, so the tool is never pointed at
+  // an empty relevant scope (with the pinned experimental target selection, the scanner misbehaves
+  // on such a target — observed hanging on a Python-only tree). When the inventory itself could
+  // not be established (unreadable entries, the walk cap), that is an error: "no relevant files"
+  // is a claim an incomplete inventory cannot support.
+  if (inventory.intended.length === 0) {
+    if (inventory.truncated || inventory.skipped.length > 0) {
+      return errored(
+        `${packLine}: the relevant-file inventory could not be established (${String(inventory.skipped.length)} unreadable entr${inventory.skipped.length === 1 ? 'y' : 'ies'}${inventory.truncated ? ', the walk cap was hit' : ''})`,
+      );
+    }
+    return unsupported(`no relevant source files (${OPENGREP_SOURCE_EXTENSIONS.join(', ')}) under the application root; there is nothing for the ${packRuleId} rules to analyse`);
+  }
+
+  // P3.5 (A-17): the pack-relative intended scope. A file outside the pack's declared languages
+  // cannot be examined by this pack, so it is not an unexamined gap here; the detection-depth
+  // pack declares python and intends the Python sources.
+  const intended = packIntendedFiles(inventory.intended, configPath);
+  if (intended.length === 0) {
+    return unsupported(`${packLine}: the inventory holds ${String(inventory.intended.length)} relevant file(s), but none are in this pack's declared language scope — there is nothing for the ${packRuleId} rules to analyse`);
+  }
+
   const args = [
     'scan',
+    '--experimental',
+    // The reviewed target-selection policy: replaces the tool's built-in default ignore (which
+    // silently skipped whole source trees such as tests/) and any .semgrepignore the audited
+    // target ships, so a target-controlled file cannot shrink the reviewed scan scope. Its
+    // presence is still inventoried and recorded on the result.
+    '--semgrepignore-filename', join(context.policyRoot, 'ci', 'configs', 'opengrep-semgrepignore'),
     '--config', configPath,
     '--json',
     '--quiet',
@@ -260,30 +557,175 @@ async function runOpengrepWithPack(context: RecipeContext, packRelativePath: str
     '--exclude', '.git',
     context.appRoot,
   ];
-  const run = await runTool('opengrep', args, { cwd: context.appRoot, timeoutMs: 600_000 });
+  const run = await runTool('opengrep', args, {
+    cwd: context.appRoot,
+    timeoutMs: 600_000,
+    // runTool children start with an empty environment. The tool resolves .gitignore through git,
+    // so the child PATH must carry a reviewed git executable — without it the scanner silently
+    // loses gitignore resolution and the inventory comparison draws the wrong conclusion. The
+    // hardened git configuration rides along for any internal git child (R1-01: fsmonitor and
+    // hooks off).
+    env: buildOpengrepEnv(),
+  });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
-  if (run.outcome.exitCode !== 0) return errored(`opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
+  // Nonzero covers invalid rules and config parse failures; a timeout kills the process and
+  // surfaces as a null exit code. None of these may look like a clean scan.
+  if (run.outcome.exitCode !== 0) return errored(`${packLine}: opengrep exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
 
-  const parsed = parseOpengrepReport(run.outcome.stdout);
+  const parsed = parseOpengrepReport(run.outcome.stdout, { appRoot: context.appRoot, intendedScope: intended });
   if ('error' in parsed) return errored(parsed.error);
-  if (parsed.scope.observed === 0) {
-    return unsupported(`opengrep scanned no files in the application root; there is nothing for the ${packRuleId} rules to analyse`);
+
+  const examined = parsed.scope.observed;
+  const files = (parsed.scope.files ?? []).slice(0, MAX_FILES_RECORDED);
+  const unexamined = parsed.scope.unexamined ?? 0;
+  const failed = parsed.scope.failed ?? 0;
+  const suppressionsTotal = suppressions.nosemgrep.annotations + (suppressions.semgrepignore?.entries ?? 0);
+
+  if (examined === 0) {
+    return errored(
+      `${packLine}: opengrep examined none of the ${String(intended.length)} inventoried relevant files` +
+      `${suppressions.semgrepignore === undefined ? '' : `; the target ships .semgrepignore (${String(suppressions.semgrepignore.entries)} entries), an unreviewed suppression the tool honours`}`,
+    );
+  }
+
+  // Explicit incomplete coverage (P3.1 requirement 3): the findings are carried so the report
+  // keeps them, but the result is an error — a pass requires complete coverage, and a sibling's
+  // success must never mask an incomplete pack.
+  const incompleteness: string[] = [];
+  if (parsed.coverage !== 'complete') {
+    const examinedSet = new Set(parsed.scope.files ?? []);
+    const unexaminedNames = intended.filter((file) => !examinedSet.has(file));
+    incompleteness.push(
+      unexamined > 0
+        ? `${String(unexamined)} of ${String(intended.length)} inventoried relevant files were not examined (first: ${unexaminedNames.slice(0, 5).join(', ')}${unexaminedNames.length > 5 ? ', …' : ''}; a gitignore rule may be hiding them)`
+        : `examined ${String(examined)} of ${String(intended.length)} inventoried relevant files`,
+    );
+  }
+  if (failed > 0) incompleteness.push(`${String(failed)} scanner-reported failure(s)`);
+  if (parsed.parserErrors.length > 0) incompleteness.push(parsed.parserErrors.join('; '));
+  if (inventory.truncated) incompleteness.push('the inventory walk hit its entry cap, so the intended scope is a lower bound');
+  if (inventory.skipped.length > 0) {
+    incompleteness.push(
+      `${String(inventory.skipped.length)} target entries could not be inventoried (${inventory.skipped.slice(0, 3).map((s) => `${s.path}: ${s.reason}`).join('; ')})`,
+    );
+  }
+  if (suppressions.nosemgrep.annotations > 0) {
+    incompleteness.push(`${String(suppressions.nosemgrep.annotations)} inline nosemgrep annotation(s) across ${String(suppressions.nosemgrep.files)} file(s) suppress findings without review`);
+  }
+  if (suppressions.uninspected > 0) incompleteness.push(`${String(suppressions.uninspected)} inventoried file(s) were too large to inspect for inline suppressions`);
+
+  if (incompleteness.length > 0) {
+    return {
+      outcome: 'error',
+      coverage: 'partial',
+      observed: examined,
+      expected: intended.length,
+      ...(unexamined === 0 ? {} : { unexamined }),
+      ...(failed === 0 ? {} : { failed }),
+      ...(suppressionsTotal === 0 ? {} : { suppressions: suppressionsTotal }),
+      files,
+      findings: parsed.findings,
+      tool: { ...toolIdentity('opengrep'), rule_pack: `ci/configs/opengrep-rules/${packRelativePath}` },
+      reportDigest: digestOf(run.outcome.stdout),
+      diagnostic: `${packLine}: ${incompleteness.join('; ')}`,
+    };
   }
 
   return {
     outcome: 'pass',
-    coverage: parsed.coverage,
-    observed: parsed.scope.observed,
-    files: (parsed.scope.files ?? []).slice(0, MAX_FILES_RECORDED),
+    coverage: 'complete',
+    observed: examined,
+    expected: intended.length,
+    ...(suppressionsTotal === 0 ? {} : { suppressions: suppressionsTotal }),
+    files,
     findings: parsed.findings,
     tool: { ...toolIdentity('opengrep'), rule_pack: `ci/configs/opengrep-rules/${packRelativePath}` },
     reportDigest: digestOf(run.outcome.stdout),
-    ...(parsed.parserErrors.length === 0 ? {} : { diagnostic: parsed.parserErrors.join('; ') }),
+    diagnostic: `${packLine}: examined ${String(examined)}/${String(intended.length)} inventoried relevant files` +
+      (suppressions.semgrepignore === undefined
+        ? ''
+        : `; target .semgrepignore (${String(suppressions.semgrepignore.entries)} entries) cannot affect the reviewed scan scope and is recorded`),
   };
 }
 
-const runOpengrep = (context: RecipeContext): Promise<RecipeOutcome> =>
-  runOpengrepWithPack(context, 'hardening-core.yaml', 'security');
+/**
+ * The Supabase migration rules (Batch F2, fix brief F-06; conservative tokenizer and ordered
+ * final-state evaluation under P3.3 — A-13/A-14): the six reviewed SQL rule families over
+ * `supabase/migrations/*.sql`, implemented as an internal analyser (`src/security/migrations.ts`)
+ * with its tokenizer (`src/security/sql-tokens.ts`) so no SQL parser dependency enters the pack.
+ */
+const runMigrationInventory = (context: RecipeContext): Promise<RecipeOutcome> => {
+  const result = analyzeMigrations(context.appRoot);
+  const limits = result.limits.length > 0 ? `; ${result.limits.join('; ')}` : '';
+  return Promise.resolve(qualityOutcome('migration-inventory', result.findings, result.filesRead.length,
+    'conservative SQL tokenizer (strings, comments, quoted identifiers, dollar bodies) with ordered final-state evaluation over supabase/migrations/*.sql; reviewed shapes only — recorded gaps: dynamic SQL and DO blocks inside function bodies, exposure mechanisms beyond the supabase/config.toml [api].schemas read, effective access against a live database (P7/P8 probes)' + limits));
+};
+
+const runOpengrep = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  // Two reviewed packs run in one check: the core pack (F-01) and the detection-depth pack
+  // (Batch F2 — taint and pattern rules). Findings merge; the packs are independent scans, so a
+  // pack that finds nothing does not mask the other's findings. P3.1 (A-09): one shared
+  // independent inventory feeds both packs, and the aggregator is strictly conjunctive — a pack
+  // that failed, is incomplete, or is suppressed makes the combined result that pack's error. A
+  // successful sibling never masks a failed one.
+  const inventory = buildSourceInventory(context.appRoot, OPENGREP_SOURCE_EXTENSIONS, OPENGREP_EXCLUDED_DIRS);
+  const suppressions = inventorySuppressions(context.appRoot, inventory);
+  const core = await runOpengrepWithPack(context, 'hardening-core.yaml', 'security', { inventory, suppressions });
+  const depth = await runOpengrepWithPack(context, 'detection-depth.yaml', 'security', { inventory, suppressions });
+  if (core.outcome === 'error' && depth.outcome === 'error') {
+    return {
+      ...core,
+      // The failing check still carries the healthy sibling's real detections, so the report
+      // keeps them while the check itself fails.
+      findings: [...core.findings, ...depth.findings],
+      diagnostic: [core.diagnostic, depth.diagnostic]
+        .filter((note): note is string => note !== undefined && note.length > 0)
+        .join('; '),
+    };
+  }
+  if (core.outcome === 'error') return { ...core, findings: [...core.findings, ...depth.findings] };
+  if (depth.outcome === 'error') return { ...depth, findings: [...core.findings, ...depth.findings] };
+  // P3.5 (A-17): the packs' scopes are pack-relative now, so an empty language scope is honest
+  // absence for that pack — a sibling's real results must not be masked by it. Both empty:
+  // unsupported with the reasons.
+  if (core.outcome === 'unsupported' || depth.outcome === 'unsupported') {
+    const passed = core.outcome === 'pass' ? core : depth.outcome === 'pass' ? depth : undefined;
+    if (passed !== undefined) {
+      const emptySibling = passed === core ? depth : core;
+      return {
+        ...passed,
+        diagnostic: [passed.diagnostic, `sibling pack had no applicable language scope (${(emptySibling.diagnostic ?? '').slice(0, 200)})`]
+          .filter((part) => part !== undefined && part.length > 0)
+          .join('; '),
+      };
+    }
+    return unsupported(core.diagnostic ?? depth.diagnostic ?? 'no relevant source files under the application root');
+  }
+  const files = [...new Set([...core.files, ...depth.files])];
+  const diagnostics = [core.diagnostic, depth.diagnostic]
+    .filter((note): note is string => note !== undefined && note.length > 0);
+  return {
+    outcome: 'pass',
+    coverage: worse(core.coverage, depth.coverage),
+    observed: Math.max(core.observed, depth.observed),
+    ...(core.expected === undefined ? (depth.expected === undefined ? {} : { expected: depth.expected }) : { expected: core.expected }),
+    // P3.1 observations flow through from the packs: both share one inventory and one suppression
+    // inventory, so the combined result records them once.
+    ...(core.unexamined === undefined && depth.unexamined === undefined
+      ? {}
+      : { unexamined: Math.max(core.unexamined ?? 0, depth.unexamined ?? 0) }),
+    ...(core.failed === undefined && depth.failed === undefined
+      ? {}
+      : { failed: (core.failed ?? 0) + (depth.failed ?? 0) }),
+    ...(core.suppressions === undefined && depth.suppressions === undefined
+      ? {}
+      : { suppressions: Math.max(core.suppressions ?? 0, depth.suppressions ?? 0) }),
+    files: files.slice(0, MAX_FILES_RECORDED),
+    findings: [...core.findings, ...depth.findings],
+    tool: { ...toolIdentity('opengrep'), rule_pack: 'ci/configs/opengrep-rules/{hardening-core,detection-depth}.yaml' },
+    ...(diagnostics.length === 0 ? {} : { diagnostic: diagnostics.join('; ') }),
+  };
+};
 
 /**
  * The console-log rule scopes to production source directories by convention (src, app, lib,
@@ -325,14 +767,17 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
   }
   if (workflowFiles.length === 0) return unsupported(`${workflowsDir} contains no workflow files`);
 
-  const run = await runTool('zizmor', ['--format', 'json', '--no-progress', workflowsDir], { cwd: root, timeoutMs: 120_000 });
+  const run = await runTool('zizmor', ['--format', 'json', '--no-progress', '--persona', 'auditor', workflowsDir], { cwd: root, timeoutMs: 120_000 });
   if (!run.ran || run.outcome === undefined) return unavailable(run.availability);
   // zizmor exits 14 when it reports findings; both are completed executions.
   if (run.outcome.exitCode !== 0 && run.outcome.exitCode !== 14) {
     return errored(`zizmor exited ${String(run.outcome.exitCode)}: ${run.outcome.stderr.slice(-400).trim() || '(no stderr)'}`);
   }
 
-  const parsed = parseZizmorReport(run.outcome.stdout, { intendedScope: workflowFiles.map((name) => join(workflowsDir, name)) });
+  const parsed = parseZizmorReport(run.outcome.stdout, {
+    intendedScope: workflowFiles.map((name) => join(workflowsDir, name)),
+    appRoot: context.appRoot,
+  });
   if ('error' in parsed) return errored(parsed.error);
 
   return {
@@ -347,12 +792,39 @@ async function runZizmor(context: RecipeContext): Promise<RecipeOutcome> {
   };
 }
 
-const BUILD_OUTPUT_CANDIDATES = ['.next/static', '.output/public', 'dist', 'build', 'out'] as const;
-
 async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
-  const inspected = BUILD_OUTPUT_CANDIDATES.map((candidate) => join(context.appRoot, candidate)).find((candidate) => existsSync(candidate));
-  if (inspected === undefined) {
-    return unsupported(`no browser build output found under ${context.appRoot}; looked for ${BUILD_OUTPUT_CANDIDATES.join(', ')}. Run the application build first`);
+  // A-32: browser output is identified from the detected stack's reviewed build shape — a Node
+  // CLI's compiled `dist` is server output and is never scanned as browser-shipped merely
+  // because the directory exists.
+  const detection = detectStackAndFeatures(context.appRoot);
+  const selection = selectBrowserOutput(context.appRoot, detection.stack.kind);
+  if ('unsupported' in selection) {
+    return unsupported(`browser-output inspection: ${selection.unsupported}. Run the application build first`);
+  }
+  const inspected = selection.root;
+  // R1-02: containment against the application root — every ancestor below the root is
+  // inspected before enumeration, because a symlinked .next/.output parent is followed by any
+  // enumeration of an ordinary-looking child. A candidate behind a symlinked ancestor becomes an
+  // explicit incomplete-coverage refusal, never a read of outside bytes.
+  const containedCandidate = (candidate: string): string | undefined => {
+    let ancestor = context.appRoot;
+    for (const segment of relative(context.appRoot, candidate).split(sep)) {
+      ancestor = join(ancestor, segment);
+      try {
+        if (lstatSync(ancestor).isSymbolicLink()) {
+          return `${relative(context.appRoot, candidate)} refused: its ancestor ${relative(context.appRoot, ancestor)} is a symlink and was not followed`;
+        }
+      } catch {
+        break;
+      }
+    }
+    return undefined;
+  };
+  const refusal = containedCandidate(inspected);
+  if (refusal !== undefined) {
+    return { outcome: 'pass', coverage: 'partial', observed: 0, files: [], findings: [],
+      tool: { name: 'client-asset-inspection', observed_version: '1' },
+      diagnostic: `browser-output scan incomplete (R1-02): ${refusal}` };
   }
 
   const report = inspectBrowserAssets(inspected);
@@ -364,7 +836,7 @@ async function runClientAssets(context: RecipeContext): Promise<RecipeOutcome> {
     findings: report.findings,
     tool: { name: 'client-asset-inspection', observed_version: '1' },
     diagnostic: [
-      `${report.classifications.length} intended-public classification(s). ${report.scopeStatement}`,
+      `${detection.stack.kind}: ${selection.basis}. ${report.classifications.length} intended-public classification(s). ${report.scopeStatement}`,
       ...report.parseErrors,
     ].join(' '),
   };
@@ -408,12 +880,29 @@ function thresholdsFor(context: RecipeContext): { thresholds?: QualityThresholds
 
 type QualityThresholdsShape = ReturnType<typeof loadQualityThresholds>['thresholds'];
 
-const runStrictCorrectness = (context: RecipeContext): Promise<RecipeOutcome> => {
+const runStrictCorrectness = async (context: RecipeContext): Promise<RecipeOutcome> => {
   const { thresholds, failure } = thresholdsFor(context);
-  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  if (thresholds === undefined) return failure as RecipeOutcome;
   const result = analyzeStrictCorrectness(context.appRoot, thresholds.strict_correctness);
-  return Promise.resolve(qualityOutcome('quality-strict-correctness', result.findings, result.filesRead,
-    'suppression-marker and any-escape counts; full strict lint and the application\'s own tsc probe are recorded gaps'));
+  const base = qualityOutcome('quality-strict-correctness', result.findings, result.filesRead,
+    'suppression-marker and any-escape counts; the strict type probe (P4.3) runs tsc with SecHard\'s own strict configuration against the application\'s type graph');
+  const tsc = await resolveStagedTool('tsc');
+  if ('unavailable' in tsc) {
+    return { ...base, diagnostic: `${base.diagnostic}; the strict type probe is unavailable (tsc is not provisioned) — full strict checking remains a recorded gap` };
+  }
+  const probe = await analyzeStrictTypes(context.appRoot, tsc);
+  if ('failed' in probe) {
+    return { ...base, diagnostic: `${base.diagnostic}; the strict type probe failed: ${probe.failed}` };
+  }
+  return {
+    outcome: 'pass',
+    coverage: probe.coverage === 'complete' ? 'complete' : 'partial',
+    observed: base.observed,
+    files: base.files,
+    findings: [...base.findings, ...probe.findings],
+    tool: { name: 'quality-strict-correctness', observed_version: tsc.version },
+    diagnostic: `${base.diagnostic}; strict type probe (tsc ${tsc.version}): ${String(probe.findings.length)} strict diagnostic(s)${probe.diagnostics.length > 0 ? `; ${probe.diagnostics.join('; ')}` : ''}`,
+  };
 };
 
 const runTestQuality = (context: RecipeContext): Promise<RecipeOutcome> => {
@@ -425,7 +914,7 @@ const runTestQuality = (context: RecipeContext): Promise<RecipeOutcome> => {
 const runVibeTells = (context: RecipeContext): Promise<RecipeOutcome> => {
   const { thresholds, failure } = thresholdsFor(context);
   if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
-  const result = analyzeVibeTells(context.appRoot, { maxFilesListed: thresholds.vibe_tells.max_files_listed });
+  const result = analyzeVibeTells(context.appRoot);
   return Promise.resolve(qualityOutcome('quality-vibe-tells', result.findings, result.scope.filesRead,
     'review-candidate signals measured on the calibration corpus; never proof of authorship'));
 };
@@ -438,12 +927,72 @@ const runRepoHygiene = (context: RecipeContext): Promise<RecipeOutcome> => {
     'presence checks: artifacts existing is not the same as CI being green or documentation being true'));
 };
 
-const runDependencyHealth = (context: RecipeContext): Promise<RecipeOutcome> => {
+const runDependencyHealth = async (context: RecipeContext): Promise<RecipeOutcome> => {
   const { thresholds, failure } = thresholdsFor(context);
-  if (thresholds === undefined) return Promise.resolve(failure as RecipeOutcome);
+  if (thresholds === undefined) return failure as RecipeOutcome;
   const result = analyzeDependencyHealth(context.appRoot, thresholds.repo_hygiene.expected_lockfiles, thresholds.dependency_health.equivalent_roles);
-  return Promise.resolve(qualityOutcome('quality-dependency-health', result.findings, result.packagesExamined,
-    'lockfile duplicate-role scan; registry-based deprecation and major-drift checks are recorded gaps'));
+  const registry = await analyzeRegistryHealth(context.appRoot, thresholds.repo_hygiene.expected_lockfiles);
+  return qualityOutcome('quality-dependency-health', [...result.findings, ...registry.findings], result.packagesExamined,
+    `lockfile duplicate-role scan; registry health from bounded reviewed queries (${String(registry.queries)} queried: deprecation, major drift, staleness) — offline or failed queries are unknown, not healthy${registry.unknown.length > 0 ? `; unknown: ${registry.unknown.slice(0, 5).join('; ')}${registry.unknown.length > 5 ? '; …' : ''}` : ''}`);
+};
+
+const runQualityFormatting = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const biome = await resolveStagedTool('biome');
+  if ('unavailable' in biome) return unsupported(`quality/formatting: ${biome.unavailable}`);
+  const ruff = await resolveStagedTool('ruff');
+  if ('unavailable' in ruff) return unsupported(`quality/formatting: ${ruff.unavailable}`);
+  const result = await analyzeFormatting(context.appRoot, biome, ruff);
+  if ('unsupported' in result) return unsupported(`quality/formatting: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/formatting: ${result.failed}`);
+  return qualityOutcome('quality-formatting', result.findings, result.observed, `format-only check with SecHard's own configurations (biome ${biome.version}, ruff ${ruff.version}) — check-only, never writes; naming-consistency signals live in the vibe-tells analyser; ${result.notes.join('; ')}`);
+};
+
+const runQualityFrontendQuality = async (_context: RecipeContext): Promise<RecipeOutcome> => {
+  // P4.3 wires the handler with its precondition named precisely; the axe-core and Lighthouse
+  // routes execute against an approved running target, which P8 supplies.
+  return unsupported('quality/frontend-quality: requires an approved running application target and a browser to run axe-core and Lighthouse against — the P8 live-check precondition; a UI without an approved target has this precondition gap, not a fabricated verdict');
+};
+
+/**
+ * The four staged quality analysers (P4.2 — F-07) run the provisioned tools in `tools/quality/`
+ * for real, with SecHard-owned configurations. A missing tool is an explicit unsupported (P4.1:
+ * provisioning is separate from checking and never runs inside an audit); a tool crash is an
+ * error carrying the diagnostic — neither is ever an empty success.
+ */
+const runQualityDuplication = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('jscpd');
+  if ('unavailable' in tool) return unsupported(`quality/duplication: ${tool.unavailable}`);
+  const result = await analyzeDuplication(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/duplication: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/duplication: ${result.failed}`);
+  return qualityOutcome('jscpd', result.findings, result.observed, `token-level clone detection with SecHard's own configuration (jscpd ${tool.version}); ${result.notes.join('; ')}`);
+};
+
+const runQualityComplexity = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('lizard');
+  if ('unavailable' in tool) return unsupported(`quality/complexity: ${tool.unavailable}`);
+  const result = await analyzeComplexity(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/complexity: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/complexity: ${result.failed}`);
+  return qualityOutcome('lizard', result.findings, result.observed, `per-function complexity from the private virtual environment (lizard ${tool.version}) against reviewed thresholds; ${result.notes.join('; ')}`);
+};
+
+const runQualityDeadCode = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('knip');
+  if ('unavailable' in tool) return unsupported(`quality/dead-code: ${tool.unavailable}`);
+  const result = await analyzeDeadCode(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/dead-code: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/dead-code: ${result.failed}`);
+  return qualityOutcome('knip', result.findings, result.observed, `reference-aware dead-code analysis with every config-loading plugin disabled (knip ${tool.version}); ${result.notes.join('; ')}`);
+};
+
+const runQualityModuleStructure = async (context: RecipeContext): Promise<RecipeOutcome> => {
+  const tool = await resolveStagedTool('dependency-cruiser');
+  if ('unavailable' in tool) return unsupported(`quality/module-structure: ${tool.unavailable}`);
+  const result = await analyzeModuleStructure(context.appRoot, tool);
+  if ('unsupported' in result) return unsupported(`quality/module-structure: ${result.unsupported}`);
+  if ('failed' in result) return errored(`quality/module-structure: ${result.failed}`);
+  return qualityOutcome('dependency-cruiser', result.findings, result.observed, `static module-structure rules — cycles and UI data-access (dependency-cruiser ${tool.version}); the target's webpack/JS configuration is never loaded; ${result.notes.join('; ')}`);
 };
 
 function qualityOutcome(toolName: string, findings: readonly Finding[], observed: number, coverageNote: string): RecipeOutcome {
@@ -459,6 +1008,7 @@ function qualityOutcome(toolName: string, findings: readonly Finding[], observed
 }
 
 export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
+  'gitleaks/files': runGitleaksDir,
   'gitleaks/repository': (context) => runGitleaks(context, true),
   'gitleaks/history': (context) => runGitleaks(context, false),
   'osv/lockfile': runOsv,
@@ -471,7 +1021,14 @@ export const RECIPES: Readonly<Record<string, RecipeHandler>> = {
   'quality/test-quality': runTestQuality,
   'quality/vibe-tells': runVibeTells,
   'quality/repo-hygiene': runRepoHygiene,
+  'data/migration-inventory': runMigrationInventory,
   'quality/dependency-health': runDependencyHealth,
+  'quality/formatting': runQualityFormatting,
+  'quality/frontend-quality': runQualityFrontendQuality,
+  'quality/duplication': runQualityDuplication,
+  'quality/complexity': runQualityComplexity,
+  'quality/dead-code': runQualityDeadCode,
+  'quality/module-structure': runQualityModuleStructure,
 };
 
 export const IMPLEMENTED_RECIPES: readonly string[] = Object.keys(RECIPES);

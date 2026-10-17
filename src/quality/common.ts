@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readBoundedSync } from '../evidence/bounded-io.js';
 import { relative } from 'node:path';
 import { walk, type WalkedFile } from '../audit/detect.js';
 
@@ -60,7 +60,8 @@ export function scanSourceFiles(root: string, limit = 1200): ScannedFile[] {
 }
 
 function readFileSyncText(file: string, limitBytes = 512 * 1024): string | undefined {
-  return readFileSync(file).subarray(0, limitBytes).toString('utf8');
+  // P1.3: bounded at open time; unreadable inputs are skipped, not loaded whole.
+  return readBoundedSync(file, limitBytes);
 }
 
 export interface CommentLine {

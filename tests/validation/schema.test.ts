@@ -181,6 +181,30 @@ describe('schema validation', () => {
     expect(validateAgainstSchema('assessment', { ...base, applicability_reason: 'no private resources' }).valid).toBe(true);
   });
 
+  it('rejects a triage record with a bare reason, a line-numbered file, or an unpinned fingerprint', () => {
+    const base = {
+      schema_version: 'triage/v1',
+      id: 'TRIAGE-0001',
+      finding_fingerprint: 'a'.repeat(64),
+      rule_id: 'generic-api-key',
+      file: 'src/config.ts',
+      triage: 'false_positive',
+      reason: 'Synthetic example value in documentation, never a real credential',
+      reviewer: 'reviewer',
+      reviewed_at: '2026-10-06T00:00:00Z',
+    };
+    expect(validateAgainstSchema('triage', base).valid).toBe(true);
+    // A bare label is not triage: the reason must say why.
+    expect(validateAgainstSchema('triage', { ...base, reason: 'test value' }).valid).toBe(false);
+    // The file is a file, not a location: a line number would make the record narrower than the
+    // finding and it would silently stop matching on the next edit.
+    expect(validateAgainstSchema('triage', { ...base, file: 'src/config.ts:4' }).valid).toBe(false);
+    // The fingerprint is what revalidation runs on; an absent one cannot reopen the finding.
+    expect(validateAgainstSchema('triage', { ...base, finding_fingerprint: 'short' }).valid).toBe(false);
+    // Only false_positive is a triage: acceptance is what exceptions are for.
+    expect(validateAgainstSchema('triage', { ...base, triage: 'accepted' }).valid).toBe(false);
+  });
+
   it('rejects an applicability rule that names no features', () => {
     const result = validateAgainstSchema('control', {
       ...control,

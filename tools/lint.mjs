@@ -9,6 +9,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const IGNORED_DIRS = new Set([
   '.git',
   'node_modules',
+  'venv',
   'dist',
   'coverage',
   '.hardening',

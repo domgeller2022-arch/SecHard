@@ -6,7 +6,9 @@ import type {
   ManualEvidence,
   ReleaseEvidence,
   Severity,
+  TriageRecord,
 } from '../domain/types.js';
+import { matchTriageRecord } from '../domain/evaluator.js';
 
 const SEVERITY_ORDER: readonly Severity[] = ['critical', 'high', 'medium', 'low', 'info', 'unknown'];
 
@@ -19,6 +21,8 @@ export interface ReportInput {
   readonly results: readonly CheckResult[];
   readonly manualEvidence: readonly ManualEvidence[];
   readonly exceptions: readonly ExceptionRecord[];
+  /** Reviewed false-positive records; reported in their own section, never silently dropped. */
+  readonly triages?: readonly TriageRecord[];
   readonly appId: string;
   readonly appName?: string;
   readonly sourceCommit: string;
@@ -132,6 +136,23 @@ export function buildReport(input: ReportInput): BuiltReport {
       self_review: exception.self_review ?? false,
       expires_at: exception.expires_at,
     })),
+    // Every record stays visible whether or not it currently matches a finding: a record whose
+    // fingerprint no longer matches says the content changed, and the finding is back — that must
+    // be reviewable, not silently dropped (F-02/A-4).
+    recorded_false_positives: (input.triages ?? []).map((record) => {
+      const matched = input.results
+        .flatMap((result) => result.findings ?? [])
+        .find((finding) => matchTriageRecord(finding, [record]) !== undefined);
+      return {
+        id: record.id,
+        rule_id: record.rule_id,
+        file: record.file,
+        reviewer: record.reviewer,
+        reason: record.reason,
+        reviewed_at: record.reviewed_at,
+        ...(matched === undefined ? {} : { matched_finding: matched.id }),
+      };
+    }),
     outstanding: outstanding
       .slice()
       .sort(sortBySeverity)

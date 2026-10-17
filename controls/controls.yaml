@@ -310,20 +310,26 @@ controls:
 
   - id: SEC-01
     schema_version: control/v1
-    definition_version: 2
+    definition_version: 3
     review_status: owner_reviewed
     reviewed_by: "owner"
     reviewed_at: "2026-10-07T00:00:00Z"
     title: Secret detection
     purpose: >-
-      Find credentials committed to the repository, including in history, before they are used.
+      Find credentials committed to the repository, including in history, and credentials sitting
+      in the current working tree — committed or not — before they are used.
     applicability: { rule: always }
     acceptance:
-      - Repository and change scans run with valid scope and a fresh tool version
+      - Repository, change, and current-file scans run with valid scope and a fresh tool version
+      - The current working-tree files are scanned at every depth, whether or not the target is a
+        git repository, so uncommitted and untracked credentials are reported
       - Initial history is reviewed, with shallow-clone limitations recorded
       - Findings are resolved or explicitly assessed; unknown severity stays visible
       - Secret material is redacted in all emitted output
     verification:
+      - method: secret_scan
+        recipe: gitleaks/files
+        coverage: mixed
       - method: secret_scan
         recipe: gitleaks/repository
         coverage: mixed
@@ -334,10 +340,13 @@ controls:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
       - Gitleaks reports bytes examined, not the files it read, so per-file coverage cannot be
-        attested. The repository inventory is recorded as a compensating scope; the recipe is
-        classified `mixed` for that reason.
+        attested. The scanned-file inventories (tracked files for the git scans, the bounded
+        working-tree walk for the current-files scan) are recorded as compensating scope; the
+        recipes are classified `mixed` for that reason.
       - Shallow clones limit history coverage and the limitation must be recorded
       - Detection is pattern based; absence of findings is not proof of absence
+      - The current-files scan covers the working tree as it exists, including uncommitted and
+        untracked files, but cannot see content that exists only in history
       - A verified leak still requires credential rotation, not only removal from the commit
     owner_role: repository-owner
     reassessment_triggers:
@@ -582,7 +591,7 @@ controls:
       - method: quality_scan
         recipe: quality/strict-correctness
         coverage: mixed
-        notes: "Marker and any-usage counts are SecHard-owned measurements; full strict-type-checked linting and a tsc --strict probe against the app's own type graph are recorded gaps (they need the app's type dependencies)."
+        notes: "Wired in P4.3: the tsc --strict probe runs from the isolated tools/quality package with SecHard's own strict configuration against the application's type graph (its tsconfig read as data, paths preserved); marker and any-usage counts remain. Missing type dependencies or an absent tsconfig/node_modules are coverage gaps, never findings."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -611,7 +620,7 @@ controls:
       - method: quality_scan
         recipe: quality/duplication
         coverage: automated
-        notes: "Requires a token-level clone detector (jscpd is the reviewed candidate). Not wired in this build; the recipe reports unsupported with this reason rather than a fabricated pass."
+        notes: "Wired in P4.2: jscpd runs from the isolated tools/quality package with SecHard's own configuration (token-level clone detection over TypeScript and JavaScript sources). Python-source duplication is a recorded gap."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -638,7 +647,7 @@ controls:
       - method: quality_scan
         recipe: quality/complexity
         coverage: automated
-        notes: "Requires a per-function complexity analyser (Lizard is the reviewed candidate). Not wired in this build; a file-line count is not complexity and would be a fabricated measurement, so the recipe reports unsupported with this reason."
+        notes: "Wired in P4.2: Lizard runs from a private virtual environment against reviewed calibrated thresholds (cyclomatic at or above 10, function length above 50, parameters above 5). Lizard cannot parse JSX/TSX in its own directory walk, so the analyser names source files explicitly; other languages are recorded gaps."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -665,7 +674,7 @@ controls:
       - method: quality_scan
         recipe: quality/dead-code
         coverage: automated
-        notes: "Requires a reference-aware dead-code analyser (Knip for JS/TS, Vulture for Python are the reviewed candidates). Not wired in this build; the recipe reports unsupported with this reason."
+        notes: "Wired in P4.2: Knip runs from the isolated tools/quality package with every config-loading plugin disabled and SecHard's own entry declarations (JS/TS dead files, exports and dependencies). Vulture for Python is a recorded gap."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -692,7 +701,7 @@ controls:
       - method: quality_scan
         recipe: quality/module-structure
         coverage: automated
-        notes: "Requires a dependency-graph analyser with reviewed rules (dependency-cruiser is the reviewed candidate). Not wired in this build; the recipe reports unsupported with this reason."
+        notes: "Wired in P4.2: dependency-cruiser 17.0.1 runs from the isolated tools/quality package with SecHard's own static rules (dependency cycles, UI to database/server-only imports matched against raw import specifiers). The target's webpack/JS configuration is never loaded; tsconfig alias resolution did not apply on the pinned version, so the raw-specifier patterns are the reviewed shape."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -781,7 +790,7 @@ controls:
       - method: quality_scan
         recipe: quality/vibe-tells
         coverage: mixed
-        notes: "SecHard-owned analyser (src/quality/tells.ts). No mature open-source analyser exists for this; each rule carries fixtures and corpus-measured precision."
+        notes: "SecHard-owned analyser (src/quality/tells.ts). No mature open-source analyser exists for this; each rule carries fixtures and corpus-measured precision. P4.4 adds the undocumented-env, hallucinated-import, inconsistent-naming and redundant-validation families, measures narration recall on enumerated comment instances (the calibration gate: at least 0.7 with zero false narration findings on the reviewed rationale comments), and detects every tell before any display limit - the report's per-file caps reconcile their omitted counts."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -809,7 +818,7 @@ controls:
       - method: quality_scan
         recipe: quality/formatting
         coverage: automated
-        notes: "Requires a formatter in check-only mode (Prettier/Biome for JS/TS, Ruff format for Python are the reviewed candidates). Not wired in this build; the recipe reports unsupported with this reason."
+        notes: "Wired in P4.3: Biome runs check-only from the isolated tools/quality package with SecHard's own configuration (the target's biome.json is never loaded), and Ruff format --check runs from the private virtual environment for Python sources. Neither tool writes. Naming-consistency signals stay in the vibe-tells analyser."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -835,7 +844,7 @@ controls:
       - method: quality_scan
         recipe: quality/repo-hygiene
         coverage: mixed
-        notes: "SecHard-owned repository checks; README command runnability is asserted where the repository's own test suite proves it, and reported as a signal otherwise."
+        notes: "SecHard-owned repository checks (P4.3 additions: committed generated artifacts, and licence-description accuracy — an owner's private/no-licence choice is described accurately and never relabelled as open-source readiness); README command runnability is asserted where the repository's own test suite proves it, and reported as a signal otherwise."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -864,7 +873,7 @@ controls:
       - method: quality_scan
         recipe: quality/dependency-health
         coverage: mixed
-        notes: "SecHard-owned lockfile duplicate scan in this build. Registry-based deprecation, staleness, and major-drift checks need online queries and are recorded gaps."
+        notes: "Wired in P4.3: bounded reviewed registry queries (at most 60 packages per audit) against the approved registry — deprecation, major drift of two or more majors, and staleness beyond 24 months. Offline or failed queries are recorded as unknown, never as healthy, and this never replaces OSV advisory scanning."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:
@@ -893,7 +902,7 @@ controls:
       - method: quality_scan
         recipe: quality/frontend-quality
         coverage: mixed
-        notes: "Requires a running application and a browser (axe-core via Playwright, Lighthouse CI are the reviewed candidates). Not wired in this build; live-recipe preconditions (an approved target) do not exist for it yet, so the recipe reports unsupported with this reason."
+        notes: "Wired in P4.3 as a preconditioned handler: the recipe names its precondition precisely — an approved running application target and a browser are required to run axe-core and Lighthouse against, and P8 supplies those live-check preconditions. A UI without an approved target has this precondition gap, not a fabricated verdict."
     evidence_requirements:
       - { kind: check_result, required_origin: actual_tool }
     limitations:

@@ -63,12 +63,27 @@ const decision: GateDecision = {
 
 const evidence = {} as ReleaseEvidence;
 
-function resultFor(recipe: string, findings: readonly { id: string; rule: string; severity: Severity; tool: string; title: string; location: string }[]): CheckResult {
+function resultFor(
+  recipe: string,
+  findings: readonly {
+    id: string;
+    rule: string;
+    severity: Severity;
+    tool: string;
+    title: string;
+    location: string;
+    category?: 'secret';
+    commit?: string;
+    detail?: string;
+    secretDigest?: string;
+  }[],
+  controlIds: readonly string[] = ['SEC-01'],
+): CheckResult {
   return {
     schema_version: 'check-result/v1',
     run_id: 'audit-test',
     check_id: `${recipe}:pr`,
-    control_ids: ['SEC-01'],
+    control_ids: [...controlIds],
     recipe,
     stage: 'pr',
     environment: 'local',
@@ -87,7 +102,11 @@ function resultFor(recipe: string, findings: readonly { id: string; rule: string
       severity: finding.severity,
       title: finding.title,
       location: finding.location,
-      control_ids: ['SEC-01'],
+      ...(finding.category === undefined ? {} : { category: finding.category }),
+      ...(finding.commit === undefined ? {} : { commit: finding.commit }),
+      ...(finding.secretDigest === undefined ? {} : { secret_digest: finding.secretDigest }),
+      ...(finding.detail === undefined ? {} : { detail: finding.detail }),
+      control_ids: [...controlIds],
       triage: 'unresolved' as const,
     })),
     evidence_origin: 'actual_tool',
@@ -251,5 +270,135 @@ describe('SARIF output', () => {
     ]));
     expect(report.sarif).not.toContain('snippet');
     expect(report.sarif).not.toContain('region');
+  });
+});
+
+describe('A-7: exposure orders every finding at equal severity, and duplicate locations fold to one row', () => {
+  it('ranks a committed-history secret above a request-reachable finding above repository hygiene', () => {
+    const results = [
+      resultFor('gitleaks/repository', [
+        { id: 'f-workflow', rule: 'unpinned-action', severity: 'high', tool: 'zizmor', title: 'unpinned action', location: '.github/workflows/ci.yml' },
+        { id: 'f-api', rule: 'sql-injection', severity: 'high', tool: 'opengrep', title: 'injection in a handler', location: 'app/api/users/route.ts' },
+        {
+          id: 'f-history',
+          rule: 'jwt',
+          severity: 'high',
+          tool: 'gitleaks',
+          title: 'service-role key',
+          location: '.env:1',
+          category: 'secret',
+          commit: 'c0ffee'.padEnd(40, '0'),
+        },
+      ]),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    expect(report.findings.map((finding) => finding.id)).toEqual(['f-history', 'f-api', 'f-workflow']);
+    expect(report.findings[0]?.exposure).toBe('committed-history');
+    expect(report.findings[1]?.exposure).toBe('request-reachable');
+    expect(report.findings[2]?.exposure).toBe('source');
+  });
+
+  it('folds two rules reporting one location into one row, keeping both provenances and the higher severity', () => {
+    const results = [
+      resultFor('opengrep/rules', [
+        { id: 'f-regex', rule: 'hardening.api-unvalidated-response-consumption', severity: 'medium', tool: 'opengrep', title: 'ssrf (pattern)', location: 'app/api/proxy/route.ts:9' },
+        { id: 'f-taint', rule: 'hardening.taint-ssrf-fetch', severity: 'high', tool: 'opengrep', title: 'ssrf (taint)', location: 'app/api/proxy/route.ts:9' },
+        { id: 'f-other', rule: 'hardening.nonliteral-html-sink', severity: 'medium', tool: 'opengrep', title: 'xss elsewhere', location: 'app/api/proxy/route.ts:12' },
+      ]),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    const atSameLine = report.findings.filter((finding) => finding.location === 'app/api/proxy/route.ts:9');
+    expect(atSameLine).toHaveLength(1);
+    expect(atSameLine[0]?.severity).toBe('high');
+    // Both provenances stay visible on the one row: the kept rule names the row; the folded one
+    // is in the detail.
+    expect(atSameLine[0]?.rule_id).toBe('hardening.api-unvalidated-response-consumption');
+    expect(atSameLine[0]?.detail ?? '').toContain('hardening.taint-ssrf-fetch');
+    // A different line is a different finding and is not folded.
+    expect(report.findings.some((finding) => finding.location === 'app/api/proxy/route.ts:12')).toBe(true);
+  });
+});
+
+describe('finding dedup folds only proven vulnerability equivalence (P4.4, A-18)', () => {
+  const paymentLine = 'src/payments.ts:10';
+  const secretFinding = (id: string, rule: string, digest: string, severity: Severity = 'critical') => ({
+    id,
+    rule,
+    severity,
+    tool: 'gitleaks',
+    title: `${rule} on the payment line`,
+    location: paymentLine,
+    category: 'secret' as const,
+    secretDigest: digest,
+  });
+
+  it('keeps a quality-low and a payment-critical finding at one line as two rows with a critical security verdict', () => {
+    const results = [
+      resultFor('gitleaks/repository', [secretFinding('s1', 'gitleaks.stripe-live-key', 'a'.repeat(64))]),
+      resultFor('quality/tells', [{ id: 'q1', rule: 'tell.placeholder-comment', severity: 'low', tool: 'quality-vibe-tells', title: 'placeholder comment', location: paymentLine }], ['QUAL-09']),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    const rows = report.findings.filter((finding) => finding.location === paymentLine);
+    expect(rows).toHaveLength(2);
+    const families = rows.map((row) => row.family);
+    expect(families).toContain('security');
+    expect(families).toContain('quality');
+    // The quality finding never changes the security verdict and vice versa (A-18).
+    expect(report.securityScore.verdict).toMatch(/critical/i);
+  });
+
+  it('keeps two unrelated credentials at one line independent', () => {
+    const results = [resultFor('gitleaks/repository', [
+      secretFinding('s1', 'gitleaks.stripe-live-key', 'a'.repeat(64)),
+      secretFinding('s2', 'gitleaks.generic-api-key', 'b'.repeat(64), 'high'),
+    ])];
+    const report = buildAuditReport(inputWith(results));
+    expect(report.findings.filter((finding) => finding.location === paymentLine)).toHaveLength(2);
+  });
+
+  it('folds the same credential identity reported twice into one row with both provenances', () => {
+    const results = [
+      resultFor('gitleaks/repository', [secretFinding('s1', 'gitleaks.stripe-live-key', 'c'.repeat(64))]),
+      resultFor('opengrep/rules', [{ id: 's2', rule: 'hardening.logging-secret-value', severity: 'high', tool: 'opengrep', title: 'the same secret logged', location: paymentLine, secretDigest: 'c'.repeat(64) }]),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    const rows = report.findings.filter((finding) => finding.location === paymentLine);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.detail ?? '').toContain('also reported as hardening.logging-secret-value');
+  });
+
+  it('keeps six distinct advisories on one lockfile line as six rows', () => {
+    const advisories = Array.from({ length: 6 }, (_, index) => ({
+      id: 'adv' + String(index),
+      rule: 'GHSA-test-' + String(index),
+      severity: 'high' as Severity,
+      tool: 'osv',
+      title: 'advisory ' + String(index),
+      location: 'package-lock.json:12',
+    }));
+    const report = buildAuditReport(inputWith([resultFor('osv/lockfile', advisories)]));
+    expect(report.findings.filter((finding) => finding.location === 'package-lock.json:12')).toHaveLength(6);
+  });
+
+  it('reconciles the fix-first display cap: ten rendered of twelve detected (P4.4, A-20)', () => {
+    const results = [
+      resultFor('gitleaks/repository', Array.from({ length: 12 }, (_, index) => ({
+        id: 's' + String(index),
+        rule: 'gitleaks.generic-api-key',
+        severity: 'high' as Severity,
+        tool: 'gitleaks',
+        title: 'finding ' + String(index),
+        location: 'src/file' + String(index) + '.ts:1',
+        category: 'secret' as const,
+        secretDigest: 'digest-' + String(index).padStart(3, '0'),
+      }))),
+    ];
+    const report = buildAuditReport(inputWith(results));
+    // The machine results carry all twelve findings; the rendered fix-first section shows the
+    // ten highest-priority rows and states the omission with the reason (A-20: reported,
+    // omitted, and inspected counts reconcile).
+    expect(report.findings).toHaveLength(12);
+    expect(report.markdown).toContain('of **12** detected');
+    expect(report.markdown).toContain('nothing is dropped');
   });
 });

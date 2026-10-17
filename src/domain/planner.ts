@@ -102,6 +102,7 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
     );
     if (applicability === 'not_applicable') continue;
 
+    const companionRecipes = new Set<string>();
     for (const method of control.verification) {
       if (!requiredMethods.has(method.method)) continue;
 
@@ -140,6 +141,50 @@ export function buildPlan(input: PlanInput): ExecutionPlan {
               requires_isolation: false,
             },
         required_coverage: method.coverage === 'automated' ? 'complete' : 'partial',
+        evidence_freshness: {
+          ...(stagePolicy.advisory_snapshot_max_age_hours === undefined
+            ? {}
+            : { advisory_max_age_hours: stagePolicy.advisory_snapshot_max_age_hours }),
+        },
+      });
+
+      // "Mixed" means tool evidence **plus** reviewed manual evidence (fix brief F-03): a mixed
+      // method that only checks the tool result silently accepts partial work. Every mixed method
+      // gets its manual companion, so the control is never satisfied by the tool half alone. A
+      // control that declares its own manual_attestation method already names the human half —
+      // that check covers every mixed method on the control, and a second companion would only
+      // duplicate the obligation.
+      if (method.coverage !== 'mixed' || manual) continue;
+      const declaredManual = control.verification.find((entry) => entry.method === 'manual_attestation');
+      const declaredManualPlanned = declaredManual !== undefined && requiredMethods.has('manual_attestation');
+      const companionRecipe = declaredManual?.recipe ?? `${method.recipe ?? method.method}/review`;
+      if (declaredManualPlanned || companionRecipes.has(companionRecipe)) continue;
+      companionRecipes.add(companionRecipe);
+
+      // O-10 stage behaviour, adopted as the recommended default: release gates on the human half,
+      // because an obligation that blocks every pull request is one nobody keeps; elsewhere it is
+      // recorded and does not block unless the profile opts in.
+      const companionRequired = selection.required && (input.stage === 'release' || requiredMethods.has('manual_attestation'));
+
+      checks.push({
+        check_id: `${controlId}:manual_attestation:${companionRecipe}:${input.stage}`,
+        control_ids: [controlId],
+        method: 'manual_attestation',
+        recipe: companionRecipe,
+        recipe_version: '1',
+        stage: input.stage,
+        environment: input.environment,
+        required: companionRequired,
+        identity: {
+          source_commit: input.sourceCommit,
+          policy_commit: input.policyCommit,
+          run_id: input.runId,
+          attempt: input.attempt ?? 1,
+          ...(input.appManifestDigest === undefined ? {} : { configuration_digest: input.appManifestDigest }),
+        },
+        expected_scope: scopeFor('manual_attestation', input.environment),
+        execution: { mode: 'manual' },
+        required_coverage: 'partial',
         evidence_freshness: {
           ...(stagePolicy.advisory_snapshot_max_age_hours === undefined
             ? {}

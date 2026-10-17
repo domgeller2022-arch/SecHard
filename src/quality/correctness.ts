@@ -1,11 +1,18 @@
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, join, relative, resolve } from 'node:path';
 import type { Finding } from '../domain/types.js';
+import { runProcess } from '../execution/process.js';
 import { isTestFile, scanSourceFiles, type ScannedFile } from './common.js';
+import { packageRoot } from '../validation/schema.js';
+import type { StagedTool } from './staged.js';
 
 /**
  * QUAL-02 (strict static correctness) and QUAL-08 (tests that test something): SecHard-owned
- * static measurements. Markers and test-shape findings are signals with locations; the full
- * strict-type-checked lint and the app's own tsc probe are recorded gaps (they need the app's type
- * graph), and coverage ratios need running the suite, which the audit isolation model forbids.
+ * static measurements. Markers and test-shape findings are signals with locations; the strict
+ * type probe (P4.3) runs tsc with SecHard's own strict configuration against the application's
+ * type graph, with missing type dependencies recorded as coverage gaps; coverage ratios still
+ * need running the suite, which the audit isolation model forbids (P5.1).
  */
 
 export interface ScanResult {
@@ -136,6 +143,150 @@ function marker(ruleId: string, severity: Finding['severity'], file: ScannedFile
     control_ids: ['QUAL-02'],
     triage: 'unresolved',
   };
+}
+
+// --- QUAL-02: the strict type probe ----------------------------------------------------
+
+const STRICT_BASE = join(packageRoot(), 'ci', 'configs', 'quality', 'tsconfig.strict.json');
+
+export interface StrictTypesResult {
+  readonly findings: Finding[];
+  readonly diagnostics: readonly string[];
+  /** 'gap' when module-resolution holes limited the probe; the findings still stand. */
+  readonly coverage: 'complete' | 'gap';
+}
+
+/**
+ * Runs tsc with SecHard's own strict configuration over the application's sources. The
+ * application's tsconfig is read as data — its paths, baseUrl and include feed a merged
+ * configuration written to a private temporary directory; the target's own tsconfig is never
+ * extended from or written to, and no target configuration is executed. Module-resolution
+ * diagnostics (missing type dependencies) are coverage gaps, never findings (plan item 1);
+ * the remaining strict diagnostics are.
+ */
+export async function analyzeStrictTypes(appRoot: string, tsc: StagedTool): Promise<StrictTypesResult | { readonly failed: string }> {
+  const tsconfigPath = join(appRoot, 'tsconfig.json');
+  if (!existsSync(tsconfigPath)) {
+    return { findings: [], diagnostics: ['the application has no tsconfig.json — the strict type probe cannot resolve its module graph'], coverage: 'gap' };
+  }
+  if (!existsSync(join(appRoot, 'node_modules'))) {
+    return { findings: [], diagnostics: ['the application\u2019s dependencies are not installed (no node_modules) — the strict type graph cannot resolve'], coverage: 'gap' };
+  }
+  let appTsconfig: { compilerOptions?: Record<string, unknown>; include?: readonly string[]; exclude?: readonly string[] };
+  try {
+    appTsconfig = JSON.parse(readFileSync(tsconfigPath, 'utf8')) as typeof appTsconfig;
+  } catch {
+    return { findings: [], diagnostics: ['the application\u2019s tsconfig.json is not strict JSON — the probe reads configuration as data only and does not parse JSONC'], coverage: 'gap' };
+  }
+  const appOptions = (appTsconfig.compilerOptions ?? {}) as Record<string, unknown>;
+  const dir = mkdtempSync(join(tmpdir(), 'hardening-strict-'));
+  // tsc 7 has removed `baseUrl`: paths entries resolve relative to the configuration file, so the
+  // application's paths are rewritten relative to the temporary merged configuration.
+  const appPaths = appOptions.paths as Record<string, readonly string[]> | undefined;
+  const scanned = scanSourceFiles(appRoot);
+  const absolutize = (patterns: readonly string[] | undefined): readonly string[] | undefined =>
+    patterns?.map((pattern) => (pattern.startsWith('/') ? pattern : join(appRoot, pattern)));
+  const merged = {
+    extends: STRICT_BASE,
+    compilerOptions: {
+      ...appOptions,
+      ...(appPaths === undefined ? {} : {
+        paths: Object.fromEntries(
+          Object.entries(appPaths).map(([pattern, values]) => [
+            pattern,
+            values.map((value) => relative(dir, join(appRoot, value))),
+          ]),
+        ),
+      }),
+      strict: true,
+      noEmit: true,
+      incremental: false,
+      skipLibCheck: true, // the libraries are not the application's quality scope
+    },
+    include: absolutize(appTsconfig.include) ?? [join(appRoot, '**/*')],
+    exclude: absolutize(appTsconfig.exclude) ?? [join(appRoot, 'node_modules')],
+  };
+  // The include patterns stay ABSOLUTE: a relative include makes tsc report diagnostic paths
+  // relative to the temporary configuration's directory instead of the application root.
+  const tempConfig = join(dir, 'tsconfig.strict-merged.json');
+  writeFileSync(tempConfig, JSON.stringify(merged));
+  try {
+    const run = await runProcess({
+      executable: tsc.executable,
+      args: ['-p', tempConfig],
+      cwd: appRoot,
+      timeoutMs: 600_000,
+      maxOutputBytes: 16 * 1024 * 1024,
+    });
+    if (run.exitCode !== 0 && run.exitCode !== 1) {
+      return { failed: `tsc exited ${String(run.exitCode)}: ${(run.stderr ?? '').slice(-300).trim() || '(no stderr)'}` };
+    }
+    // tsc exits 1 when diagnostics were found (the expected finding case); 2+ is a
+    // configuration or IO failure, not a measurement. Under the stripped child environment
+    // tsc 7 writes its diagnostics to stderr — parse both streams.
+    const findings: Finding[] = [];
+    const diagnostics: string[] = [];
+    let resolutionGaps = 0;
+    const output = `${run.stdout ?? ''}\n${run.stderr ?? ''}`;
+    // The tsc-reported paths can diverge from the appRoot prefix: a config-relative form
+    // resolves against the application root, and macOS temp-dir symlinks report /private/var
+    // while the walk used /var - normalize through realpath and match the scanned files.
+    const relFileFor = (reported: string): string => {
+      const resolved = resolve(appRoot, reported);
+      const direct = relative(appRoot, resolved);
+      if (!direct.startsWith('..') && !direct.startsWith('/')) return direct;
+      let real = resolved;
+      try {
+        real = realpathSync(resolved);
+      } catch {
+        // The reported file may no longer exist; match the unnormalized form.
+      }
+      const hit = scanned.find((file) => real.endsWith(file.path) || file.path.endsWith(real) || resolved.endsWith(file.path));
+      if (hit !== undefined) return hit.relative;
+      // Last resort: the basename match - the diagnostic's own file name identifies the scanned
+      // source even when every path prefix diverged.
+      const base = basename(resolved);
+      const byName = scanned.find((file) => basename(file.path) === base);
+      return byName !== undefined ? byName.relative : reported;
+    };
+    for (const line of output.split(/\r?\n/)) {
+      // tsc 7 (the native compiler) reports `path:line:col - error TSxxxx: message`; the
+      // classic compiler reports `path(line,col): error TSxxxx: message`. Both are parsed.
+      const match = /^(.+?)\((\d+),\d+\):\s+error\s+(TS\d+):\s+(.*)$/.exec(line.trim())
+        ?? /^(.+?):(\d+):\d+\s+-\s+error\s+(TS\d+):\s+(.*)$/.exec(line.trim());
+      if (match === null) continue;
+      const file = match[1] ?? '';
+      const lineNo = match[2] ?? '0';
+      const code = match[3] ?? '';
+      const message = match[4] ?? '';
+      if (code === 'TS2307' || code === 'TS2305' || code === 'TS2724') {
+        resolutionGaps += 1;
+        continue;
+      }
+      const relFile = relFileFor(file);
+      if (relFile.endsWith('.json')) {
+        // A diagnostic located in a configuration file is a config problem, not a measurement.
+        return { failed: `tsc reported a configuration error in ${relFile}: ${code} ${message}` };
+      }
+      findings.push({
+        id: `quality:strict-correctness:tsc-strict-error:${relFile}:${lineNo}:${code}`,
+        tool: 'quality-strict-correctness',
+        rule_id: 'tsc-strict-error',
+        severity: 'low',
+        title: `Strict type error ${code} in ${relFile}:${lineNo}: ${message}`,
+        location: `${relFile}:${lineNo}`,
+        detail: `${message} — the strict configuration flags this in the application's own sources.`,
+        control_ids: ['QUAL-02'],
+        triage: 'unresolved',
+      });
+    }
+    if (resolutionGaps > 0) {
+      diagnostics.push(`${String(resolutionGaps)} module-resolution diagnostic(s) are coverage gaps (missing or unresolvable type dependencies), not findings`);
+    }
+    return { findings, diagnostics, coverage: resolutionGaps > 0 ? 'gap' : 'complete' };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 // --- QUAL-08: tests that test something -----------------------------------------------

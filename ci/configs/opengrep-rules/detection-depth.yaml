@@ -1,0 +1,618 @@
+# The detection-depth rule pack (Batch F2, fix brief F-04/F-05/F-09): taint-mode rules from
+# request data into dangerous sinks, pattern rules for the common vibe-coded mistakes, and the
+# unverified-Stripe-webhook rule. Sources and sinks are the brief's lists, kept literal so a
+# reviewer can read them. Two reviewed conventions:
+#
+# - `metadata.hardening_controls` names the catalogue controls the finding is attributed to; the
+#   opengrep adapter turns it into control_ids.
+# - `metadata.hardening_severity` may pin a severity above the level mapping (ERROR -> high);
+#   used only where the brief demands it (the unverified webhook is critical, not high).
+#
+# Limitations recorded here on purpose: opengrep has no file-level absence operator, so the
+# webhook rule excludes handlers whose covered function shape (function, async function, one- or
+# two-parameter arrow) assigns the verified event from constructEvent; a verification in an
+# uncovered shape or elsewhere in the file is not seen, so such handlers still fire (conservative).
+# The "OpenAI SDK in a 'use client' file" disjunct is covered through `dangerouslyAllowBrowser`,
+# the mechanically checkable half. The cookie rule judges session-named cookies by name; cookies
+# whose options live in a variable are not seen.
+rules:
+- id: hardening.taint-sql-injection
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  mode: taint
+  message: 'A database query is built from request-controlled data. Concatenating or interpolating a request value into SQL
+    is SQL injection: the value can change the statement. Use parameterised queries (placeholders) instead.'
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - DATA-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.query
+    - pattern: $REQ.query.$FIELD
+    - pattern: $REQ.body
+    - pattern: $REQ.body.$FIELD
+    - pattern: $REQ.params.$FIELD
+    - pattern: $REQ.nextUrl.searchParams
+    - pattern: $REQ.nextUrl.searchParams.get(...)
+    - pattern: (await $REQ.json())
+    - pattern: (await $REQ.formData()).get(...)
+    - patterns:
+      - pattern: $B.get(...)
+      - pattern-inside: |
+          $B = await $REQ.formData()
+          ...
+  pattern-sinks:
+  # A-15: the sink is any argument EXCEPT when the statement text is a string literal — the
+  # reviewed usage query("... id=$1", [req.query.id]) keeps the parameters out of the statement,
+  # however tainted they are. A non-literal text argument (concat, template, variable) is a sink.
+  # focus-metavariable was tried first and is broken on the pinned build for intermediate-variable
+  # flows (the corpus S08/S09 shapes stopped firing); the structural exclusion is the fix.
+  - patterns:
+    - pattern-either:
+      - pattern: $POOL.query(...)
+      - pattern: $CLIENT.query(...)
+      - pattern: $DB.execute(...)
+      - pattern: $SEQ.query(...)
+      - pattern: $KNX.raw(...)
+      - pattern: $PRISMA.$queryRawUnsafe(...)
+    - pattern-not: '$POOL.query("...", ...)'
+    - pattern-not: '$CLIENT.query("...", ...)'
+    - pattern-not: '$DB.execute("...", ...)'
+    - pattern-not: '$SEQ.query("...", ...)'
+    - pattern-not: '$KNX.raw("...", ...)'
+    - pattern-not: '$PRISMA.$queryRawUnsafe("...", ...)'
+- id: hardening.taint-sql-injection-python
+  languages:
+  - python
+  severity: ERROR
+  mode: taint
+  message: A cursor executes SQL built from request-controlled data. Interpolating a request value into SQL (f-strings or
+    % formatting) is SQL injection. Use parameter binding instead.
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - DATA-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.args
+    - pattern: $REQ.args.get(...)
+    - pattern: $REQ.form
+    - pattern: $REQ.form.get(...)
+    - pattern: $REQ.json()
+    - pattern: (await $REQ.json())
+  # A-16: any execute argument is the sink, so a query built into an assigned variable fires;
+  # A-15: a literal statement text with bound parameters is excluded — the parameters never
+  # reach the statement. An f-string or interpolated text is not a literal and stays a sink.
+  pattern-sinks:
+  - patterns:
+    - pattern: $CUR.execute($QUERY, ...)
+    - pattern-not: '$CUR.execute("...", ...)'
+- id: hardening.taint-xss-innerhtml
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  mode: taint
+  message: 'Request-controlled data reaches innerHTML, document.write, or dangerouslySetInnerHTML. Anything placed there runs
+    as markup and script in the page: this is cross-site scripting. Render text nodes or sanitise with a reviewed library
+    before inserting markup.'
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - CODE-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.query.$FIELD
+    - pattern: $REQ.body.$FIELD
+    - pattern: $REQ.body
+    - pattern: $REQ.params.$FIELD
+    - pattern: $REQ.nextUrl.searchParams.get(...)
+    - pattern: (await $REQ.json())
+  pattern-sinks:
+  - pattern-either:
+    - pattern: $E.innerHTML = $X
+    - pattern: $E.innerHTML += $X
+    - pattern: document.write($X)
+    - pattern: '<$TAG dangerouslySetInnerHTML={{ __html: $X }} />'
+- id: hardening.nonliteral-html-sink
+  languages:
+  - typescript
+  - javascript
+  severity: WARNING
+  message: 'A value that is not a plain string literal reaches an HTML sink (dangerouslySetInnerHTML, innerHTML, document.write).
+    Whatever computes it - a database field, an API reply, decoded markdown - ends up as markup in the page. Treat it as at
+    least a medium finding: sanitise with a reviewed library or render text nodes instead.'
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - CODE-01
+  patterns:
+  - pattern-either:
+    - pattern: '<$TAG dangerouslySetInnerHTML={{ __html: $X }} />'
+    - pattern: $E.innerHTML = $X
+    - pattern: $E.innerHTML += $X
+    - pattern: document.write($X)
+  - pattern-not: '<$TAG dangerouslySetInnerHTML={{ __html: "..." }} />'
+  - pattern-not: '<$TAG dangerouslySetInnerHTML={{ __html: ''...'' }} />'
+  - pattern-not: '<$TAG dangerouslySetInnerHTML={{ __html: `...` }} />'
+  - pattern-not: $E.innerHTML = "..."
+  - pattern-not: $E.innerHTML = '...'
+  - pattern-not: $E.innerHTML += "..."
+  - pattern-not: $E.innerHTML += '...'
+  - pattern-not: $E.innerHTML += `...`
+  - pattern-not: $E.innerHTML = `...`
+  - pattern-not: document.write("...")
+  - pattern-not: document.write('...')
+  - pattern-not: document.write(`...`)
+- id: hardening.taint-ssrf-fetch
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  mode: taint
+  message: 'A network request is made with a request-controlled URL. If the value can name any host, this is a server-side
+    request forgery path: the attacker chooses the destination. Validate the destination against a protocol and host allowlist
+    before fetching.'
+  metadata:
+    hardening_controls:
+    - WEB-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.query.$FIELD
+    - pattern: $REQ.query
+    - pattern: $REQ.body.$FIELD
+    - pattern: $REQ.params.$FIELD
+    - pattern: $REQ.nextUrl.searchParams.get(...)
+    - pattern: $REQ.nextUrl.searchParams
+    - pattern: (await $REQ.json())
+    - pattern: $REQ.url
+    - pattern: $REQ.params
+    - pattern: String($REQ.url)
+    - pattern: String($REQ.params.$FIELD)
+  pattern-sinks:
+  - pattern-either:
+    - pattern: fetch($X, ...)
+    - pattern: axios($X, ...)
+    - pattern: axios.$METHOD($X, ...)
+    - pattern: got($X, ...)
+    - pattern: http.request($X, ...)
+    - pattern: requests.get($X, ...)
+    - pattern: requests.post($X, ...)
+- id: hardening.taint-path-traversal
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  mode: taint
+  message: A file path is built from request-controlled data. A path like ../../etc/passwd escapes the intended directory
+    and reads arbitrary files (path traversal). Resolve against a fixed base, then verify the real path is still inside it
+    before reading.
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - CODE-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.query.$FIELD
+    - pattern: $REQ.params.$FIELD
+    - pattern: $REQ.body.$FIELD
+    - pattern: $REQ.nextUrl.searchParams.get(...)
+    - pattern: (await $REQ.json())
+  pattern-sinks:
+  - pattern-either:
+    - pattern: fs.readFileSync($X, ...)
+    - pattern: fs.readFile($X, ...)
+    - pattern: fs.createReadStream($X, ...)
+    - pattern: fs.writeFileSync($X, ...)
+    - pattern: $FS.readFile($X, ...)
+    - pattern: $FS.readFileSync($X, ...)
+    - pattern: $FS.createReadStream($X, ...)
+- id: hardening.taint-open-redirect
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  mode: taint
+  message: A redirect target comes from request-controlled data. An open redirect sends users to an attacker-chosen URL and
+    launders phishing links through your domain. Validate the target against an allowlist of relative paths or trusted origins.
+  metadata:
+    hardening_controls:
+    - WEB-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.query.$FIELD
+    - pattern: $REQ.body.$FIELD
+    - pattern: $REQ.nextUrl.searchParams.get(...)
+    - pattern: (await $REQ.json())
+  pattern-sinks:
+  - pattern-either:
+    - pattern: NextResponse.redirect($X, ...)
+    - pattern: $RES.redirect($X, ...)
+    - pattern: redirect($X)
+- id: hardening.taint-command-injection
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  mode: taint
+  message: 'A shell command is built from request-controlled data. Interpolated shell input is command injection: the value
+    can chain arbitrary commands. Avoid the shell entirely (execFile with an argument array), or validate against a strict
+    allowlist.'
+  metadata:
+    hardening_controls:
+    - CODE-01
+    - WEB-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.query.$FIELD
+    - pattern: $REQ.params.$FIELD
+    - pattern: $REQ.body.$FIELD
+    - pattern: $REQ.nextUrl.searchParams.get(...)
+    - pattern: (await $REQ.json())
+  pattern-sinks:
+  - pattern-either:
+    - pattern: exec($X)
+    - pattern: exec($X, ...)
+    - pattern: execSync($X)
+    - pattern: execSync($X, ...)
+    - pattern: $CP.exec($X, ...)
+    - pattern: $CP.execSync($X, ...)
+- id: hardening.taint-command-injection-python
+  languages:
+  - python
+  severity: ERROR
+  mode: taint
+  message: A subprocess runs a shell command built from request-controlled data (shell=True or an interpolated command string).
+    This is command injection. Pass an argument list and shell=False, or validate against a strict allowlist.
+  metadata:
+    hardening_controls:
+    - CODE-01
+    - WEB-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.args
+    - pattern: $REQ.args.get(...)
+    - pattern: $REQ.form.get(...)
+    - pattern: $REQ.json()
+    - pattern: (await $REQ.json())
+  pattern-sinks:
+  - pattern-either:
+    - pattern: subprocess.run(..., shell=True, ...)
+    - pattern: subprocess.call(..., shell=True, ...)
+    - pattern: subprocess.Popen($X, shell=True, ...)
+- id: hardening.weak-password-hash
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: 'A password is hashed with MD5 or SHA-1. These are broken for password storage: they are far too fast to brute-force.
+    Hash passwords with a memory-hard function (argon2, bcrypt, or scrypt) instead.'
+  metadata:
+    hardening_controls:
+    - AUTH-01
+  patterns:
+  - pattern-either:
+    - pattern: $C.createHash($ALG).update($P, ...)
+    - pattern: $C.createHash($ALG).update($P)
+    - pattern: hashlib.$ALG($P)
+  - metavariable-regex:
+      metavariable: $P
+      regex: (?i).*(password|passwd|pwd).*
+  - metavariable-regex:
+      metavariable: $ALG
+      regex: ^(md5|sha1|'md5'|'sha1'|"md5"|"sha1")$
+- id: hardening.jwt-none-alg
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: 'A JWT is signed or verified with algorithm "none", which removes the signature entirely: anyone can forge the
+    token. Sign with a real algorithm (HS256 or better) and pin the algorithm list on verify.'
+  metadata:
+    hardening_controls:
+    - AUTH-01
+    - WEB-01
+  pattern-either:
+  - pattern: '$JWT.sign($PAYLOAD, $SECRET, { ..., algorithm: ''none'', ... })'
+  - pattern: '$JWT.sign($PAYLOAD, $SECRET, { ..., algorithm: "none", ... })'
+  - pattern: '$JWT.verify($TOKEN, $SECRET, { ..., algorithms: [..., ''none'', ...], ... })'
+  - pattern: '$JWT.verify($TOKEN, $SECRET, { ..., algorithms: [..., "none", ...], ... })'
+- id: hardening.jwt-hardcoded-secret
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: 'A JWT is signed or verified with a string literal as the secret. A literal ships in the source and the repository:
+    anyone who reads the code can forge valid tokens. Load the secret from the environment and rotate it.'
+  metadata:
+    hardening_controls:
+    - AUTH-01
+    - SEC-01
+  pattern-either:
+  - pattern: $JWT.sign($PAYLOAD, $SECRET, ...)
+  - pattern: $JWT.verify($TOKEN, $SECRET, ...)
+  metavariable-regex:
+    metavariable: $SECRET
+    regex: ^['"].*['"]$
+- id: hardening.insecure-cookie
+  languages:
+  - typescript
+  - javascript
+  severity: WARNING
+  message: A session cookie is set without httpOnly or without secure. A cookie without httpOnly is readable by any injected
+    script; without secure it also travels over plain HTTP. Set both, and prefer SameSite=strict or lax.
+  metadata:
+    hardening_controls:
+    - AUTH-02
+    - WEB-01
+  pattern-either:
+  - pattern: '$RES.cookies.set($NAME, $VALUE, { ..., httpOnly: false, ... })'
+  - pattern: '$RES.cookies.set($NAME, $VALUE, { ..., secure: false, ... })'
+  - pattern: '$RES.cookie($NAME, $VALUE, { ..., httpOnly: false, ... })'
+  - pattern: '$RES.cookie($NAME, $VALUE, { ..., secure: false, ... })'
+- id: hardening.cors-wildcard-credentials
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: A wildcard origin is configured together with Allow-Credentials. Browsers refuse this exact combination, so responses
+    are not readable cross-origin through it alone - it is a broken configuration that usually accompanies the reflected-origin
+    exposure that does grant access. List the trusted origins explicitly and keep credentials opt-in per origin.
+  metadata:
+    hardening_controls:
+    - WEB-01
+  pattern-either:
+  - pattern: 'cors({ ..., origin: true, credentials: true, ... })'
+  - pattern: 'cors({ ..., origin: ''*'', credentials: true, ... })'
+  - pattern: 'cors({ ..., origin: "*", credentials: true, ... })'
+  - pattern: '$RES.set({ ..., ''Access-Control-Allow-Origin'': ''*'', ''Access-Control-Allow-Credentials'': ''true'', ...
+      })'
+- id: hardening.weak-random-token
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: 'Math.random() feeds a security value (a token, reset code, OTP, or session identifier). Math.random is not a cryptographic
+    generator: its output is predictable. Use crypto.randomBytes or crypto.randomUUID instead.'
+  metadata:
+    hardening_controls:
+    - AUTH-01
+    - CODE-01
+  patterns:
+  - pattern-either:
+    - pattern: $X = Math.random()
+    - pattern: $X = Math.random().$M(...)
+    - pattern: $X = Math.random().$M(...).$N(...)
+  - metavariable-regex:
+      metavariable: $X
+      regex: (?i)(token|secret|otp|passwd|password|reset|nonce|session|jwt|api_?key).*
+- id: hardening.logging-secret-value
+  languages:
+  - typescript
+  - javascript
+  severity: WARNING
+  message: A console or logger call receives a variable named like a credential (password, token, secret, API key). Logging
+    it writes the credential to logs where it outlives the request. Log a marker instead and keep the value out of the log
+    line.
+  metadata:
+    hardening_controls:
+    - SEC-01
+    - CODE-01
+  patterns:
+  - pattern-either:
+    - pattern: console.$METHOD(..., $V, ...)
+    - pattern: $LOG.$METHOD(..., $V, ...)
+  - metavariable-regex:
+      metavariable: $V
+      regex: ^(?i)(password|passwd|pwd|token|secret|api_?key|apikey)$
+  - metavariable-regex:
+      metavariable: $METHOD
+      regex: ^(log|info|warn|error|debug|trace)$
+- id: hardening.client-ai-sdk
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: An AI SDK client is constructed with dangerouslyAllowBrowser (or equivalent browser-side initialisation). Browser
+    code ships to every visitor, so the embedded key is public and the account pays for every request. Proxy AI calls through
+    a server route instead.
+  metadata:
+    hardening_controls:
+    - SEC-02
+    - CODE-01
+  pattern-either:
+  - pattern: 'new OpenAI({ ..., dangerouslyAllowBrowser: true, ... })'
+  - pattern: 'new Anthropic({ ..., dangerouslyAllowBrowser: true, ... })'
+- id: hardening.dangerous-next-config
+  languages:
+  - javascript
+  - typescript
+  severity: WARNING
+  message: A Next.js build safety rail is switched off. productionBrowserSourceMaps publishes the original source to every
+    visitor; typescript.ignoreBuildErrors and eslint.ignoreDuringBuilds ship code the type checker and linter never saw. Fix
+    the errors instead of disabling the checks.
+  metadata:
+    hardening_controls:
+    - CODE-01
+    - DEPLOY-01
+  pattern-either:
+  - pattern: 'productionBrowserSourceMaps: true'
+  - pattern: 'typescript: { ..., ignoreBuildErrors: true, ... }'
+  - pattern: 'eslint: { ..., ignoreDuringBuilds: true, ... }'
+- id: hardening.stripe-webhook-unverified
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: A Stripe webhook event is handled without verifying its signature. Anyone who can reach the endpoint can POST a
+    fake event - for example checkout.session.completed - and grant themselves an entitlement. Verify every event with stripe.webhooks.constructEvent(body,
+    signature, secret) before reading it.
+  metadata:
+    hardening_controls:
+    - BIZ-01
+    hardening_severity: critical
+  patterns:
+  - pattern-either:
+    - pattern: '''checkout.session.completed'''
+    - pattern: '''payment_intent.succeeded'''
+    - pattern: '''invoice.paid'''
+  - pattern-not-inside: stripe.webhooks.constructEvent(...)
+  - pattern-not-inside: $STRIPE.webhooks.constructEvent(...)
+  # A-15: a handler that verifies the signature is silent — the event-type literal sits in a
+  # function that assigns the verified event. Uncovered function shapes still fire (conservative).
+  - pattern-not-inside: |
+      function $F(...) {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+  - pattern-not-inside: |
+      async function $F(...) {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+  - pattern-not-inside: |
+      async ($REQ, $RES) => {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+  - pattern-not-inside: |
+      async ($REQ) => {
+        ...
+        $EVENT = $STRIPE.webhooks.constructEvent(...);
+        ...
+      }
+- id: hardening.path-traversal-concat
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: A filesystem read is built by concatenating or joining a value into a path. A value like ../../etc/passwd escapes
+    the intended directory and reads arbitrary files (path traversal). Resolve against a fixed base, then verify the real
+    path is still inside it.
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - CODE-01
+  # A-15: a join of two fixed strings is not a traversal. The joined value must be a
+  # non-literal (variable, call result, interpolation) for this rule to fire; request-tainted
+  # paths are additionally covered by hardening.taint-path-traversal.
+  patterns:
+  - pattern-either:
+    - pattern: fs.readFileSync($BASE + $X, ...)
+    - pattern: fs.readFile($BASE + $X, ...)
+    - pattern: fs.createReadStream($BASE + $X)
+    - pattern: fs.writeFileSync($BASE + $X, ...)
+    - pattern: fs.readFileSync(path.join($BASE, $X), ...)
+    - pattern: fs.readFile(path.join($BASE, $X), ...)
+    - pattern: $FS.readFileSync($BASE + $X, ...)
+  - metavariable-regex:
+      metavariable: $X
+      regex: ^(?!['"]).*
+- id: hardening.taint-ssrf-python
+  languages:
+  - python
+  severity: ERROR
+  mode: taint
+  message: A network request is made with a request-controlled URL (requests with a URL from request data). The request then
+    goes wherever the caller wants - internal metadata services, admin endpoints behind the firewall, cloud credentials. This
+    is server-side request forgery. Validate the destination against a protocol and host allowlist before fetching.
+  metadata:
+    hardening_controls:
+    - WEB-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.args
+    - pattern: $REQ.args.get(...)
+    - pattern: $REQ.form
+    - pattern: $REQ.form.get(...)
+    - pattern: $REQ.json()
+  pattern-sinks:
+  - pattern-either:
+    - pattern: requests.get($X, ...)
+    - pattern: requests.post($X, ...)
+    - pattern: requests.put($X, ...)
+    - pattern: requests.delete($X, ...)
+    - pattern: requests.head($X, ...)
+    - pattern: requests.request($M, $X, ...)
+- id: hardening.taint-path-traversal-python
+  languages:
+  - python
+  severity: ERROR
+  mode: taint
+  message: A file path is built from request-controlled data. A path like ../../etc/passwd escapes the intended directory and
+    reads arbitrary files (path traversal). Resolve against a fixed base, then verify the real path is still inside it.
+  metadata:
+    hardening_controls:
+    - WEB-01
+    - CODE-01
+  pattern-sources:
+  - pattern-either:
+    - pattern: $REQ.args
+    - pattern: $REQ.args.get(...)
+    - pattern: $REQ.form
+    - pattern: $REQ.form.get(...)
+    - pattern: $REQ.json()
+  pattern-sinks:
+  - pattern-either:
+    - pattern: send_file($X)
+    - pattern: send_file($X, ...)
+    - pattern: open($X)
+    - pattern: open($X, ...)
+- id: hardening.cookie-missing-attributes
+  languages:
+  - typescript
+  - javascript
+  severity: WARNING
+  message: A session cookie is set without httpOnly. A cookie without httpOnly is readable by any injected script, and session
+    theft is the outcome. Set httpOnly (and secure) explicitly on every session cookie.
+  metadata:
+    hardening_controls:
+    - AUTH-02
+    - WEB-01
+  patterns:
+  - pattern-either:
+    - patterns:
+      - pattern-either:
+        - pattern: $RES.cookies.set($NAME, $VALUE, $OPTS)
+        - pattern: $RES.cookie($NAME, $VALUE, $OPTS)
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)['\"]?(session|sess|sid|auth|token|jwt|refresh)
+      - metavariable-pattern:
+          metavariable: $OPTS
+          patterns:
+          - pattern: '{ ... }'
+          - pattern-not: '{ ..., httpOnly: $H, ... }'
+    - patterns:
+      - pattern-either:
+        - pattern: $RES.cookies.set($NAME, $VALUE)
+        - pattern: $RES.cookie($NAME, $VALUE)
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)['\"]?(session|sess|sid|auth|token|jwt|refresh)
+- id: hardening.cors-origin-reflection
+  languages:
+  - typescript
+  - javascript
+  severity: ERROR
+  message: The response copies the request Origin header into Access-Control-Allow-Origin. Every origin is then allowed together
+    with credentials, so any site the visitor opens can read authenticated responses from this API. Reflect the origin only
+    when it is on a reviewed allowlist.
+  metadata:
+    hardening_controls:
+    - WEB-01
+  pattern-either:
+  - pattern: $RES.set('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.setHeader('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.header('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.append('Access-Control-Allow-Origin', $REQ.headers.origin)
+  - pattern: $RES.set('Access-Control-Allow-Origin', $REQ.headers['origin'])
+  - pattern: $RES.setHeader('Access-Control-Allow-Origin', $REQ.headers['origin'])
+  - pattern: '''Access-Control-Allow-Origin'': $REQ.headers.origin'
+  - pattern: '"Access-Control-Allow-Origin": $REQ.headers.origin'

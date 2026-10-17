@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { sha256Hex } from './digest.js';
 
@@ -9,6 +9,15 @@ import { sha256Hex } from './digest.js';
  * happens to parse is worse than a missing one.
  */
 export function writeAtomic(file: string, contents: string): { readonly path: string; readonly digest: string } {
+  // R1-02: a destination that is itself a symlink would carry the write outside the checked
+  // output root; refuse rather than follow it.
+  try {
+    if (lstatSync(file).isSymbolicLink()) {
+      throw new Error(`refusing to write through a symlink: ${file}`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   mkdirSync(dirname(file), { recursive: true });
   const temporary = `${file}.tmp-${process.pid}-${Date.now().toString(36)}`;
   try {
